@@ -3,10 +3,9 @@ gcc=riscv64-linux-gnu-gcc
 qemu=qemu-riscv64
 
 # 声明一个函数
+# assert 期待值 输入值
 assert() {
-  # 程序运行的 期待值 为参数1
   expected="$1"
-  # 输入值 为参数2
   input="$2"
 
   # 运行程序，传入期待值，将生成结果写入tmp.s汇编文件。
@@ -32,7 +31,6 @@ assert() {
   fi
 }
 
-# assert 期待值 输入值
 # [1] 返回指定数值
 #for ((i=0; i<=1000; i++)); do
 #  assert $i $i
@@ -40,6 +38,10 @@ assert() {
 assert 11 11
 assert 45 45
 assert 14 14
+
+# [2] 支持+ -运算符
+assert 34 '12-34+56'
+
 # 如果运行正常未提前退出，程序将显示OK
 echo OK
 
