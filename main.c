@@ -48,7 +48,6 @@ int main(int Argc, char **Argv) {
     printf("  addi a0, a0, -%d\n", getNumber(Tok));
     Tok = Tok->Next;
   }
-
   printf("  ret\n");
   return 0;
 }
