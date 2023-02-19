@@ -10,8 +10,7 @@
 extern Token* tokenize(char* P);
 
 extern Node *expr(Token **Rest, Token *Tok);
-extern Node *mul(Token **Rest, Token *Tok);
-extern Node *primary(Token **Rest, Token *Tok);
+
 extern void genExpr(Node *Nd);
 
 

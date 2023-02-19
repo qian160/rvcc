@@ -25,6 +25,7 @@ typedef enum {
     ND_SUB, // -
     ND_MUL, // *
     ND_DIV, // /
+    ND_NEG, // 负号-
     ND_NUM, // 整形
 } NodeKind;
 

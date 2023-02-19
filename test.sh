@@ -54,6 +54,13 @@ assert 41 ' 12 + 34 - 5 '
 assert 47 '5+6*7'
 assert 15 '5*(9-6)'
 assert 17 '1-8/(2*2)+3*6'
+assert  7 '3*5-2*4'
+
+# [6] 支持一元运算的+ -
+assert 10 '-10+20'
+assert 10 '- -10'
+assert 10 '- - +10'
+assert 48 '------12*+++++----++++++++++4'
 
 # 如果运行正常未提前退出，程序将显示OK
 printf "$COLOR_GREEN PASS! $COLOR_NONE\n"
