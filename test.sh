@@ -2,6 +2,10 @@
 gcc=riscv64-linux-gnu-gcc
 qemu=qemu-riscv64
 
+COLOR_RED="\033[1;31m"
+COLOR_GREEN="\033[1;32m"
+COLOR_NONE="\033[0m"
+
 # 声明一个函数
 # assert 期待值 输入值
 assert() {
@@ -27,6 +31,7 @@ assert() {
     echo "$input => $actual"
   else
     echo "$input => $expected expected, but got $actual"
+    printf "$COLOR_RED FAIL! $COLOR_NONE\n"
     exit 1
   fi
 }
@@ -45,6 +50,11 @@ assert 34 '12-34+56'
 # [3] 支持空格
 assert 41 ' 12 + 34 - 5 '
 
+# [5] 支持* / ()运算符
+assert 47 '5+6*7'
+assert 15 '5*(9-6)'
+assert 17 '1-8/(2*2)+3*6'
+
 # 如果运行正常未提前退出，程序将显示OK
-echo OK
+printf "$COLOR_GREEN PASS! $COLOR_NONE\n"
 

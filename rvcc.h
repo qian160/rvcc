@@ -1,22 +1,6 @@
 #include<stdarg.h>
 #include<stdio.h>
-
-// 输出错误信息
-// Fmt为传入的字符串， ... 为可变参数，表示Fmt后面所有的参数
-//__attribute__((unused))
-//static void error(char *Fmt, ...) {
-//    va_list VA;
-//    // VA获取Fmt后面的所有参数
-//    va_start(VA, Fmt);
-//    // vfprintf可以输出va_list类型的参数
-//    vfprintf(stderr, Fmt, VA);
-//    // 在结尾加上一个换行符
-//    fprintf(stderr, "\n");
-//    // 清除VA
-//    va_end(VA);
-//    // 终止程序
-//    exit(1);
-//}
+// put some data structures and useful macros here
 
 // 为每个终结符(token)都设置种类来表示
 typedef enum {
@@ -35,6 +19,23 @@ struct Token {
     int Len;        // 长度
 };
 
+// AST的节点种类
+typedef enum {
+    ND_ADD, // +
+    ND_SUB, // -
+    ND_MUL, // *
+    ND_DIV, // /
+    ND_NUM, // 整形
+} NodeKind;
+
+// AST中二叉树节点
+typedef struct Node Node;
+struct Node {
+    NodeKind Kind; // 节点种类
+    Node *LHS;     // 左部，left-hand side
+    Node *RHS;     // 右部，right-hand side
+    int Val;       // 存储ND_NUM种类的值
+};
 
 #define error(format, ...) \
     do{ \
@@ -43,3 +44,11 @@ struct Token {
         exit(1);\
     }\
     while(0);
+
+#define Assert(cond, fmt, ...) \
+    do{\
+        if(!(cond)) error(fmt, ## __VA_ARGS__);\
+    }\
+    while(0);
+
+#define println(format, ...) printf(format "\n", ## __VA_ARGS__)
