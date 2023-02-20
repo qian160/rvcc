@@ -17,6 +17,7 @@
 
 // 为每个终结符(token)都设置种类来表示
 typedef enum {
+    TK_IDENT, // 标记符，可以为变量名、函数名等
     TK_PUNCT, // 操作符如： + -
     TK_NUM,   // 数字
     TK_EOF,   // 文件终止符，即文件的最后
@@ -48,6 +49,8 @@ typedef enum {
     ND_LT,          // <
     ND_LE,          // <=
     ND_EXPR_STMT,   // 表达式语句
+    ND_VAR,         // 变量
+    ND_ASSIGN,      // 赋值
     ND_NUM,         // 整形
 } NodeKind;
 
