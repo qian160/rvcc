@@ -5,6 +5,22 @@
 #include<stdarg.h>
 #include<stdbool.h>
 #include<string.h>
+/*
+// 使用POSIX.1标准
+// 使用了strndup函数:
+    char *c = "0123456789";
+    char *p = strndup(c, 6);
+    // p = "012345";
+
+*/
+#define _POSIX_C_SOURCE 200809L
+
+typedef struct Token Token;
+typedef struct Node Node;
+typedef struct Obj Obj;
+typedef struct Function Function;
+typedef struct Node Node;
+
 // put some data structures and useful macros here
 
 //
@@ -24,7 +40,6 @@ typedef enum {
 } TokenKind;
 
 // 终结符结构体
-typedef struct Token Token;
 struct Token {
     TokenKind Kind; // 种类
     Token *Next;    // 指向下一终结符
@@ -36,6 +51,21 @@ struct Token {
 //
 // 生成AST（抽象语法树），语法解析
 //
+
+// 本地变量
+// connected by a linked list
+struct Obj {
+    Obj *Next;  // 指向下一对象
+    char *Name; // 变量名
+    int Offset; // fp的偏移量
+};
+
+// 函数. currently the only function is "main"
+struct Function {
+    Node *Body;    // 函数体, made up by statements.
+    Obj *Locals;   // 本地变量
+    int StackSize; // 栈大小
+};
 
 // AST的节点种类
 typedef enum {
@@ -55,15 +85,16 @@ typedef enum {
 } NodeKind;
 
 // AST中二叉树节点
-typedef struct Node Node;
 struct Node {
     NodeKind Kind; // 节点种类
     Node *Next;    // 下一节点，指代下一语句
     Node *LHS;     // 左部，left-hand side
     Node *RHS;     // 右部，right-hand side
-    char Name;     // 存储ND_VAR的字符串
+    Obj * Var;     // 存储ND_VAR的字符串
     int Val;       // 存储ND_NUM种类的值
 };
+
+
 
 // functions
 
@@ -73,11 +104,11 @@ Token* tokenize(char* P);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
-Node *parse(Token *Tok);
+Function *parse(Token *Tok);
 
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
-void codegen(Node *Nd);
+void codegen(Function *Prog);
 
 
 #define error(format, ...) \

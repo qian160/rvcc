@@ -26,6 +26,19 @@ static bool startsWith(char *Str, char *SubStr) {
     return strncmp(Str, SubStr, strlen(SubStr)) == 0;
 }
 
+// 判断标记符的首字母规则
+// [a-zA-Z_]
+static bool isIdent1(char C) {
+    // a-z与A-Z在ASCII中不相连，所以需要分别判断
+    return ('a' <= C && C <= 'z') || ('A' <= C && C <= 'Z') || C == '_';
+}
+
+// 判断标记符的非首字母的规则
+// [a-zA-Z0-9_]
+static bool isIdent2(char C) { 
+    return isIdent1(C) || ('0' <= C && C <= '9');
+}
+
 // 读取操作符, return the length
 static int readPunct(char *Ptr) {
     // 判断2字节的操作符
@@ -35,6 +48,24 @@ static int readPunct(char *Ptr) {
 
     // 判断1字节的操作符
     return ispunct(*Ptr) ? 1 : 0;
+}
+
+__attribute__((unused))
+static void print_one(Token *tok) {
+    char * s = tok->Loc;
+    while (tok -> Len --)
+        printf("%c", *s++);
+    println("");
+}
+
+// arg 'tok' is the head of linked list. debug use
+__attribute__((unused))
+static void print_tokens(Token * tok) {
+    while (tok)
+    {
+        print_one(tok);
+        tok = tok -> Next;
+    }
 }
 
 // 终结符解析. try to generate a list of tokens from P
@@ -62,13 +93,18 @@ Token *tokenize(char *P) {
             Cur->Len = P - OldPtr;
             continue;
         }
+
         // 解析标记符
-        if ('a' <= *P && *P <= 'z') {
-            Cur->Next = newToken(TK_IDENT, P, P + 1);
+        // [a-zA-Z_][a-zA-Z0-9_]*
+        if (isIdent1(*P)) {
+            char *Start = P;
+            do {
+                ++P;
+            } while (isIdent2(*P));
+            Cur->Next = newToken(TK_IDENT, Start, P);
             Cur = Cur->Next;
-            ++P;
             continue;
-        }       
+        }
         // 解析操作符
         int PunctLen = readPunct(P);
         if (PunctLen) {

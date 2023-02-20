@@ -3,6 +3,68 @@
 #include<stdlib.h>
 #include<string.h>
 
+// 在解析时，全部的变量实例都被累加到这个列表里。
+Obj *Locals;
+
+/*
+    input = "1+2; 3-4;"
+    add a field 'next' to ast-tree node (下一语句, expr_stmt). see parse()
+    (TOK)
+    head -> EXPR_STMT   -> EXPR_STMT
+                |               |   (looks like straight, but in fact lhs. note: a node of )
+                |               |   (type 'EXPR_STMT' is also unary. see function exprStmt())
+               '+'             '-'
+               / \             / \
+              /   \           /   \
+            1      2         3     4
+
+*/                                                                    //e.g.
+// note: a single number can match almost all the cases.
+// 越往下优先级越高
+
+// program = stmt*                                                      a=3*6-7; b=a+3;b; | 6;
+// stmt = exprStmt
+// exprStmt = expr ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
+
+// expr = assign
+// assign = equality ("=" assign)?                                      a = (3*6-7) | 4  note: if it's the assign case, then its lhs must be a lvalue
+// equality = relational ("==" relational | "!=" relational)*           3*6==18 | 
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*6+5 > 2*2+8) | 6
+// add = mul ("+" mul | "-" mul)*                                       -4*6 + 4*4 | 6
+// mul = unary ("*" unary | "/" unary)*                                 -(3*4) * 5 | -(5*6) | 6
+// unary = ("+" | "-") unary | primary                                  -(3+5) | -4 | +4 | 6
+// primary = "(" expr ")" | num | ident                                 (1+8*5 / 6 != 2) | 6 | a
+static Node *exprStmt(Token **Rest, Token *Tok);
+static Node *expr(Token **Rest, Token *Tok);
+static Node *assign(Token **Rest, Token *Tok);
+static Node *equality(Token **Rest, Token *Tok);
+static Node *relational(Token **Rest, Token *Tok);
+static Node *add(Token **Rest, Token *Tok);
+static Node *mul(Token **Rest, Token *Tok);
+static Node *unary(Token **Rest, Token *Tok);
+static Node *primary(Token **Rest, Token *Tok);
+
+// 通过名称，查找一个本地变量
+static Obj *findVar(Token *Tok) {
+    // 查找Locals变量中是否存在同名变量
+    for (Obj *Var = Locals; Var; Var = Var->Next)
+        // 判断变量名是否和终结符名长度一致，然后逐字比较。
+        if (strlen(Var->Name) == Tok->Len &&
+            !strncmp(Tok->Loc, Var->Name, Tok->Len))
+        return Var;
+    return NULL;
+}
+
+// 在链表中新增一个变量. insert from head
+static Obj *newLVar(char *Name) {
+    Obj *Var = calloc(1, sizeof(Obj));
+    Var->Name = Name;
+    // 将变量插入头部
+    Var->Next = Locals;
+    Locals = Var;
+    return Var;
+}
+
 
 // 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
 bool equal(Token *Tok, char *Str) {
@@ -52,36 +114,14 @@ static Node *newNum(int Val) {
 }
 
 // 新变量
-static Node *newVarNode(char Name) {
+static Node *newVarNode(Obj* Var) {
     Node *Nd = newNode(ND_VAR);
-    Nd->Name = Name;
+    Nd->Var = Var;
     return Nd;
 }
 
-
-// program = stmt*
-// stmt = exprStmt
-// exprStmt = expr ";"
-// expr = assign
-// assign = equality ("=" assign)?
-// equality = relational ("==" relational | "!=" relational)*
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-// add = mul ("+" mul | "-" mul)*
-// mul = unary ("*" unary | "/" unary)*
-// unary = ("+" | "-") unary | primary
-// primary = "(" expr ")" | num | ident
-static Node *exprStmt(Token **Rest, Token *Tok);
-static Node *expr(Token **Rest, Token *Tok);
-static Node *assign(Token **Rest, Token *Tok);
-static Node *equality(Token **Rest, Token *Tok);
-static Node *relational(Token **Rest, Token *Tok);
-static Node *add(Token **Rest, Token *Tok);
-static Node *mul(Token **Rest, Token *Tok);
-static Node *unary(Token **Rest, Token *Tok);
-static Node *primary(Token **Rest, Token *Tok);
-
 // 解析语句
-// stmt = exprStmt
+// stmt = exprStmt = expr ";"
 static Node *stmt(Token **Rest, Token *Tok) { 
     return exprStmt(Rest, Tok); 
 }
@@ -263,9 +303,14 @@ static Node *primary(Token **Rest, Token *Tok) {
 
     // ident
     if (Tok->Kind == TK_IDENT) {
-        Node *Nd = newVarNode(*Tok->Loc);
+        // 查找变量
+        Obj *Var = findVar(Tok);
+        // 如果变量不存在，就在链表中新增一个变量
+        if (!Var)
+            // strndup复制N个字符
+            Var = newLVar(strndup(Tok->Loc, Tok->Len));
         *Rest = Tok->Next;
-        return Nd;
+        return newVarNode(Var);
     }
 
 
@@ -275,7 +320,7 @@ static Node *primary(Token **Rest, Token *Tok) {
 
 // 语法解析入口函数
 // program = stmt*
-Node *parse(Token *Tok) {
+Function *parse(Token *Tok) {
     // 这里使用了和词法分析类似的单向链表结构
     Node Head = {};
     Node *Cur = &Head;
@@ -284,5 +329,10 @@ Node *parse(Token *Tok) {
         Cur->Next = stmt(&Tok, Tok);
         Cur = Cur->Next;
     }
-    return Head.Next;
+
+    // 函数体存储语句的AST，Locals存储变量
+    Function *Prog = calloc(1, sizeof(Function));
+    Prog->Body = Head.Next;
+    Prog->Locals = Locals;
+    return Prog;
 }

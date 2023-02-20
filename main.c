@@ -10,9 +10,9 @@ int main(int Argc, char **Argv) {
     Token *Tok = tokenize(Argv[1]);
 
     // 解析终结符流
-    Node *Node = parse(Tok);
+    Function *Prog = parse(Tok);
 
-    codegen(Node);
+    codegen(Prog);
 
     return 0;
 }

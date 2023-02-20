@@ -2,14 +2,11 @@
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
 # 指定C编译器，来构建项目
 CC=gcc
-RCC=riscv64-linux-gnu-gcc
 # C源代码文件，表示所有的.c结尾的文件
 SRCS=$(wildcard *.c)
 # C文件编译生成的未链接的可重定位文件，将所有.c文件替换为同名的.o结尾的文件名
 OBJS=$(SRCS:.c=.o)
 DEPS=$(SRCS:.c=.d)
-
-QEMU=qemu-riscv64
 
 # rvcc标签，表示如何构建最终的二进制文件，依赖于所有的.o文件
 # $@表示目标文件，此处为rvcc，$^表示依赖文件，此处为$(OBJS)
@@ -23,13 +20,15 @@ $(OBJS): rvcc.h
 	@$(CC) -c $*.c
 test:rvcc
 	@./test.sh
+count:
+	@ls | grep "\.[ch]" | xargs cat | wc -l
 # 清理标签，清理所有非源代码文件
 clean:
 	-rm -rf rvcc tmp* *.d $(TESTS) test/*.s test/*.exe stage2/ thirdparty/
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
-.PHONY: test clean 
+.PHONY: test clean count
 
 -include $(DEPS)
 %.d: %.c	# add .d file to the dependancy list

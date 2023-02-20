@@ -1,12 +1,17 @@
 #include "rvcc.h"
 
-
 //
 // 代码生成
 //
 
 // 记录栈深度
 static int Depth;
+
+// 对齐到Align的整数倍
+// (0,Align]返回Align
+static int alignTo(int N, int Align) {
+  return (N + Align - 1) / Align * Align;
+}
 
 // 压栈，将结果临时压入栈中备用
 // sp为栈指针，栈反向向下增长，64位下，8个字节为一个单位，所以sp-8
@@ -29,13 +34,26 @@ static void pop(char *Reg) {
 // 如果报错，说明节点不在内存中
 static void genAddr(Node *Nd) {
     if (Nd->Kind == ND_VAR) {
-        // 偏移量=是两个字母在ASCII码表中的距离加1后乘以8，*8表示每个变量需要八个字节单位的内存
-        int Offset = (Nd->Name - 'a' + 1) * 8;
-        printf("  addi a0, fp, %d\n", -Offset);
+        // 偏移量是相对于fp的
+        printf("  addi a0, fp, %d\n", Nd->Var->Offset);
         return;
     }
 
     error("not an lvalue");
+}
+
+// 根据变量的链表计算出偏移量
+static void assignLVarOffsets(Function *Prog) {
+    int Offset = 0;
+    // 读取所有变量
+    for (Obj *Var = Prog->Locals; Var; Var = Var->Next) {
+        // 每个变量分配8字节
+        Offset += 8;
+        // 为每个变量赋一个偏移量，或者说是栈中地址
+        Var->Offset = -Offset;
+    }
+    // 将栈对齐到16字节
+    Prog->StackSize = alignTo(Offset, 16);
 }
 
 // sementics: print the asm from an ast whose root node is `Nd`
@@ -66,7 +84,7 @@ void genExpr(Node *Nd) {
             // 计算出变量的地址，然后存入a0
             genAddr(Nd);
             // 访问a0地址中存储的数据，存入到a0当中
-            printf("  ld a0, 0(a0)\n");
+            println("  ld a0, 0(a0)");
             return;
         // 赋值
         case ND_ASSIGN:
@@ -76,7 +94,7 @@ void genExpr(Node *Nd) {
             // 右部是右值，为表达式的值
             genExpr(Nd->RHS);
             pop("a1");
-            printf("  sd a0, 0(a1)\n");
+            println("  sd a0, 0(a1)");
             return;
         default:
             break;
@@ -146,42 +164,49 @@ static void genStmt(Node *Nd) {
 
     // 栈布局
     //-------------------------------// sp
-    //              fp                  fp = sp-8
-    //-------------------------------// fp
-    //              'a'                 fp-8
-    //              'b'                 fp-16
-    //              ...
-    //              'z'                 fp-208
-    //-------------------------------// sp=sp-8-208
+    //              fp
+    //-------------------------------// fp = sp-8
+    //             变量
+    //-------------------------------// sp = sp-8-StackSize
     //           表达式计算
     //-------------------------------//
 
+static void prologue() {
+
+}
+
+static void epilogue() {
+
+}
+
 // 代码生成入口函数，包含代码块的基础信息
-void codegen(Node *Nd) {
-    printf("  .globl main\n");
-    printf("main:\n");
+void codegen(Function * Prog) {
+    assignLVarOffsets(Prog);
+    println("  .globl main");
+    println("main:");
 
     // Prologue, 前言
     // 将fp压入栈中，保存fp的值
-    printf("  addi sp, sp, -8\n");
-    printf("  sd fp, 0(sp)\n");
+    println("  addi sp, sp, -8");
+    println("  sd fp, 0(sp)");
     // 将sp写入fp
-    printf("  mv fp, sp\n");
-    // 26个字母*8字节=208字节，栈腾出208字节的空间
-    printf("  addi sp, sp, -208\n");
+    println("  mv fp, sp");
+    // 偏移量为实际变量所用的栈大小
+    printf("  addi sp, sp, -%d\n", Prog->StackSize);
 
     // 循环遍历所有的语句
-    for (Node *N = Nd; N; N = N->Next) {
+    for (Node *N = Prog -> Body; N; N = N->Next) {
         genStmt(N);
         Assert(Depth == 0, "bad stack depth: %d", Depth);
     }
 
     // Epilogue，后语
     // 将fp的值改写回sp
-    printf("  mv sp, fp\n");
+    println("  mv sp, fp");
     // 将最早fp保存的值弹栈，恢复fp。
-    printf("  ld fp, 0(sp)\n");
-    printf("  addi sp, sp, 8\n");
+    println("  ld fp, 0(sp)");
+    println("  addi sp, sp, 8");
+
     // 返回
-    printf("  ret\n");
+    println("  ret");
 }
