@@ -1,8 +1,7 @@
-#include<stdbool.h>
-#include<string.h>
-#include<stdlib.h>
-#include<ctype.h>
 #include"rvcc.h"
+#include<stdbool.h>
+#include<stdlib.h>
+#include<string.h>
 
 // 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
 bool equal(Token *Tok, char *Str) {
@@ -16,65 +15,6 @@ bool equal(Token *Tok, char *Str) {
 Token *skip(Token *Tok, char *Str) {
     Assert(equal(Tok, Str), "expect '%s'", Str);
     return Tok->Next;
-}
-
-// 返回TK_NUM的值
-int getNumber(Token *Tok) {
-    Assert(Tok -> Kind == TK_NUM, "expect a number");
-    return Tok->Val;
-}
-
-// 生成新的Token
-Token *newToken(TokenKind Kind, char *Start, char *End) {
-    // 分配1个Token的内存空间
-    Token *Tok = calloc(1, sizeof(Token));
-    Tok->Kind = Kind;
-    Tok->Loc = Start;
-    Tok->Len = End - Start;
-    return Tok;
-}
-
-// 终结符解析. try to generate a list of tokens from P
-// (head) -> '1' -> '+' -> '2' -> '-' -> '10'
-Token *tokenize(char *P) {
-    Token Head = {};
-    Token *Cur = &Head;
-
-    while (*P) {
-        // 跳过所有空白符如：空格、回车
-        if (isspace(*P)) {
-            ++P;
-            continue;
-        }
-        // 解析数字
-        if (isdigit(*P)) {
-            // 初始化，类似于C++的构造函数
-            // 我们不使用Head来存储信息，仅用来表示链表入口，这样每次都是存储在Cur->Next
-            // 否则下述操作将使第一个Token的地址不在Head中。
-            Cur->Next = newToken(TK_NUM, P, P);
-            // 指针前进
-            Cur = Cur->Next;
-            const char *OldPtr = P;
-            Cur->Val = strtoul(P, &P, 10);
-            Cur->Len = P - OldPtr;
-            continue;
-        }
-        // 解析操作符
-        if (ispunct(*P)) {
-            // 操作符长度都为1
-            Cur->Next = newToken(TK_PUNCT, P, P + 1);
-            Cur = Cur->Next;
-            ++P;
-            continue;
-        }
-
-        // 处理无法识别的字符
-        error("invalid token: %c", *P);
-    }
-    // 解析结束，增加一个EOF，表示终止符。
-    Cur->Next = newToken(TK_EOF, P, P);
-    // Head无内容，所以直接返回Next
-    return Head.Next;
 }
 
 //
@@ -110,21 +50,94 @@ static Node *newNum(int Val) {
     return Nd;
 }
 
-// expr = mul ("+" mul | "-" mul)*
+// expr = equality
+// equality = relational ("==" relational | "!=" relational)*
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+// add = mul ("+" mul | "-" mul)*
 // mul = unary ("*" unary | "/" unary)*
 // unary = ("+" | "-") unary | primary
 // primary = "(" expr ")" | num
-
-// difference: add an unary layer between mul and primary
-
 Node *expr(Token **Rest, Token *Tok);
+static Node *equality(Token **Rest, Token *Tok);
+static Node *relational(Token **Rest, Token *Tok);
+static Node *add(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
 static Node *unary(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
 
-// 解析加减.
-// expr = mul ("+" mul | "-" mul)*
-Node *expr(Token **Rest, Token *Tok) {
+// 解析表达式
+// expr = equality
+Node *expr(Token **Rest, Token *Tok) { 
+    return equality(Rest, Tok);
+}
+
+// 解析相等性
+// equality = relational ("==" relational | "!=" relational)*
+static Node *equality(Token **Rest, Token *Tok) {
+    // relational
+    Node *Nd = relational(&Tok, Tok);
+
+    // ("==" relational | "!=" relational)*
+    while (true) {
+        // "==" relational
+        if (equal(Tok, "==")) {
+            Nd = newBinary(ND_EQ, Nd, relational(&Tok, Tok->Next));
+            continue;
+        }
+
+        // "!=" relational
+        if (equal(Tok, "!=")) {
+            Nd = newBinary(ND_NE, Nd, relational(&Tok, Tok->Next));
+            continue;
+        }
+
+        *Rest = Tok;
+        return Nd;
+    }
+}
+
+// 解析比较关系
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+static Node *relational(Token **Rest, Token *Tok) {
+    // add
+    Node *Nd = add(&Tok, Tok);
+
+    // ("<" add | "<=" add | ">" add | ">=" add)*
+    while (true) {
+        // "<" add
+        if (equal(Tok, "<")) {
+            Nd = newBinary(ND_LT, Nd, add(&Tok, Tok->Next));
+            continue;
+        }
+
+        // "<=" add
+        if (equal(Tok, "<=")) {
+            Nd = newBinary(ND_LE, Nd, add(&Tok, Tok->Next));
+            continue;
+        }
+
+        // ">" add
+        // X>Y等价于Y<X
+        if (equal(Tok, ">")) {
+            Nd = newBinary(ND_LT, add(&Tok, Tok->Next), Nd);
+            continue;
+        }
+
+        // ">=" add
+        // X>=Y等价于Y<=X
+        if (equal(Tok, ">=")) {
+            Nd = newBinary(ND_LE, add(&Tok, Tok->Next), Nd);
+            continue;
+        }
+
+        *Rest = Tok;
+        return Nd;
+    }
+}
+
+// 解析加减
+// add = mul ("+" mul | "-" mul)*
+static Node *add(Token **Rest, Token *Tok) {
     // mul
     Node *Nd = mul(&Tok, Tok);
 
@@ -138,8 +151,6 @@ Node *expr(Token **Rest, Token *Tok) {
 
         // "-" mul
         if (equal(Tok, "-")) {
-            // note: the previous node is put on the lhs
-            // also in genExpr(), 
             Nd = newBinary(ND_SUB, Nd, mul(&Tok, Tok->Next));
             continue;
         }
@@ -149,25 +160,26 @@ Node *expr(Token **Rest, Token *Tok) {
     }
 }
 
-// 解析乘除. 
-// mul = primary ("*" primary | "/" primary)*
+// 解析乘除
+// mul = unary ("*" unary | "/" unary)*
 static Node *mul(Token **Rest, Token *Tok) {
-    // primary
+    // unary
     Node *Nd = unary(&Tok, Tok);
 
-    // ("*" primary | "/" primary)*
+    // ("*" unary | "/" unary)*
     while (true) {
-        // "*" primary
+        // "*" unary
         if (equal(Tok, "*")) {
             Nd = newBinary(ND_MUL, Nd, unary(&Tok, Tok->Next));
             continue;
         }
 
-        // "/" primary
+        // "/" unary
         if (equal(Tok, "/")) {
             Nd = newBinary(ND_DIV, Nd, unary(&Tok, Tok->Next));
             continue;
         }
+
         *Rest = Tok;
         return Nd;
     }
@@ -194,7 +206,7 @@ static Node *primary(Token **Rest, Token *Tok) {
     // "(" expr ")"
     if (equal(Tok, "(")) {
         Node *Nd = expr(&Tok, Tok->Next);
-        *Rest = skip(Tok, ")");
+        *Rest = skip(Tok, ")");     // ?
         return Nd;
     }
 
@@ -270,24 +282,44 @@ void genExpr(Node *Nd) {
     genExpr(Nd->LHS);
     // 将结果弹栈到a1
     pop("a1");
-    // now we have rhs sub-tree's answer in a1, lhs in a0
 
+    // a0: lhs value. a1: rhs value
     // 生成各个二叉树节点
     switch (Nd->Kind) {
-    case ND_ADD: // + a0=a0+a1
-        println("  add a0, a0, a1");
-        return;
-    case ND_SUB: // - a0=a0-a1
-        println("  sub a0, a0, a1");
-        return;
-    case ND_MUL: // * a0=a0*a1
-        println("  mul a0, a0, a1");
-        return;
-    case ND_DIV: // / a0=a0/a1
-        println("  div a0, a0, a1");
-        return;
-    default:
-        break;
+        case ND_ADD: // + a0=a0+a1
+            println("  add a0, a0, a1");
+            return;
+        case ND_SUB: // - a0=a0-a1
+            println("  sub a0, a0, a1");
+            return;
+        case ND_MUL: // * a0=a0*a1
+            println("  mul a0, a0, a1");
+            return;
+        case ND_DIV: // / a0=a0/a1
+            println("  div a0, a0, a1");
+            return;
+        case ND_EQ:
+            // if a0 == a1, then a0 ^ a1 should be 0
+            println("  xor a0, a0, a1");
+            println("  seqz a0, a0");
+            return;
+        case ND_NE: // a0 != a1
+            // if a0 != a1, then a0 ^ a1 should not be 0
+            println("  xor a0, a0, a1");
+            println("  snez a0, a0");
+            return;
+        case ND_LE: // a0 <= a1
+            // a0 <= a1 -> !(a0 > a1)
+            // note: '!' here means 0 -> 1, 1-> 0. 
+            // which is different from the 'neg' inst
+            println("  slt a0, a1, a0");
+            println("  xori a0, a0, 1");
+            return;
+        case ND_LT: // a0 < a1
+            println("  slt a0, a0, a1");
+            return;
+        default:
+            break;
     }
 
     error("invalid expression");

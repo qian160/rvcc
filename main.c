@@ -6,11 +6,11 @@
 #include <string.h>
 #include "rvcc.h"
 
-/* ---------- token.c ---------- */
+/* ---------- tokenize.c ---------- */
 extern Token* tokenize(char* P);
 
+/* ---------- ast.c ---------- */
 extern Node *expr(Token **Rest, Token *Tok);
-
 extern void genExpr(Node *Nd);
 
 

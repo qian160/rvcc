@@ -7,6 +7,7 @@ RCC=riscv64-linux-gnu-gcc
 SRCS=$(wildcard *.c)
 # C文件编译生成的未链接的可重定位文件，将所有.c文件替换为同名的.o结尾的文件名
 OBJS=$(SRCS:.c=.o)
+DEPS=$(SRCS:.c=.d)
 
 QEMU=qemu-riscv64
 
@@ -18,13 +19,24 @@ rvcc: $(OBJS)
 
 # 所有的可重定位文件依赖于rvcc.h的头文件
 $(OBJS): rvcc.h
-
+	@echo [CC] $(basename $@)
+	@$(CC) -c $*.c
 test:rvcc
 	@./test.sh
 # 清理标签，清理所有非源代码文件
 clean:
-	-rm -rf rvcc tmp* $(TESTS) test/*.s test/*.exe stage2/ thirdparty/
+	-rm -rf rvcc tmp* *.d $(TESTS) test/*.s test/*.exe stage2/ thirdparty/
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
 .PHONY: test clean 
+
+-include $(DEPS)
+%.d: %.c	# add .d file to the dependancy list
+	@set -e; rm -f $@; \
+		$(CC) -MM $(CFLAGS) $< > $@.$$$$; \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@    ;\
+		rm -f $@.$$$$
+
+# sed here: find the pattern "xxx.o :" first, then
+# substitute it with "xxx.o xxx.d :". 1 is a placeholder.
