@@ -98,6 +98,11 @@ assert 5 'a=3;b=4;a=1;a+b;'
 assert 3 'foo=3; foo;'
 assert 74 'foo2=70; bar4=4; foo2+bar4;'
 
+# [12] 支持return
+assert 1 'return 1; 2; 3;'
+assert 2 '1; return 2; 3;'
+assert 3 '1; 2; return 3;'
+
 # 如果运行正常未提前退出，程序将显示OK
 printf "$COLOR_GREEN PASS! $COLOR_NONE\n"
 

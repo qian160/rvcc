@@ -35,7 +35,7 @@ static void pop(char *Reg) {
 static void genAddr(Node *Nd) {
     if (Nd->Kind == ND_VAR) {
         // 偏移量是相对于fp的
-        printf("  addi a0, fp, %d\n", Nd->Var->Offset);
+        println("  addi a0, fp, %d", Nd->Var->Offset);
         return;
     }
 
@@ -154,12 +154,21 @@ void genExpr(Node *Nd) {
 
 // 生成语句
 static void genStmt(Node *Nd) {
-    if (Nd->Kind == ND_EXPR_STMT) {
-        genExpr(Nd->LHS);
-        return;
+    switch (Nd->Kind){
+        case ND_EXPR_STMT:
+            // node of type EXPR_STMT is unary
+            genExpr(Nd->LHS);
+            return;
+        case ND_RETURN:
+            genExpr(Nd->LHS);
+            // 无条件跳转语句，跳转到.L.return段
+            // j offset是 jal x0, offset的别名指令
+            println("  j .L.return");
+            return;
+        default:
+            error("invalid statement");
     }
 
-    error("invalid statement");
 }
 
     // 栈布局
@@ -171,13 +180,6 @@ static void genStmt(Node *Nd) {
     //           表达式计算
     //-------------------------------//
 
-static void prologue() {
-
-}
-
-static void epilogue() {
-
-}
 
 // 代码生成入口函数，包含代码块的基础信息
 void codegen(Function * Prog) {
@@ -192,7 +194,7 @@ void codegen(Function * Prog) {
     // 将sp写入fp
     println("  mv fp, sp");
     // 偏移量为实际变量所用的栈大小
-    printf("  addi sp, sp, -%d\n", Prog->StackSize);
+    println("  addi sp, sp, -%d", Prog->StackSize);
 
     // 循环遍历所有的语句
     for (Node *N = Prog -> Body; N; N = N->Next) {
@@ -201,6 +203,8 @@ void codegen(Function * Prog) {
     }
 
     // Epilogue，后语
+    // 输出return段标签
+    println(".L.return:");
     // 将fp的值改写回sp
     println("  mv sp, fp");
     // 将最早fp保存的值弹栈，恢复fp。

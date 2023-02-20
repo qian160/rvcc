@@ -3,9 +3,6 @@
 #include<stdlib.h>
 #include<string.h>
 
-// 在解析时，全部的变量实例都被累加到这个列表里。
-Obj *Locals;
-
 /*
     input = "1+2; 3-4;"
     add a field 'next' to ast-tree node (下一语句, expr_stmt). see parse()
@@ -23,7 +20,7 @@ Obj *Locals;
 // 越往下优先级越高
 
 // program = stmt*                                                      a=3*6-7; b=a+3;b; | 6;
-// stmt = exprStmt
+// stmt = exprStmt | "return" expr ";"
 // exprStmt = expr ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
 
 // expr = assign
@@ -43,6 +40,9 @@ static Node *add(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
 static Node *unary(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
+
+// 在解析时，全部的变量实例都被累加到这个列表里。
+Obj *Locals;
 
 // 通过名称，查找一个本地变量
 static Obj *findVar(Token *Tok) {
@@ -121,9 +121,17 @@ static Node *newVarNode(Obj* Var) {
 }
 
 // 解析语句
-// stmt = exprStmt = expr ";"
+// stmt = exprStmt | "return" expr ";"
 static Node *stmt(Token **Rest, Token *Tok) { 
-    return exprStmt(Rest, Tok); 
+    // "return" expr ";"
+    if (equal(Tok, "return")) {
+        Node *Nd = newUnary(ND_RETURN, expr(&Tok, Tok->Next));
+        *Rest = skip(Tok, ";");
+        return Nd;
+    }
+
+    // exprStmt
+    return exprStmt(Rest, Tok);
 }
 
 // 解析表达式语句
