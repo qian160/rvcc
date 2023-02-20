@@ -3,9 +3,6 @@
 #include<stdlib.h>
 #include<string.h>
 
-//
-// 语义分析, construct ast
-//
 
 // 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
 bool equal(Token *Tok, char *Str) {
@@ -54,13 +51,18 @@ static Node *newNum(int Val) {
     return Nd;
 }
 
-// expr = equality
+// program = stmt*
+// stmt = exprStmt
+// exprStmt = expr ";"
+// expr = assign
+// assign = equality ("=" assign)?
 // equality = relational ("==" relational | "!=" relational)*
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 // add = mul ("+" mul | "-" mul)*
 // mul = unary ("*" unary | "/" unary)*
 // unary = ("+" | "-") unary | primary
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | num | ident
+static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
 static Node *equality(Token **Rest, Token *Tok);
 static Node *relational(Token **Rest, Token *Tok);
@@ -68,6 +70,20 @@ static Node *add(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
 static Node *unary(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
+
+// 解析语句
+// stmt = exprStmt
+static Node *stmt(Token **Rest, Token *Tok) { 
+    return exprStmt(Rest, Tok); 
+}
+
+// 解析表达式语句
+// exprStmt = expr ";"
+static Node *exprStmt(Token **Rest, Token *Tok) {
+    Node *Nd = newUnary(ND_EXPR_STMT, expr(&Tok, Tok));
+    *Rest = skip(Tok, ";");
+    return Nd;
+}
 
 // 解析表达式
 // expr = equality
@@ -227,9 +243,15 @@ static Node *primary(Token **Rest, Token *Tok) {
 }
 
 // 语法解析入口函数
+// program = stmt*
 Node *parse(Token *Tok) {
-    Node *Nd = expr(&Tok, Tok);
-    if (Tok->Kind != TK_EOF)
-        error("extra token");
-    return Nd;
+    // 这里使用了和词法分析类似的单向链表结构
+    Node Head = {};
+    Node *Cur = &Head;
+    // stmt*
+    while (Tok->Kind != TK_EOF) {
+        Cur->Next = stmt(&Tok, Tok);
+        Cur = Cur->Next;
+    }
+    return Head.Next;
 }
