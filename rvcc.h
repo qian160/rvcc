@@ -1,6 +1,15 @@
 #include<stdarg.h>
 #include<stdio.h>
+#include<stdlib.h>
 // put some data structures and useful macros here
+
+//
+// 共用头文件，定义了多个文件间共同使用的函数和数据
+//
+
+//
+// 终结符分析，词法分析
+//
 
 // 为每个终结符(token)都设置种类来表示
 typedef enum {
@@ -18,6 +27,10 @@ struct Token {
     char *Loc;      // 在解析的字符串内的位置
     int Len;        // 长度
 };
+
+//
+// 生成AST（抽象语法树），语法解析
+//
 
 // AST的节点种类
 typedef enum {
@@ -41,6 +54,21 @@ struct Node {
     Node *RHS;     // 右部，right-hand side
     int Val;       // 存储ND_NUM种类的值
 };
+
+// functions
+
+/* ---------- tokenize.c ---------- */
+// 词法分析
+Token* tokenize(char* P);
+
+/* ---------- parse.c ---------- */
+// 语法解析入口函数
+Node *parse(Token *Tok);
+
+/* ---------- codegen.c ---------- */
+// 代码生成入口函数
+void codegen(Node *Nd);
+
 
 #define error(format, ...) \
     do{ \
