@@ -183,10 +183,10 @@ static void genStmt(Node *Nd) {
                 j .L.else.%d
                 ... (then)
                 ...
-            .L.else.%d
+            .L.else.%d:
                 ... (else)
                 ...
-            .L.end.%d
+            .L.end.%d:
             */
             // 代码段计数
             int C = count();
@@ -204,6 +204,49 @@ static void genStmt(Node *Nd) {
             if (Nd->Els)
                 genStmt(Nd->Els);
             // 结束if语句，继续执行后面的语句
+            printf(".L.end.%d:\n", C);
+            return;
+        }
+        // 生成for循环语句 
+        // "for" "(" exprStmt expr? ";" expr? ")" stmt
+/*
+            ... (init)                  // optional
+            ... (cond)
+    +-->.L.begin.%d:                    // loop begins
+    |       ... (body)            
+    |       ... (cond)            
+    |      (beqz a0, .L.end.%d)---+     // loop condition. optional
+    +------(j .L.begin.%d)        |  
+        .L.end.%d:  <-------------+
+        
+    note: when entering the loop body for the `1st time`,
+    we will insert an cond and branch.
+    this works as the init cond check.
+    if not satisfied, we will bot enter the loop body
+        */
+        case ND_FOR: {
+            // 代码段计数
+            int C = count();
+            // 生成初始化语句
+            genStmt(Nd->Init);
+            // 输出循环头部标签
+            printf(".L.begin.%d:\n", C);
+            // 处理循环条件语句
+            if (Nd->Cond) {
+                // 生成条件循环语句
+                genExpr(Nd->Cond);
+                // 判断结果是否为0，为0则跳转到结束部分
+                printf("  beqz a0, .L.end.%d\n", C);
+            }
+            // 生成循环体语句
+            genStmt(Nd->Then);
+            // 处理循环递增语句
+            if (Nd -> Inc)
+                // 生成循环递增语句
+                genExpr(Nd->Inc);
+            // 跳转到循环头部
+            printf("  j .L.begin.%d\n", C);
+            // 输出循环尾部标签
             printf(".L.end.%d:\n", C);
             return;
         }

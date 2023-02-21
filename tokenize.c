@@ -27,7 +27,7 @@ int getNumber(Token *Tok) {
 // 判断是否为关键字
 static bool isKeyword(Token *Tok) {
     // 关键字列表
-    static char *Kw[] = {"return", "if", "else"};
+    static char *Kw[] = {"return", "if", "else", "for"};
 
     // 遍历关键字列表匹配
     for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); ++I) {
@@ -157,6 +157,7 @@ Token *tokenize(char *P) {
     // 解析结束，增加一个EOF，表示终止符。
     Cur->Next = newToken(TK_EOF, P, P);
     // 将所有关键字的终结符，都标记为KEYWORD
+    // 这样他们在之后就不会被误解析成其他类型比如ident了
     convertKeywords(Head.Next);
     // Head无内容，所以直接返回Next
     return Head.Next;

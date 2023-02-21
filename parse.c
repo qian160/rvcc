@@ -38,6 +38,7 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "{" compoundStmt
 //        | exprStmt
+//        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 // exprStmt = expr? ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
 
 // expr = assign
@@ -147,6 +148,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "{" compoundStmt
 //        | exprStmt
+//        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
     if (equal(Tok, "return")) {
@@ -169,6 +171,32 @@ static Node *stmt(Token **Rest, Token *Tok) {
         if (equal(Tok, "else"))
             Nd->Els = stmt(&Tok, Tok->Next);
         *Rest = Tok;
+        return Nd;
+    }
+
+    // "for" "(" exprStmt expr? ";" expr? ")" stmt
+    if (equal(Tok, "for")) {
+        Node *Nd = newNode(ND_FOR);
+        // "("
+        Tok = skip(Tok->Next, "(");
+
+        // exprStmt
+        Nd->Init = exprStmt(&Tok, Tok);
+
+        // expr?
+        if (!equal(Tok, ";"))
+            Nd->Cond = expr(&Tok, Tok);
+        // ";"
+        Tok = skip(Tok, ";");
+
+        // expr?
+        if (!equal(Tok, ")"))
+            Nd->Inc = expr(&Tok, Tok);
+        // ")"
+        Tok = skip(Tok, ")");
+
+        // stmt
+        Nd->Then = stmt(Rest, Tok);
         return Nd;
     }
 
@@ -365,7 +393,7 @@ static Node *primary(Token **Rest, Token *Tok) {
         return Nd;
     }
 
-    // ident
+    // ident. keyword?
     if (Tok->Kind == TK_IDENT) {
         // 查找变量
         Obj *Var = findVar(Tok);

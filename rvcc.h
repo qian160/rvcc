@@ -85,23 +85,28 @@ typedef enum {
     ND_NUM,         // 整形
     ND_RETURN,      // 返回
     ND_BLOCK,       // { ... }，代码块
-    ND_IF           // "if"，条件判断
+    ND_IF,          // "if"，条件判断
+    ND_FOR          // "for"，循环
 } NodeKind;
 
 // AST中二叉树节点
 struct Node {
+    // node*中都是存储了一串指令(保存至ast中)。
+    // 可理解为指向另外一颗树的根节点
     NodeKind Kind; // 节点种类
     Node *Next;    // 下一节点，指代下一语句
     Node *LHS;     // 左部，left-hand side
     Node *RHS;     // 右部，right-hand side
     Node *Body;    // 代码块;存储了{}内解析的语句
     Obj * Var;     // 存储ND_VAR的字符串
+    int Val;       // 存储ND_NUM种类的值
     // "if"语句
     Node *Cond;    // 条件内的表达式
     Node *Then;    // 符合条件后的语句
     Node *Els;     // 不符合条件后的语句
-
-    int Val;       // 存储ND_NUM种类的值
+    // "for"语句. 循环体存储在Then里
+    Node *Init;    // 初始化语句
+    Node *Inc;     // 递增语句
 };
 
 
