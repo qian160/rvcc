@@ -22,6 +22,7 @@ test:rvcc
 	@./test.sh
 count:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
+	@rm *.d
 # 清理标签，清理所有非源代码文件
 clean:
 	-rm -rf rvcc tmp* *.d $(TESTS) test/*.s test/*.exe stage2/ thirdparty/

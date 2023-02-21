@@ -64,7 +64,7 @@ struct Obj {
 // 函数. currently the only function is "main"
 struct Function {
     Node *Body;    // 函数体, made up by statements.
-    Obj *Locals;   // 本地变量
+    Obj *Locals;   // 本地变量,
     int StackSize; // 栈大小
 };
 
@@ -84,6 +84,7 @@ typedef enum {
     ND_ASSIGN,      // 赋值
     ND_NUM,         // 整形
     ND_RETURN,      // 返回
+    ND_BLOCK,       // { ... }，代码块
 } NodeKind;
 
 // AST中二叉树节点
@@ -92,6 +93,7 @@ struct Node {
     Node *Next;    // 下一节点，指代下一语句
     Node *LHS;     // 左部，left-hand side
     Node *RHS;     // 右部，right-hand side
+    Node *Body;    // 代码块;存储了{}内解析的语句
     Obj * Var;     // 存储ND_VAR的字符串
     int Val;       // 存储ND_NUM种类的值
 };

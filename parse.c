@@ -7,7 +7,7 @@
     input = "1+2; 3-4;"
     add a field 'next' to ast-tree node (下一语句, expr_stmt). see parse()
     (TOK)
-    head -> EXPR_STMT   -> EXPR_STMT
+    head -> EXPR_STMT   -> EXPR_STMT    -> (other stmts...)
                 |               |   (looks like straight, but in fact lhs. note: a node of )
                 |               |   (type 'EXPR_STMT' is also unary. see function exprStmt())
                '+'             '-'
@@ -15,12 +15,26 @@
               /   \           /   \
             1      2         3     4
 
+    input = "{1; {2;}; 3;}"
+
+                compoundStmt
+                    |
+    ----------------+------------------
+    |               |                 |
+ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
+    |               |                 |
+    1          ND_EXPR_STMT           3
+                    |
+                    2
+
+
 */                                                                    //e.g.
 // note: a single number can match almost all the cases.
 // 越往下优先级越高
 
-// program = stmt*                                                      a=3*6-7; b=a+3;b; | 6;
-// stmt = exprStmt | "return" expr ";"
+// program = "{" compoundStmt                                           "{" a=3*6-7; b=a+3;b; "}" | {6;} 
+// compoundStmt = stmt* "}"                                             "{" a=4; return a; "}" | {6;}
+// stmt = exprStmt | "return" expr ";" | "{" compoundStmt               a=6; | 6; | return 6; | {return 6;}
 // exprStmt = expr ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
 
 // expr = assign
@@ -31,6 +45,8 @@
 // mul = unary ("*" unary | "/" unary)*                                 -(3*4) * 5 | -(5*6) | 6
 // unary = ("+" | "-") unary | primary                                  -(3+5) | -4 | +4 | 6
 // primary = "(" expr ")" | num | ident                                 (1+8*5 / 6 != 2) | 6 | a
+static Node *compoundStmt(Token **Rest, Token *Tok);
+static Node *stmt(Token **Rest, Token *Tok);
 static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
 static Node *assign(Token **Rest, Token *Tok);
@@ -120,8 +136,26 @@ static Node *newVarNode(Obj* Var) {
     return Nd;
 }
 
+// 解析复合语句
+// compoundStmt = stmt* "}"
+static Node *compoundStmt(Token **Rest, Token *Tok) {
+    // 这里使用了和词法分析类似的单向链表结构
+    Node Head = {};
+    Node *Cur = &Head;
+    // stmt* "}"
+    while (!equal(Tok, "}")) {
+        Cur->Next = stmt(&Tok, Tok);
+    Cur = Cur->Next;
+    }
+    // Nd的Body存储了{}内解析的语句
+    Node *Nd = newNode(ND_BLOCK);
+    Nd->Body = Head.Next;
+    *Rest = Tok->Next;
+    return Nd;
+}
+
 // 解析语句
-// stmt = exprStmt | "return" expr ";"
+// stmt = exprStmt | "return" expr ";" | "{" compoundStmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
     if (equal(Tok, "return")) {
@@ -129,6 +163,11 @@ static Node *stmt(Token **Rest, Token *Tok) {
         *Rest = skip(Tok, ";");
         return Nd;
     }
+
+    // "{" compoundStmt
+    if (equal(Tok, "{"))
+        return compoundStmt(Rest, Tok->Next);
+
 
     // exprStmt
     return exprStmt(Rest, Tok);
@@ -321,26 +360,19 @@ static Node *primary(Token **Rest, Token *Tok) {
         return newVarNode(Var);
     }
 
-
     error("expected an expression");
     return NULL;
 }
 
 // 语法解析入口函数
-// program = stmt*
+// program = "{" compoundStmt
 Function *parse(Token *Tok) {
-    // 这里使用了和词法分析类似的单向链表结构
-    Node Head = {};
-    Node *Cur = &Head;
-    // stmt*
-    while (Tok->Kind != TK_EOF) {
-        Cur->Next = stmt(&Tok, Tok);
-        Cur = Cur->Next;
-    }
+    // "{"
+    Tok = skip(Tok, "{");
 
     // 函数体存储语句的AST，Locals存储变量
     Function *Prog = calloc(1, sizeof(Function));
-    Prog->Body = Head.Next;
+    Prog->Body = compoundStmt(&Tok, Tok);
     Prog->Locals = Locals;
     return Prog;
 }

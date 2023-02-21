@@ -155,6 +155,11 @@ void genExpr(Node *Nd) {
 // 生成语句
 static void genStmt(Node *Nd) {
     switch (Nd->Kind){
+        // 生成代码块，遍历代码块的语句链表
+        case ND_BLOCK:
+            for (Node *N = Nd->Body; N; N = N->Next)
+                genStmt(N);
+            return;
         case ND_EXPR_STMT:
             // node of type EXPR_STMT is unary
             genExpr(Nd->LHS);
@@ -183,6 +188,7 @@ static void genStmt(Node *Nd) {
 
 // 代码生成入口函数，包含代码块的基础信息
 void codegen(Function * Prog) {
+    // 为本地变量计算偏移量, 以及决定函数最终的栈大小
     assignLVarOffsets(Prog);
     println("  .globl main");
     println("main:");
@@ -196,11 +202,9 @@ void codegen(Function * Prog) {
     // 偏移量为实际变量所用的栈大小
     println("  addi sp, sp, -%d", Prog->StackSize);
 
-    // 循环遍历所有的语句
-    for (Node *N = Prog -> Body; N; N = N->Next) {
-        genStmt(N);
-        Assert(Depth == 0, "bad stack depth: %d", Depth);
-    }
+    // 生成语句链表的代码
+    genStmt(Prog->Body);
+    Assert(Depth == 0, "bad depth: %d", Depth);
 
     // Epilogue，后语
     // 输出return段标签
