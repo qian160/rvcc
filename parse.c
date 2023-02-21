@@ -90,43 +90,6 @@ static Obj *newLVar(char *Name) {
 // 生成AST（抽象语法树），语法解析
 //
 
-// 新建一个leaf节点(lhs = rhs = 0, null)
-static Node *newNode(NodeKind Kind, Token *Tok) {
-    Node *Nd = calloc(1, sizeof(Node));
-    Nd->Kind = Kind;
-    Nd->Tok = Tok;
-    return Nd;
-}
-
-// 新建一个单叉树
-static Node *newUnary(NodeKind Kind, Node *Expr, Token *Tok) {
-    Node *Nd = newNode(Kind, Tok);
-    Nd->LHS = Expr;
-    return Nd;
-}
-
-// 新建一个二叉树节点
-static Node *newBinary(NodeKind Kind, Node *LHS, Node *RHS, Token *Tok) {
-    Node *Nd = newNode(Kind, Tok);
-    Nd->LHS = LHS;
-    Nd->RHS = RHS;
-    return Nd;
-}
-
-// 新建一个数字节点
-static Node *newNum(int Val, Token *Tok) {
-    Node *Nd = newNode(ND_NUM, Tok);
-    Nd->Val = Val;
-    return Nd;
-}
-
-// 新变量
-static Node *newVarNode(Obj* Var, Token *Tok) {
-    Node *Nd = newNode(ND_VAR, Tok);
-    Nd->Var = Var;
-    return Nd;
-}
-
 // 解析复合语句
 // compoundStmt = stmt* "}"
 static Node *compoundStmt(Token **Rest, Token *Tok) {
@@ -136,7 +99,8 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
     // stmt* "}"
     while (!equal(Tok, "}")) {
         Cur->Next = stmt(&Tok, Tok);
-    Cur = Cur->Next;
+        Cur = Cur->Next;
+        addType(Cur);
     }
     // Nd的Body存储了{}内解析的语句
     Node *Nd = newNode(ND_BLOCK, Tok);
@@ -343,13 +307,13 @@ static Node *add(Token **Rest, Token *Tok) {
         Token * start = Tok;
         // "+" mul
         if (equal(Tok, "+")) {
-            Nd = newBinary(ND_ADD, Nd, mul(&Tok, Tok->Next), start);
+            Nd = newAdd(Nd, mul(&Tok, Tok->Next), start);
             continue;
         }
 
         // "-" mul
         if (equal(Tok, "-")) {
-            Nd = newBinary(ND_SUB, Nd, mul(&Tok, Tok->Next), start);
+            Nd = newSub(Nd, mul(&Tok, Tok->Next), start);
             continue;
         }
 

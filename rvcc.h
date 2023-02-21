@@ -20,6 +20,7 @@ typedef struct Node Node;
 typedef struct Obj Obj;
 typedef struct Function Function;
 typedef struct Node Node;
+typedef struct Type Type;
 
 // put some data structures and useful macros here
 
@@ -102,6 +103,7 @@ struct Node {
     Node *RHS;     // 右部，right-hand side
     Node *Body;    // 代码块;存储了{}内解析的语句
     Obj * Var;     // 存储ND_VAR的字符串
+    Type *Ty;      // 节点中数据的类型
     int Val;       // 存储ND_NUM种类的值
     Token * Tok;   // 节点对应的终结符. debug
     // "if"语句
@@ -113,7 +115,23 @@ struct Node {
     Node *Inc;     // 递增语句
 };
 
+//
+// 类型系统
+//
 
+// 类型种类
+typedef enum {
+    TY_INT,        // int整型
+    TY_PTR,        // 指针
+} TypeKind;
+
+struct Type {
+    TypeKind Kind; // 种类
+    Type *Base;    // 基类, 指向的类型(only in effect for pointer)
+};
+
+// 声明一个全局变量，定义在type.c中。
+extern Type *TyInt;
 
 // functions
 
@@ -130,6 +148,25 @@ Function *parse(Token *Tok);
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
 void codegen(Function *Prog);
+
+/* ---------- type.c ---------- */
+// 判断是否为整型
+bool isInteger(Type *TY);
+// 为节点内的所有节点添加类型
+void addType(Node *Nd);
+
+/* ---------- node.c ---------- */
+Node *newNode(NodeKind Kind, Token *Tok);
+Node *newUnary(NodeKind Kind, Node *Expr, Token *Tok);
+Node *newBinary(NodeKind Kind, Node *LHS, Node *RHS, Token *Tok);
+Node *newNum(int Val, Token *Tok);
+Node *newAdd(Node *LHS, Node *RHS, Token *Tok);
+Node *newSub(Node *LHS, Node *RHS, Token *Tok);
+Node *newVarNode(Obj* Var, Token *Tok);
+
+//
+// macros
+//
 
 #define error(format, ...) \
     do{ \
