@@ -100,6 +100,7 @@ struct Node {
     Node *Body;    // 代码块;存储了{}内解析的语句
     Obj * Var;     // 存储ND_VAR的字符串
     int Val;       // 存储ND_NUM种类的值
+    Token * Tok;   // 节点对应的终结符. debug
     // "if"语句
     Node *Cond;    // 条件内的表达式
     Node *Then;    // 符合条件后的语句

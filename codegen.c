@@ -47,11 +47,11 @@ static void genAddr(Node *Nd) {
         println("  addi a0, fp, %d", Nd->Var->Offset);
         return;
     }
-
-    error("not an lvalue");
+    error("%s: not an lvalue", strndup(Nd->Tok->Loc, Nd->Tok->Len));
 }
 
 // 根据变量的链表计算出偏移量
+// 其实是为每个变量分配地址
 static void assignLVarOffsets(Function *Prog) {
     int Offset = 0;
     // 读取所有变量
@@ -158,7 +158,7 @@ void genExpr(Node *Nd) {
             break;
     }
 
-    error("invalid expression");
+    error("%s: invalid expression", Nd -> Tok -> Loc);
 }
 
 // 生成语句
@@ -267,7 +267,7 @@ static void genStmt(Node *Nd) {
             return;
         }
         default:
-            error("invalid statement");
+            error("%s: invalid statement", Nd->Tok->Loc);
     }
 
 }
