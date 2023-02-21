@@ -54,7 +54,7 @@ __attribute__((unused))
 static void print_one(Token *tok) {
     char * s = tok->Loc;
     while (tok -> Len --)
-        printf("%c", *s++);
+        putchar(*s++);
     println("");
 }
 

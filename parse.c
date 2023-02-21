@@ -35,7 +35,7 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 // program = "{" compoundStmt                                           "{" a=3*6-7; b=a+3;b; "}" | {6;} 
 // compoundStmt = stmt* "}"                                             "{" a=4; return a; "}" | {6;}
 // stmt = exprStmt | "return" expr ";" | "{" compoundStmt               a=6; | 6; | return 6; | {return 6;}
-// exprStmt = expr ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
+// exprStmt = expr? ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
 
 // expr = assign
 // assign = equality ("=" assign)?                                      a = (3*6-7) | 4  note: if it's the assign case, then its lhs must be a lvalue
@@ -174,8 +174,17 @@ static Node *stmt(Token **Rest, Token *Tok) {
 }
 
 // 解析表达式语句
-// exprStmt = expr ";"
+// exprStmt = expr? ";"
 static Node *exprStmt(Token **Rest, Token *Tok) {
+    // ";". empty statment
+    // note: empty statement is marked as a block statement.
+    // in genStmt(), a block statment will print all its inner nodes
+    // which should be nothing here
+    if (equal(Tok, ";")) {
+        *Rest = Tok->Next;
+        return newNode(ND_BLOCK);
+    }
+    // expr ";"
     Node *Nd = newUnary(ND_EXPR_STMT, expr(&Tok, Tok));
     *Rest = skip(Tok, ";");
     return Nd;
