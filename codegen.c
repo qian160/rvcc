@@ -16,7 +16,7 @@ static int count(void) {
 // 对齐到Align的整数倍
 // (0,Align]返回Align
 static int alignTo(int N, int Align) {
-  return (N + Align - 1) / Align * Align;
+    return (N + Align - 1) / Align * Align;
 }
 
 // 压栈，将结果临时压入栈中备用
@@ -41,6 +41,9 @@ static void pop(char *Reg) {
 static void genAddr(Node *Nd) {
     if (Nd->Kind == ND_VAR) {
         // 偏移量是相对于fp的
+        IFDEF(__DEBUG, println("  # 获取变量%s的栈内地址为%d(fp)", Nd->Var->Name,
+            Nd->Var->Offset);)
+
         println("  addi a0, fp, %d", Nd->Var->Offset);
         return;
     }
@@ -190,15 +193,19 @@ static void genStmt(Node *Nd) {
             */
             // 代码段计数
             int C = count();
+            IFDEF(__DEBUG, printf("\n# =====分支语句%d==============\n", C);)
             // 生成条件内语句
+            IFDEF(__DEBUG, printf("\n# Cond表达式%d\n", C);)
             genExpr(Nd->Cond);
             // 判断结果是否为0，为0(false)则跳转到else标签
             println("  beqz a0, .L.else.%d", C);
             // 生成符合条件后的语句
+            IFDEF(__DEBUG, printf("\n# Then语句%d\n", C);)
             genStmt(Nd->Then);
             // 执行完后跳转到if语句后面的语句
             println("  j .L.end.%d", C);
             // else代码块，else可能为空，故输出标签
+            IFDEF(__DEBUG, printf("\n# Else语句%d\n", C);)
             println(".L.else.%d:", C);
             // 生成不符合条件后的语句
             if (Nd->Els)
@@ -227,12 +234,16 @@ static void genStmt(Node *Nd) {
         case ND_FOR: {
             // 代码段计数
             int C = count();
+            IFDEF(__DEBUG, printf("\n# =====循环语句%d===============\n", C));
             // 生成初始化语句
-            if(Nd->Init)
+            if(Nd->Init){
+                IFDEF(__DEBUG, printf("\n# Init语句%d\n", C);)
                 genStmt(Nd->Init);
+            }
             // 输出循环头部标签
             println(".L.begin.%d:", C);
             // 处理循环条件语句
+            IFDEF(__DEBUG, , println("# Cond表达式%d", C);)
             if (Nd->Cond) {
                 // 生成条件循环语句
                 genExpr(Nd->Cond);
@@ -240,15 +251,19 @@ static void genStmt(Node *Nd) {
                 printf("  beqz a0, .L.end.%d\n", C);
             }
             // 生成循环体语句
+            IFDEF(__DEBUG, printf("\n# Then语句%d\n", C);)
             genStmt(Nd->Then);
             // 处理循环递增语句
-            if (Nd -> Inc)
+            if (Nd -> Inc){
+                printf("\n# Inc语句%d\n", C);
                 // 生成循环递增语句
                 genExpr(Nd->Inc);
+            }
             // 跳转到循环头部
             println("  j .L.begin.%d", C);
             // 输出循环尾部标签
             println(".L.end.%d:", C);
+            IFDEF(__DEBUG, printf("\n# =====循环语句%d结束===========\n", C);)
             return;
         }
         default:
@@ -256,7 +271,6 @@ static void genStmt(Node *Nd) {
     }
 
 }
-
     // 栈布局
     //-------------------------------// sp
     //              fp
