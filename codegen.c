@@ -35,19 +35,24 @@ static void pop(char *Reg) {
     println("  addi sp, sp, 8");
     Depth--;
 }
-
-// 计算给定节点的绝对地址
+static void genExpr(Node *Nd);
+// 计算给定节点的绝对地址, 并打印
 // 如果报错，说明节点不在内存中
 static void genAddr(Node *Nd) {
-    if (Nd->Kind == ND_VAR) {
-        // 偏移量是相对于fp的
-        IFDEF(__DEBUG, println("  # 获取变量%s的栈内地址为%d(fp)", Nd->Var->Name,
-            Nd->Var->Offset);)
-
-        println("  addi a0, fp, %d", Nd->Var->Offset);
-        return;
+    switch (Nd->Kind){
+        // 变量
+        case ND_VAR:
+            // 偏移量是相对于fp的
+            println("  addi a0, fp, %d", Nd->Var->Offset);
+            return;
+        // 解引用*
+        case ND_DEREF:
+            genExpr(Nd -> LHS);
+            return;
+        default:
+            error("%s: not an lvalue", strndup(Nd->Tok->Loc, Nd->Tok->Len));
+            break;
     }
-    error("%s: not an lvalue", strndup(Nd->Tok->Loc, Nd->Tok->Len));
 }
 
 // 根据变量的链表计算出偏移量
@@ -75,7 +80,7 @@ static void assignLVarOffsets(Function *Prog) {
 //      now we have both sub-tree's value, 
 //      and how to deal with these two values depends on current root node
 // 生成表达式
-void genExpr(Node *Nd) {
+static void genExpr(Node *Nd) {
     // 生成各个根节点
     switch (Nd->Kind) {
         // 加载数字到a0, leaf node
@@ -104,6 +109,15 @@ void genExpr(Node *Nd) {
             genExpr(Nd->RHS);
             pop("a1");
             println("  sd a0, 0(a1)");
+            return;
+        // 解引用. *var
+        case ND_DEREF:
+            genExpr(Nd->LHS);
+            println("  ld a0, 0(a0)");
+            return;
+        // 取地址 &var
+        case ND_ADDR:
+            genAddr(Nd->LHS);
             return;
         default:
             break;

@@ -48,7 +48,7 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*6+5 > 2*2+8) | 6
 // add = mul ("+" mul | "-" mul)*                                       -4*6 + 4*4 | 6
 // mul = unary ("*" unary | "/" unary)*                                 -(3*4) * 5 | -(5*6) | 6
-// unary = ("+" | "-") unary | primary                                  -(3+5) | -4 | +4 | 6
+// unary = ("+" | "-" | "*" | "&") unary | primary                      -(3+5) | -4 | +4 | a | &a | *a | 6 
 // primary = "(" expr ")" | num | ident                                 (1+8*5 / 6 != 2) | 6 | a
 static Node *compoundStmt(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
@@ -385,16 +385,22 @@ static Node *mul(Token **Rest, Token *Tok) {
 }
 
 // 解析一元运算
-// unary = ("+" | "-") unary | primary
+// unary = ("+" | "-" | "*" | "&") unary | primary
 static Node *unary(Token **Rest, Token *Tok) {
     // "+" unary
     if (equal(Tok, "+"))
         return unary(Rest, Tok->Next);
-
     // "-" unary
     if (equal(Tok, "-"))
         return newUnary(ND_NEG, unary(Rest, Tok->Next), Tok);
-
+    // "*" unary. pointer
+    if (equal(Tok, "*")) {
+        return newUnary(ND_DEREF, unary(Rest, Tok->Next), Tok);
+    }
+    // "*" unary. pointer
+    if (equal(Tok, "&")) {
+        return newUnary(ND_ADDR, unary(Rest, Tok->Next), Tok);
+    }
     // primary
     return primary(Rest, Tok);
 }
