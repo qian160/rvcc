@@ -39,6 +39,7 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 //        | "{" compoundStmt
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//        | "while" "(" expr ")" stmt
 // exprStmt = expr? ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
 
 // expr = assign
@@ -149,6 +150,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 //        | "{" compoundStmt
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//        | "while" "(" expr ")" stmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
     if (equal(Tok, "return")) {
@@ -200,10 +202,25 @@ static Node *stmt(Token **Rest, Token *Tok) {
         return Nd;
     }
 
+    // "while" "(" expr ")" stmt
+    // while(cond){then...}
+    if (equal(Tok, "while")) {
+        Node *Nd = newNode(ND_FOR);
+        // "("
+        Tok = skip(Tok->Next, "(");
+        // expr
+        Nd->Cond = expr(&Tok, Tok);
+        // ")"
+        Tok = skip(Tok, ")");
+        // stmt
+        Nd->Then = stmt(Rest, Tok);
+        return Nd;
+    }
+
+
     // "{" compoundStmt
     if (equal(Tok, "{"))
         return compoundStmt(Rest, Tok->Next);
-
 
     // exprStmt
     return exprStmt(Rest, Tok);

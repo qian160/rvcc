@@ -193,21 +193,21 @@ static void genStmt(Node *Nd) {
             // 生成条件内语句
             genExpr(Nd->Cond);
             // 判断结果是否为0，为0(false)则跳转到else标签
-            printf("  beqz a0, .L.else.%d\n", C);
+            println("  beqz a0, .L.else.%d", C);
             // 生成符合条件后的语句
             genStmt(Nd->Then);
             // 执行完后跳转到if语句后面的语句
-            printf("  j .L.end.%d\n", C);
+            println("  j .L.end.%d", C);
             // else代码块，else可能为空，故输出标签
-            printf(".L.else.%d:\n", C);
+            println(".L.else.%d:", C);
             // 生成不符合条件后的语句
             if (Nd->Els)
                 genStmt(Nd->Els);
             // 结束if语句，继续执行后面的语句
-            printf(".L.end.%d:\n", C);
+            println(".L.end.%d:", C);
             return;
         }
-        // 生成for循环语句 
+        // 生成for 或 "while" 循环语句 
         // "for" "(" exprStmt expr? ";" expr? ")" stmt
 /*
             ... (init)                  // optional
@@ -228,9 +228,10 @@ static void genStmt(Node *Nd) {
             // 代码段计数
             int C = count();
             // 生成初始化语句
-            genStmt(Nd->Init);
+            if(Nd->Init)
+                genStmt(Nd->Init);
             // 输出循环头部标签
-            printf(".L.begin.%d:\n", C);
+            println(".L.begin.%d:", C);
             // 处理循环条件语句
             if (Nd->Cond) {
                 // 生成条件循环语句
@@ -245,9 +246,9 @@ static void genStmt(Node *Nd) {
                 // 生成循环递增语句
                 genExpr(Nd->Inc);
             // 跳转到循环头部
-            printf("  j .L.begin.%d\n", C);
+            println("  j .L.begin.%d", C);
             // 输出循环尾部标签
-            printf(".L.end.%d:\n", C);
+            println(".L.end.%d:", C);
             return;
         }
         default:
