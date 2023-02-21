@@ -7,7 +7,7 @@ Type *TyInt = &(Type){TY_INT};
 bool isInteger(Type *Ty) { return Ty->Kind == TY_INT; }
 
 // 指针类型，并且指向基类
-static Type *pointerTo(Type *Base) {
+Type *pointerTo(Type *Base) {
     Type *Ty = calloc(1, sizeof(Type));
     Ty->Kind = TY_PTR;
     Ty->Base = Base;
@@ -48,9 +48,12 @@ void addType(Node *Nd) {
         case ND_NE:
         case ND_LT:
         case ND_LE:
-        case ND_VAR:
         case ND_NUM:
             Nd->Ty = TyInt;
+            return;
+        // 将节点类型设为 变量的类型
+        case ND_VAR:
+            Nd->Ty = Nd->Var->Ty;
             return;
         // note: a node's base type will only be set
         // under these 2 cases below
@@ -58,13 +61,13 @@ void addType(Node *Nd) {
         case ND_ADDR:       // &var. unary only has lhs
             Nd->Ty = pointerTo(Nd->LHS->Ty);
             return;
-        // 节点类型：如果解引用指向的是指针，则为指针指向的类型；否则为int
+        // 节点类型：如果解引用指向的是指针，则为指针指向的类型；否则报错
         //note: 
         case ND_DEREF:      // *var
-            if (Nd->LHS->Ty->Kind == TY_PTR)
-                Nd->Ty = Nd->LHS->Ty->Base;
-            else
-                Nd->Ty = TyInt;
+            if (Nd->LHS->Ty->Kind != TY_PTR)
+                error("%s: invalid pointer dereference", tokenName(Nd->Tok));
+            Nd->Ty = Nd->LHS->Ty->Base;
+
             return;
         default:
             break;

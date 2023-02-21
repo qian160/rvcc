@@ -60,6 +60,7 @@ struct Obj {
     Obj *Next;  // 指向下一对象
     char *Name; // 变量名
     int Offset; // fp的偏移量
+    Type *Ty;   // 变量类型
 };
 
 // 函数. currently the only function is "main"
@@ -99,7 +100,7 @@ struct Node {
     // 可理解为指向另外一颗树的根节点
     NodeKind Kind; // 节点种类
     Node *Next;    // 下一节点，指代下一语句
-    Node *LHS;     // 左部，left-hand side
+    Node *LHS;     // 左部，left-hand side. unary node also uses this side
     Node *RHS;     // 右部，right-hand side
     Node *Body;    // 代码块;存储了{}内解析的语句
     Obj * Var;     // 存储ND_VAR的字符串
@@ -128,6 +129,7 @@ typedef enum {
 struct Type {
     TypeKind Kind; // 种类
     Type *Base;    // 基类, 指向的类型(only in effect for pointer)
+    Token *Name;   // 变量名. not char* ?
 };
 
 // 声明一个全局变量，定义在type.c中。
@@ -140,6 +142,8 @@ extern Type *TyInt;
 Token* tokenize(char* P);
 bool equal(Token *Tok, char *Str);
 Token *skip(Token *Tok, char *Str);
+bool consume(Token **Rest, Token *Tok, char *Str);
+char* tokenName(Token *Tok);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
@@ -154,6 +158,8 @@ void codegen(Function *Prog);
 bool isInteger(Type *TY);
 // 为节点内的所有节点添加类型
 void addType(Node *Nd);
+// 构建一个指针类型，并指向基类
+Type *pointerTo(Type *Base);
 
 /* ---------- node.c ---------- */
 Node *newNode(NodeKind Kind, Token *Tok);

@@ -28,29 +28,35 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
                     2
 
 
-*/                                                                    //e.g.
+*/                                                                      //e.g.
 // note: a single number can match almost all the cases.
 // 越往下优先级越高
 
-// program = "{" compoundStmt                                           "{" a=3*6-7; b=a+3;b; "}" | {6;} 
-// compoundStmt = stmt* "}"                                             "{" a=4; return a; "}" | {6;}
+// program = "{" compoundStmt                                           "{" int a=3*6-7; int b=a+3;b; "}" | {6;} 
+// compoundStmt = (stmt | declaration)* "}"                             "{" int a=4; return a; "}" | {6;}
+// declaration =
+//    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+//                                                                      int; | int a = 1; | int *a = &b; | int *******a;
+// declspec = "int"
+// declarator = "*"* ident                                              ***** a |  a
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "{" compoundStmt
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
-// exprStmt = expr? ";"                                                  a = 3+5; | 6; | ;   note: must ends up with a ';'
+// exprStmt = expr? ";"                                                 a = 3+5; | 6; | ;   note: must ends up with a ';'
 
 // expr = assign
 // assign = equality ("=" assign)?                                      a = (3*6-7) | 4  note: if it's the assign case, then its lhs must be a lvalue
-// equality = relational ("==" relational | "!=" relational)*           3*6==18 | 
+// equality = relational ("==" relational | "!=" relational)*           3*6==18 | 6
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*6+5 > 2*2+8) | 6
 // add = mul ("+" mul | "-" mul)*                                       -4*6 + 4*4 | 6
 // mul = unary ("*" unary | "/" unary)*                                 -(3*4) * 5 | -(5*6) | 6
 // unary = ("+" | "-" | "*" | "&") unary | primary                      -(3+5) | -4 | +4 | a | &a | *a | 6 
 // primary = "(" expr ")" | num | ident                                 (1+8*5 / 6 != 2) | 6 | a
 static Node *compoundStmt(Token **Rest, Token *Tok);
+static Node *declaration(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
 static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
@@ -77,13 +83,89 @@ static Obj *findVar(Token *Tok) {
 }
 
 // 在链表中新增一个变量. insert from head
-static Obj *newLVar(char *Name) {
+static Obj *newLVar(char *Name, Type *Ty) {
     Obj *Var = calloc(1, sizeof(Obj));
     Var->Name = Name;
+    Var->Ty = Ty;
     // 将变量插入头部
     Var->Next = Locals;
     Locals = Var;
     return Var;
+}
+
+// 获取标识符
+static char *getIdent(Token *Tok) {
+    if (Tok->Kind != TK_IDENT)
+        error("%s: expected an identifier", tokenName(Tok));
+    return strndup(Tok->Loc, Tok->Len);
+}
+
+// declspec = "int"
+// declarator specifier
+static Type *declspec(Token **Rest, Token *Tok) {
+    *Rest = skip(Tok, "int");
+    return TyInt;
+}
+
+// declarator = "*"* ident
+static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
+    // "*"*
+    // 构建所有的（多重）指针
+    while (consume(&Tok, Tok, "*"))
+        Ty = pointerTo(Ty);
+
+    if (Tok->Kind != TK_IDENT)
+        error("%s: expected a variable name", tokenName(Tok));
+
+    // ident
+    // 变量名
+    Ty->Name = Tok;
+    *Rest = Tok->Next;
+    return Ty;
+}
+
+// declaration =
+//    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+static Node *declaration(Token **Rest, Token *Tok) {
+    // declspec
+    // 声明的 基础类型
+    Type *Basety = declspec(&Tok, Tok);
+
+    Node Head = {};
+    Node *Cur = &Head;
+    // 对变量声明次数计数
+    int I = 0;
+
+    // (declarator ("=" expr)? ("," declarator ("=" expr)?)*)?
+    while (!equal(Tok, ";")) {
+        // 第1个变量不必匹配 ","
+        if (I++ > 0)
+            Tok = skip(Tok, ",");
+
+        // declarator
+        // 声明获取到变量类型，包括变量名
+        Type *Ty = declarator(&Tok, Tok, Basety);
+        Obj *Var = newLVar(getIdent(Ty->Name), Ty);
+
+        // 如果不存在"="则为变量声明，不需要生成节点，已经存储在Locals中了
+        if (!equal(Tok, "="))
+            continue;
+
+        // 解析“=”后面的Token
+        Node *LHS = newVarNode(Var, Ty->Name);
+        // 解析递归赋值语句
+        Node *RHS = assign(&Tok, Tok->Next);
+        Node *Node = newBinary(ND_ASSIGN, LHS, RHS, Tok);
+        // 存放在表达式语句中
+        Cur->Next = newUnary(ND_EXPR_STMT, Node, Tok);
+        Cur = Cur->Next;
+    }
+
+    // 将所有表达式语句，存放在代码块中
+    Node *Nd = newNode(ND_BLOCK, Tok);
+    Nd->Body = Head.Next;
+    *Rest = Tok->Next;
+    return Nd;
 }
 
 //
@@ -91,14 +173,18 @@ static Obj *newLVar(char *Name) {
 //
 
 // 解析复合语句
-// compoundStmt = stmt* "}"
+// compoundStmt = (stmt | declaration)* "}"
 static Node *compoundStmt(Token **Rest, Token *Tok) {
     // 这里使用了和词法分析类似的单向链表结构
     Node Head = {};
     Node *Cur = &Head;
-    // stmt* "}"
+    // (stmt | declaration)* "}"
     while (!equal(Tok, "}")) {
-        Cur->Next = stmt(&Tok, Tok);
+        if (equal(Tok, "int"))
+            Cur->Next = declaration(&Tok, Tok);
+        // stmt
+        else
+            Cur->Next = stmt(&Tok, Tok);
         Cur = Cur->Next;
         addType(Cur);
     }
@@ -391,10 +477,8 @@ static Node *primary(Token **Rest, Token *Tok) {
     if (Tok->Kind == TK_IDENT) {
         // 查找变量
         Obj *Var = findVar(Tok);
-        // 如果变量不存在，就在链表中新增一个变量
         if (!Var)
-            // strndup复制N个字符
-            Var = newLVar(strndup(Tok->Loc, Tok->Len));
+            error("%s: undefined variable", tokenName(Tok));
         *Rest = Tok->Next;
         return newVarNode(Var, Tok);
     }

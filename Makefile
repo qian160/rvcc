@@ -32,7 +32,7 @@ clean:
 .PHONY: test clean count
 
 -include $(DEPS)
-%.d: %.c	# add .d file to the dependancy list
+%.d: %.c
 	@set -e; rm -f $@; \
 		$(CC) -MM $(CFLAGS) $< > $@.$$$$; \
 		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@    ;\
@@ -40,3 +40,4 @@ clean:
 
 # sed here: find the pattern "xxx.o :" first, then
 # substitute it with "xxx.o xxx.d :". 1 is a placeholder.
+# otherwords just insert the .d file to the lhs of dependancy list
