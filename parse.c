@@ -34,7 +34,10 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 
 // program = "{" compoundStmt                                           "{" a=3*6-7; b=a+3;b; "}" | {6;} 
 // compoundStmt = stmt* "}"                                             "{" a=4; return a; "}" | {6;}
-// stmt = exprStmt | "return" expr ";" | "{" compoundStmt               a=6; | 6; | return 6; | {return 6;}
+// stmt = "return" expr ";"
+//        | "if" "(" expr ")" stmt ("else" stmt)?
+//        | "{" compoundStmt
+//        | exprStmt
 // exprStmt = expr? ";"                                                  a = 3+5; | 6;    note: must ends up with a ';'
 
 // expr = assign
@@ -79,21 +82,6 @@ static Obj *newLVar(char *Name) {
     Var->Next = Locals;
     Locals = Var;
     return Var;
-}
-
-
-// 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
-bool equal(Token *Tok, char *Str) {
-    // 比较字符串LHS（左部），RHS（右部）的前N位，S2的长度应大于等于N.
-    // 比较按照字典序，LHS<RHS回负值，LHS=RHS返回0，LHS>RHS返回正值
-    // 同时确保，此处的Op位数=N
-    return memcmp(Tok->Loc, Str, Tok->Len) == 0 && Str[Tok->Len] == '\0';
-}
-
-// 跳过指定的Str
-Token *skip(Token *Tok, char *Str) {
-    Assert(equal(Tok, Str), "expect '%s'", Str);
-    return Tok->Next;
 }
 
 //
@@ -155,12 +143,32 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 }
 
 // 解析语句
-// stmt = exprStmt | "return" expr ";" | "{" compoundStmt
+// stmt = "return" expr ";"
+//        | "if" "(" expr ")" stmt ("else" stmt)?
+//        | "{" compoundStmt
+//        | exprStmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
     if (equal(Tok, "return")) {
         Node *Nd = newUnary(ND_RETURN, expr(&Tok, Tok->Next));
         *Rest = skip(Tok, ";");
+        return Nd;
+    }
+
+    // 解析if语句
+    // "if" "(" expr ")" stmt ("else" stmt)?
+    if (equal(Tok, "if")) {
+        Node *Nd = newNode(ND_IF);
+        // "(" expr ")"，条件内语句
+        Tok = skip(Tok->Next, "(");
+        Nd->Cond = expr(&Tok, Tok);
+        Tok = skip(Tok, ")");
+        // stmt，符合条件后的语句
+        Nd->Then = stmt(&Tok, Tok);
+        // ("else" stmt)?，不符合条件后的语句
+        if (equal(Tok, "else"))
+            Nd->Els = stmt(&Tok, Tok->Next);
+        *Rest = Tok;
         return Nd;
     }
 

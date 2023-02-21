@@ -4,10 +4,38 @@
 #include<ctype.h>
 #include"rvcc.h"
 
+// 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
+bool equal(Token *Tok, char *Str) {
+    // 比较字符串LHS（左部），RHS（右部）的前N位，S2的长度应大于等于N.
+    // 比较按照字典序，LHS<RHS回负值，LHS=RHS返回0，LHS>RHS返回正值
+    // 同时确保，此处的Op位数=N
+    return memcmp(Tok->Loc, Str, Tok->Len) == 0 && Str[Tok->Len] == '\0';
+}
+
+// 跳过指定的Str
+Token *skip(Token *Tok, char *Str) {
+    Assert(equal(Tok, Str), "expect '%s'", Str);
+    return Tok->Next;
+}
+
 // 返回TK_NUM的值
 int getNumber(Token *Tok) {
     Assert(Tok -> Kind == TK_NUM, "expect a number");
     return Tok->Val;
+}
+
+// 判断是否为关键字
+static bool isKeyword(Token *Tok) {
+    // 关键字列表
+    static char *Kw[] = {"return", "if", "else"};
+
+    // 遍历关键字列表匹配
+    for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); ++I) {
+        if (equal(Tok, Kw[I]))
+            return true;
+    }
+
+    return false;
 }
 
 // 生成新的Token
@@ -68,6 +96,14 @@ static void print_tokens(Token * tok) {
     }
 }
 
+// 将名为“return”的终结符转为KEYWORD
+static void convertKeywords(Token *Tok) {
+    for (Token *T = Tok; T->Kind != TK_EOF; T = T->Next) {
+        if (isKeyword(T))
+            T->Kind = TK_KEYWORD;
+    }
+}
+
 // 终结符解析. try to generate a list of tokens from P
 // (head) -> '1' -> '+' -> '2' -> '-' -> '10'
 Token *tokenize(char *P) {
@@ -120,6 +156,8 @@ Token *tokenize(char *P) {
     }
     // 解析结束，增加一个EOF，表示终止符。
     Cur->Next = newToken(TK_EOF, P, P);
+    // 将所有关键字的终结符，都标记为KEYWORD
+    convertKeywords(Head.Next);
     // Head无内容，所以直接返回Next
     return Head.Next;
 }

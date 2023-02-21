@@ -7,6 +7,12 @@
 // 记录栈深度
 static int Depth;
 
+// 代码段计数
+static int count(void) {
+    static int I = 1;
+    return I++;
+}
+
 // 对齐到Align的整数倍
 // (0,Align]返回Align
 static int alignTo(int N, int Align) {
@@ -170,6 +176,37 @@ static void genStmt(Node *Nd) {
             // j offset是 jal x0, offset的别名指令
             println("  j .L.return");
             return;
+        // 生成if语句
+        case ND_IF: {
+            /*
+            if (!cond)  // judged by beqz inst
+                j .L.else.%d
+                ... (then)
+                ...
+            .L.else.%d
+                ... (else)
+                ...
+            .L.end.%d
+            */
+            // 代码段计数
+            int C = count();
+            // 生成条件内语句
+            genExpr(Nd->Cond);
+            // 判断结果是否为0，为0(false)则跳转到else标签
+            printf("  beqz a0, .L.else.%d\n", C);
+            // 生成符合条件后的语句
+            genStmt(Nd->Then);
+            // 执行完后跳转到if语句后面的语句
+            printf("  j .L.end.%d\n", C);
+            // else代码块，else可能为空，故输出标签
+            printf(".L.else.%d:\n", C);
+            // 生成不符合条件后的语句
+            if (Nd->Els)
+                genStmt(Nd->Els);
+            // 结束if语句，继续执行后面的语句
+            printf(".L.end.%d:\n", C);
+            return;
+        }
         default:
             error("invalid statement");
     }

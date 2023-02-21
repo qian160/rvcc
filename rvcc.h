@@ -85,6 +85,7 @@ typedef enum {
     ND_NUM,         // 整形
     ND_RETURN,      // 返回
     ND_BLOCK,       // { ... }，代码块
+    ND_IF           // "if"，条件判断
 } NodeKind;
 
 // AST中二叉树节点
@@ -95,6 +96,11 @@ struct Node {
     Node *RHS;     // 右部，right-hand side
     Node *Body;    // 代码块;存储了{}内解析的语句
     Obj * Var;     // 存储ND_VAR的字符串
+    // "if"语句
+    Node *Cond;    // 条件内的表达式
+    Node *Then;    // 符合条件后的语句
+    Node *Els;     // 不符合条件后的语句
+
     int Val;       // 存储ND_NUM种类的值
 };
 
@@ -105,6 +111,8 @@ struct Node {
 /* ---------- tokenize.c ---------- */
 // 词法分析
 Token* tokenize(char* P);
+bool equal(Token *Tok, char *Str);
+Token *skip(Token *Tok, char *Str);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
@@ -113,7 +121,6 @@ Function *parse(Token *Tok);
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
 void codegen(Function *Prog);
-
 
 #define error(format, ...) \
     do{ \
