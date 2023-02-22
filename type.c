@@ -1,6 +1,7 @@
 #include "rvcc.h"
 
 // (Type){...}构造了一个复合字面量，相当于Type的匿名变量。
+// TyInt-> Kind = TY_INT, TyInt->base/name = NULL
 Type *TyInt = &(Type){TY_INT};
 
 // 判断Type是否为int类型
@@ -49,6 +50,7 @@ void addType(Node *Nd) {
         case ND_LT:
         case ND_LE:
         case ND_NUM:
+        case ND_FUNCALL:
             Nd->Ty = TyInt;
             return;
         // 将节点类型设为 变量的类型

@@ -1,7 +1,4 @@
 #include"rvcc.h"
-#include<stdbool.h>
-#include<stdlib.h>
-#include<string.h>
 
 /*
     input = "1+2; 3-4;"
@@ -32,29 +29,30 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 // note: a single number can match almost all the cases.
 // 越往下优先级越高
 
-// program = "{" compoundStmt                                           "{" int a=3*6-7; int b=a+3;b; "}" | {6;} 
-// compoundStmt = (stmt | declaration)* "}"                             "{" int a=4; return a; "}" | {6;}
+// program = "{" compoundStmt                                           "{" int a=3*6-7; int b=a+3;b; "}" | {6;}  | "{" return 1; "}"
+// compoundStmt = (stmt | declaration)* "}"                             "{" int a=4; return a; "}" | {6;} | return 1; "}"
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
-//                                                                      int; | int a = 1; | int *a = &b; | int *******a;
+//                                                                      int; | int a = 1; | int *a = &b; | int *******a; | int a = 3, b = 2; | int a, b = 2; 
 // declspec = "int"
 // declarator = "*"* ident                                              ***** a |  a
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
-//        | "{" compoundStmt
+//        | "{" compoundStmt        // recursion
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
 // exprStmt = expr? ";"                                                 a = 3+5; | 6; | ;   note: must ends up with a ';'
 
 // expr = assign
-// assign = equality ("=" assign)?                                      a = (3*6-7) | 4  note: if it's the assign case, then its lhs must be a lvalue
+// assign = equality ("=" assign)?                                      a = (3*6-7) | 4  note: if it's the first case, then its lhs must be a lvalue
 // equality = relational ("==" relational | "!=" relational)*           3*6==18 | 6
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*6+5 > 2*2+8) | 6
-// add = mul ("+" mul | "-" mul)*                                       -4*6 + 4*4 | 6
-// mul = unary ("*" unary | "/" unary)*                                 -(3*4) * 5 | -(5*6) | 6
-// unary = ("+" | "-" | "*" | "&") unary | primary                      -(3+5) | -4 | +4 | a | &a | *a | 6 
-// primary = "(" expr ")" | num | ident                                 (1+8*5 / 6 != 2) | 6 | a
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*a+5) > (2*2+8) | 6
+// add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
+// mul = unary ("*" unary | "/" unary)*                                 -(3*4) * a | -(5*6) | *a * b | 6
+// unary = ("+" | "-" | "*" | "&") unary | primary                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
+// primary = "(" expr ")" | num | ident args?                            (1+8*5 / a != 2) | a | fn() | 6
+// args = "(" ")"
 static Node *compoundStmt(Token **Rest, Token *Tok);
 static Node *declaration(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
@@ -456,7 +454,8 @@ static Node *unary(Token **Rest, Token *Tok) {
 }
 
 // 解析括号、数字
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | num | ident args?
+// args = "(" ")"
 static Node *primary(Token **Rest, Token *Tok) {
     // "(" expr ")"
     if (equal(Tok, "(")) {
@@ -473,10 +472,22 @@ static Node *primary(Token **Rest, Token *Tok) {
         return Nd;
     }
 
-    // ident. keyword?
+    // ident args?
+    // args = "(" ")"
     if (Tok->Kind == TK_IDENT) {
+        // 函数调用
+        if (equal(Tok->Next, "(")) {
+            Node *Nd = newNode(ND_FUNCALL, Tok);
+            // ident
+            Nd->FuncName = tokenName(Tok);
+            *Rest = skip(Tok->Next->Next, ")");
+            return Nd;
+        }
+
+        // ident
         // 查找变量
         Obj *Var = findVar(Tok);
+        // 如果变量不存在，就在链表中新增一个变量
         if (!Var)
             error("%s: undefined variable", tokenName(Tok));
         *Rest = Tok->Next;

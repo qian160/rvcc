@@ -47,12 +47,12 @@ Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
         return newBinary(ND_ADD, LHS, RHS, Tok);
 
     // 不能解析 ptr + ptr
+    // has base type, meaning that it's a pointer
     if (LHS->Ty->Base && RHS->Ty->Base){
         error("can not add up two pointers.");
     }
 
     // 将 num + ptr 转换为 ptr + num
-    // 
     if (!LHS->Ty->Base && RHS->Ty->Base) {
         Node *Tmp = LHS;
         LHS = RHS;

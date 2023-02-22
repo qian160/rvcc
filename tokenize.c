@@ -1,7 +1,3 @@
-#include<stdbool.h>
-#include<string.h>
-#include<stdlib.h>
-#include<ctype.h>
 #include"rvcc.h"
 
 // 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
@@ -89,7 +85,8 @@ static int readPunct(char *Ptr) {
         startsWith(Ptr, ">="))
         return 2;
 
-    // 判断1字节的操作符
+    // 判断1字节的操作符.
+    // + - * / | & % ^ ! ~ = ; , . ( ) [ ] ? :
     return ispunct(*Ptr) ? 1 : 0;
 }
 
@@ -111,7 +108,7 @@ static void print_tokens(Token * tok) {
     }
 }
 
-// 将名为“return”的终结符转为KEYWORD
+// 将名为xxx的终结符转为KEYWORD
 static void convertKeywords(Token *Tok) {
     for (Token *T = Tok; T->Kind != TK_EOF; T = T->Next) {
         if (isKeyword(T))

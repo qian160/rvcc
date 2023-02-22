@@ -91,6 +91,7 @@ typedef enum {
     ND_FOR,         // "for" 或 "while" 循环
     ND_ADDR,        // 取地址 &
     ND_DEREF,       // 解引用 *
+    ND_FUNCALL      // 函数调用
 
 } NodeKind;
 
@@ -98,22 +99,23 @@ typedef enum {
 struct Node {
     // node*中都是存储了一串指令(保存至ast中)。
     // 可理解为指向另外一颗树的根节点
-    NodeKind Kind; // 节点种类
-    Node *Next;    // 下一节点，指代下一语句
-    Node *LHS;     // 左部，left-hand side. unary node also uses this side
-    Node *RHS;     // 右部，right-hand side
-    Node *Body;    // 代码块;存储了{}内解析的语句
-    Obj * Var;     // 存储ND_VAR的字符串
-    Type *Ty;      // 节点中数据的类型
-    int Val;       // 存储ND_NUM种类的值
-    Token * Tok;   // 节点对应的终结符. debug
+    NodeKind Kind;  // 节点种类
+    Node *Next;     // 下一节点，指代下一语句
+    Node *LHS;      // 左部，left-hand side. unary node also uses this side
+    Node *RHS;      // 右部，right-hand side
+    Node *Body;     // 块语句{...}的根节点。得到根节点后使用next进行遍历 
+    Obj * Var;      // 存储ND_VAR的字符串
+    Type *Ty;       // 节点中数据的类型
+    int Val;        // 存储ND_NUM种类的值
+    Token * Tok;    // 节点对应的终结符. debug
+    char *FuncName; // 函数名
     // "if"语句
-    Node *Cond;    // 条件内的表达式
-    Node *Then;    // 符合条件后的语句
-    Node *Els;     // 不符合条件后的语句
+    Node *Cond;     // 条件内的表达式
+    Node *Then;     // 符合条件后的语句
+    Node *Els;      // 不符合条件后的语句
     // "for"语句. 循环体存储在Then里
-    Node *Init;    // 初始化语句
-    Node *Inc;     // 递增语句
+    Node *Init;     // 初始化语句
+    Node *Inc;      // 递增语句
 };
 
 //
