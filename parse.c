@@ -45,14 +45,15 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 // exprStmt = expr? ";"                                                 a = 3+5; | 6; | ;   note: must ends up with a ';'
 
 // expr = assign
-// assign = equality ("=" assign)?                                      a = (3*6-7) | 4  note: if it's the first case, then its lhs must be a lvalue
+// assign = equality ("=" assign)?                                      a = (3*6-7) | a = b = 6 | 6  note: if it's the first case, then its lhs must be a lvalue
 // equality = relational ("==" relational | "!=" relational)*           3*6==18 | 6
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*a+5) > (2*2+8) | 6
 // add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
 // mul = unary ("*" unary | "/" unary)*                                 -(3*4) * a | -(5*6) | *a * b | 6
 // unary = ("+" | "-" | "*" | "&") unary | primary                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
 // primary = "(" expr ")" | num | ident args?                            (1+8*5 / a != 2) | a | fn() | 6
-// args = "(" ")"
+// args = "(" (expr ("," expr)*)? ")"
+// funcall = ident "(" (expr ("," expr)*)? ")"                          foo(1, 2, 3+5, bar(6, 4))
 static Node *compoundStmt(Token **Rest, Token *Tok);
 static Node *declaration(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
@@ -453,9 +454,38 @@ static Node *unary(Token **Rest, Token *Tok) {
     return primary(Rest, Tok);
 }
 
+// 解析函数调用. a helper function used by primary
+// funcall = ident "(" (expr ("," expr)*)? ")"
+// the arg `Tok` is an ident
+static Node *funCall(Token **Rest, Token *Tok) {
+    Token *Start = Tok;
+    // get the 1st arg, or ")"
+    Tok = Tok->Next->Next;
+
+    Node Head = {};
+    Node *Cur = &Head;
+    // expr ("," expr)*
+    while (!equal(Tok, ")")) {
+        if (Cur != &Head)
+            Tok = skip(Tok, ",");
+        // expr
+        Cur->Next = expr(&Tok, Tok);
+        Cur = Cur->Next;
+    }
+
+    *Rest = skip(Tok, ")");
+
+    Node *Nd = newNode(ND_FUNCALL, Start);
+    // ident
+    Nd->FuncName = tokenName(Start);
+    Nd->Args = Head.Next;
+    return Nd;
+}
+
+
 // 解析括号、数字
 // primary = "(" expr ")" | num | ident args?
-// args = "(" ")"
+// args = "(" (expr ("," expr)*)? ")"
 static Node *primary(Token **Rest, Token *Tok) {
     // "(" expr ")"
     if (equal(Tok, "(")) {
@@ -473,21 +503,14 @@ static Node *primary(Token **Rest, Token *Tok) {
     }
 
     // ident args?
-    // args = "(" ")"
+    // args = "(" (expr ("," expr)*)? ")"
     if (Tok->Kind == TK_IDENT) {
         // 函数调用
-        if (equal(Tok->Next, "(")) {
-            Node *Nd = newNode(ND_FUNCALL, Tok);
-            // ident
-            Nd->FuncName = tokenName(Tok);
-            *Rest = skip(Tok->Next->Next, ")");
-            return Nd;
-        }
+        if (equal(Tok->Next, "("))
+            return funCall(Rest, Tok);
 
         // ident
-        // 查找变量
         Obj *Var = findVar(Tok);
-        // 如果变量不存在，就在链表中新增一个变量
         if (!Var)
             error("%s: undefined variable", tokenName(Tok));
         *Rest = Tok->Next;

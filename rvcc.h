@@ -108,7 +108,9 @@ struct Node {
     Type *Ty;       // 节点中数据的类型
     int Val;        // 存储ND_NUM种类的值
     Token * Tok;    // 节点对应的终结符. debug
+    // 函数
     char *FuncName; // 函数名
+    Node *Args;     // 函数参数, 表达式
     // "if"语句
     Node *Cond;     // 条件内的表达式
     Node *Then;     // 符合条件后的语句
