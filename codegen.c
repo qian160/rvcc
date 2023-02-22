@@ -10,6 +10,8 @@ static int Depth;
 // 用于函数参数的寄存器们
 static char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
+static Function *CurrentFn;
+
 // 代码段计数
 static int count(void) {
     static int I = 1;
@@ -61,16 +63,19 @@ static void genAddr(Node *Nd) {
 // 根据变量的链表计算出偏移量
 // 其实是为每个变量分配地址
 static void assignLVarOffsets(Function *Prog) {
-    int Offset = 0;
-    // 读取所有变量
-    for (Obj *Var = Prog->Locals; Var; Var = Var->Next) {
-        // 每个变量分配8字节
-        Offset += 8;
-        // 为每个变量赋一个偏移量，或者说是栈中地址
-        Var->Offset = -Offset;
+    // 为每个函数计算其变量所用的栈空间
+    for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
+        int Offset = 0;
+        // 读取所有变量
+        for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
+            // 每个变量分配8字节
+            Offset += 8;
+            // 为每个变量赋一个偏移量，或者说是栈中地址
+            Var->Offset = -Offset;
+        }
+        // 将栈对齐到16字节
+        Fn->StackSize = alignTo(Offset, 16);
     }
-    // 将栈对齐到16字节
-    Prog->StackSize = alignTo(Offset, 16);
 }
 
 // sementics: print the asm from an ast whose root node is `Nd`
@@ -210,9 +215,9 @@ static void genStmt(Node *Nd) {
             return;
         case ND_RETURN:
             genExpr(Nd->LHS);
-            // 无条件跳转语句，跳转到.L.return段
+            // 无条件跳转语句，跳转到.L.return.%s段
             // j offset是 jal x0, offset的别名指令
-            println("  j .L.return");
+            println("  j .L.return.%s", CurrentFn->Name);
             return;
         // 生成if语句
         case ND_IF: {
@@ -313,34 +318,42 @@ static void genStmt(Node *Nd) {
 void codegen(Function * Prog) {
     // 为本地变量计算偏移量, 以及决定函数最终的栈大小
     assignLVarOffsets(Prog);
-    println("  .globl main");
-    println("main:");
+    // 为每个函数单独生成代码
+    for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
+        printf("  .globl %s\n", Fn->Name);
+        printf("# =====%s段开始===============\n", Fn->Name);
+        printf("%s:\n", Fn->Name);
+        CurrentFn = Fn;
 
-    // Prologue, 前言
-    // 将ra寄存器压栈,保存ra的值
-    println("  addi sp, sp, -16");
-    println("  sd ra, 8(sp)");
-    // 将fp压入栈中，保存fp的值
-    println("  sd fp, 0(sp)");
-    // 将sp写入fp
-    println("  mv fp, sp");
-    // 偏移量为实际变量所用的栈大小
-    println("  addi sp, sp, -%d", Prog->StackSize);
+        // Prologue, 前言
+        // 将ra寄存器压栈,保存ra的值
+        printf("  addi sp, sp, -16\n");
+        printf("  sd ra, 8(sp)\n");
+        // 将fp压入栈中，保存fp的值
+        printf("  sd fp, 0(sp)\n");
+        // 将sp写入fp
+        printf("  mv fp, sp\n");
 
-    // 生成语句链表的代码
-    genStmt(Prog->Body);
-    Assert(Depth == 0, "bad depth: %d", Depth);
+        // 偏移量为实际变量所用的栈大小
+        printf("  addi sp, sp, -%d\n", Fn->StackSize);
 
-    // Epilogue，后语
-    // 输出return段标签
-    println(".L.return:");
-    // 将fp的值改写回sp
-    println("  mv sp, fp");
-    // 将最早fp保存的值弹栈，恢复fp。
-    println("  ld fp, 0(sp)");
-    // 将ra寄存器弹栈,恢a的值
-    println("  ld ra, 8(sp)");
-    println("  addi sp, sp, 16");
-    // 返回
-    println("  ret");
+        // 生成语句链表的代码
+        printf("# =====%s段主体===============\n", Fn->Name);
+        genStmt(Fn->Body);
+        Assert(Depth == 0, "bad depth: %d", Depth);
+
+        // Epilogue，后语
+        // 输出return段标签
+        printf("# =====%s段结束===============\n", Fn->Name);
+        printf(".L.return.%s:\n", Fn->Name);
+        // 将fp的值改写回sp
+        printf("  mv sp, fp\n");
+        // 将最早fp保存的值弹栈，恢复fp。
+        printf("  ld fp, 0(sp)\n");
+        // 将ra寄存器弹栈,恢复ra的值
+        printf("  ld ra, 8(sp)\n");
+        printf("  addi sp, sp, 16\n");
+        // 返回
+        printf("  ret\n");
+    }
 }

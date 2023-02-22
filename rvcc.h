@@ -63,11 +63,13 @@ struct Obj {
     Type *Ty;   // 变量类型
 };
 
-// 函数. currently the only function is "main"
+// 函数.
 struct Function {
-    Node *Body;    // 函数体, made up by statements.
-    Obj *Locals;   // 本地变量,
-    int StackSize; // 栈大小
+    Node *Body;     // 函数体, made up by statements.
+    Obj *Locals;    // 本地变量,
+    int StackSize;  // 栈大小
+    Function *Next; // 下一函数
+    char *Name;     // 函数名
 };
 
 // AST的节点种类
@@ -128,12 +130,15 @@ struct Node {
 typedef enum {
     TY_INT,        // int整型
     TY_PTR,        // 指针
+    TY_FUNC,       // 函数
 } TypeKind;
 
 struct Type {
     TypeKind Kind; // 种类
     Type *Base;    // 基类, 指向的类型(only in effect for pointer)
     Token *Name;   // 变量名. not char* ?
+    // 函数类型
+    Type *ReturnTy; // 函数返回的类型
 };
 
 // 声明一个全局变量，定义在type.c中。
@@ -164,6 +169,8 @@ bool isInteger(Type *TY);
 void addType(Node *Nd);
 // 构建一个指针类型，并指向基类
 Type *pointerTo(Type *Base);
+// 函数类型
+Type *funcType(Type *ReturnTy);
 
 /* ---------- node.c ---------- */
 Node *newNode(NodeKind Kind, Token *Tok);
