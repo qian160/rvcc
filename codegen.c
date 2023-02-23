@@ -66,12 +66,15 @@ static void assignLVarOffsets(Function *Prog) {
     // 为每个函数计算其变量所用的栈空间
     for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
         int Offset = 0;
+//        println(" # local variables of Fn %s:", Fn->Name);
         // 读取所有变量
         for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
+            // the offset here is relevent to fp, which is at top of stack
             // 每个变量分配8字节
             Offset += 8;
             // 为每个变量赋一个偏移量，或者说是栈中地址
             Var->Offset = -Offset;
+//            println(" # %s, offset = %d", Var->Name, Var->Offset);
         }
         // 将栈对齐到16字节
         Fn->StackSize = alignTo(Offset, 16);
@@ -336,6 +339,13 @@ void codegen(Function * Prog) {
 
         // 偏移量为实际变量所用的栈大小
         printf("  addi sp, sp, -%d\n", Fn->StackSize);
+
+        // map the actual para to formal parm
+        int I = 0;
+        for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
+            // 将寄存器的值存入fn的栈地址
+            printf("  sd %s, %d(fp)\n", ArgReg[I++], Var->Offset);
+        }
 
         // 生成语句链表的代码
         printf("# =====%s段主体===============\n", Fn->Name);

@@ -1,7 +1,61 @@
 #include"rvcc.h"
 
 //
-// 从parse.c中分离出来。专门用来创建节点
+// 从parse.c中分离出来。解析时用到的一些辅助函数
+//
+
+extern Obj *Locals;
+
+// 通过名称，查找一个本地变量.
+Obj *findVar(Token *Tok) {
+    // 查找Locals变量中是否存在同名变量
+    for (Obj *Var = Locals; Var; Var = Var->Next)
+        // 判断变量名是否和终结符名长度一致，然后逐字比较。
+        if (strlen(Var->Name) == Tok->Len &&
+            !strncmp(Tok->Loc, Var->Name, Tok->Len))
+        return Var;
+    return NULL;
+}
+
+// 在链表中新增一个变量. insert from head
+Obj *newLVar(char *Name, Type *Ty) {
+    // check if already defined
+    for (Obj *tmp = Locals; tmp; tmp = tmp -> Next){
+        size_t len1 = strlen(Name);
+        size_t len2 = strlen(tmp->Name);
+        if (len1 == len2 && !strncmp(Name, tmp->Name, len1))
+            error("redefinition of '%s'!", Name);
+    }
+    // ok
+    Obj *Var = calloc(1, sizeof(Obj));
+    Var->Name = Name;
+    Var->Ty = Ty;
+    // 将变量插入头部
+    Var->Next = Locals;
+    Locals = Var;
+    return Var;
+}
+
+// 获取标识符
+char *getIdent(Token *Tok) {
+    if (Tok->Kind != TK_IDENT)
+        error("%s: expected an identifier", tokenName(Tok));
+    return tokenName(Tok);
+}
+
+// 将形参添加到Locals
+// recursively call newVar()
+void createParamLVars(Type *Param) {
+    if (Param) {
+        // 先将最底部的加入Locals中，之后的都逐个加入到顶部，保持顺序不变
+        createParamLVars(Param->Next);
+        // 添加到Locals中
+        newLVar(getIdent(Param->Name), Param);
+    }
+}
+
+//
+// 创建节点
 //
 
 // 新建一个未完全初始化的节点. kind and token

@@ -1,49 +1,63 @@
 #include"rvcc.h"
 
-/*
-    input = "1+2; 3-4;"
-    add a field 'next' to ast-tree node (下一语句, expr_stmt). see parse()
-    (TOK)
-    head -> EXPR_STMT   -> EXPR_STMT    -> (other stmts...)
-                |               |   (looks like straight, but in fact lhs. note: a node of )
-                |               |   (type 'EXPR_STMT' is also unary. see function exprStmt())
-               '+'             '-'
-               / \             / \
-              /   \           /   \
-            1      2         3     4
+//    input = "1+2; 3-4;"
+//    add a field 'next' to ast-tree node (下一语句, expr_stmt). see parse()
+//    (TOK)
+//    head -> EXPR_STMT   -> EXPR_STMT    -> (other stmts...)
+//                |               |   (looks like straight, but in fact lhs. note: a node of )
+//                |               |   (type 'EXPR_STMT' is also unary. see function exprStmt())
+//               '+'             '-'
+//               / \             / \
+//              /   \           /   \
+//            1      2         3     4
 
-    input = "{1; {2;}; 3;}"
+//    input = "{1; {2;}; 3;}" :
 
-                compoundStmt
-                    |
-    ----------------+------------------
-    |               |                 |
-ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
-    |               |                 |
-    1          ND_EXPR_STMT           3
-                    |
-                    2
+//                  compoundStmt
+//                      |
+//      ----------------+------------------
+//      |               |                 |
+//  ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
+//      |               |                 |
+//      1          ND_EXPR_STMT           3
+//                      |
+//                      2
+
+//      
+//                           declarator
+//                               ↓
+//                +--------------+-------------+
+//                |                funcParams  |
+//                |                +----------+|
+//                |                |          ||
+//        int     **      fn      (int a, int b)  { ... ... }         and the whole thing is a functionDefination
+//         ↑               ↑      |            |  |         |
+//      declspec         ident    +-----+------+  +----+----+
+//                                    ↓                ↓
+//                              typeSuffix        compoundStmt
 
 
-*/                                                                      //e.g.
+// ↓↑
+//                                                                      //e.g.
 // note: a single number can match almost all the cases.
 // 越往下优先级越高
 
-// program = functionDefination*                                        "int main(){" int a=3*6-7; int b=a+3;b; "}" | void f(){6;}
-// functionDefinition = declspec declarator "{" compoundStmt*           int ***foo(){}
-// compoundStmt = (stmt | declaration)* "}"                             { int a=4; return a; } | {6;} | return 1; }
-// 声明
+// program = functionDefination*                                        "int main(){ int a=3*6-7; int b=a+3;b; } | void f1(){6;} void f2(){;;;}
+// functionDefinition = declspec declarator compoundStmt*           int ***foo(int a, int b, int fn(int a, int b)){return 1;}
+// declspec = "int"
+// declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
+// typeSuffix = ("(" funcParams? ")")?                                  null | () | (int a) | (int a, int f(int a)) // this tells whether an ident is a variable or function
+//      funcParams = param ("," param)*                                 int a, int b | int fn(int x), int a, int b
+//      param = declspec declarator                                     int * a | int a | int fn(int a, int b)      // function para also allowed, not not supproted yet...
+// compoundStmt = "{" (stmt | declaration)* "}"                         { int a=4; return a; } | {6;} | {return {1}; } | {{;;;}}        // always be wrapped in pairs of "{}"
+
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 //                                                                      int; | int a = 1; | int *a = &b; | int *******a; | int a = 3, b = 2; | int a, b = 2; 
-// 声明的 基础类型
-// declspec = "int"
-// 说明符, 声明符
-// declarator = "*"* ident typeSuffix                                   ***** a |  a | a()  // note: typeSuffix's "()" can not be optional if type = function
-// typeSuffix = ("(" ")")?          // functions or variables?
+
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
-//        | "{" compoundStmt        // recursion
+//        | compoundStmt        // recursion
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
@@ -54,13 +68,18 @@ ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
 // equality = relational ("==" relational | "!=" relational)*           3*6==18 | 6
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*a+5) > (2*2+8) | 6
 // add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
-// mul = unary ("*" unary | "/" unary)*                                 -(3*4) * a | -(5*6) | *a * b | 6
+// mul = unary ("*" unary | "/" unary)*                                 -(3+4) * a | -(5+6) | *a * b | 6
 // unary = ("+" | "-" | "*" | "&") unary | primary                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
-// primary = "(" expr ")" | num | ident args?                            (1+8*5 / a != 2) | a | fn() | 6
+// primary = "(" expr ")" | num | ident args?                           (1+8*5 / a != 2) | a | fx(6) | 6
 // args = "(" (expr ("," expr)*)? ")"
 // funcall = ident "(" (expr ("," expr)*)? ")"                          foo(1, 2, 3+5, bar(6, 4))
+
+static Function *function(Token **Rest, Token *Tok);
+static Node *declaration(Token **Rest, Token *Tok);             // 声明
+static Type *declspec(Token **Rest, Token *Tok);                // 声明的基础类型
+static Type *declarator(Token **Rest, Token *Tok, Type *Ty);    // 说明符, 声明符
+static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty);
 static Node *compoundStmt(Token **Rest, Token *Tok);
-static Node *declaration(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
 static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
@@ -76,34 +95,38 @@ static Node *primary(Token **Rest, Token *Tok);
 // generated by declaration()
 Obj *Locals;
 
-// 通过名称，查找一个本地变量
-static Obj *findVar(Token *Tok) {
-    // 查找Locals变量中是否存在同名变量
-    for (Obj *Var = Locals; Var; Var = Var->Next)
-        // 判断变量名是否和终结符名长度一致，然后逐字比较。
-        if (strlen(Var->Name) == Tok->Len &&
-            !strncmp(Tok->Loc, Var->Name, Tok->Len))
-        return Var;
-    return NULL;
-}
+//
+// 生成AST（抽象语法树），语法解析
+//
 
-// 在链表中新增一个变量. insert from head
-static Obj *newLVar(char *Name, Type *Ty) {
-    Obj *Var = calloc(1, sizeof(Obj));
-    Var->Name = Name;
-    Var->Ty = Ty;
-    // 将变量插入头部
-    Var->Next = Locals;
-    Locals = Var;
-    return Var;
-}
+// functionDefinition = declspec declarator compoundStmt*
+static Function *function(Token **Rest, Token *Tok) {
+    // declspec
+    Type *Ty = declspec(&Tok, Tok);
+    // declarator? ident "(" ")"
+    Ty = declarator(&Tok, Tok, Ty);
 
+    // 清空全局变量Locals
+    Obj *tmp = Locals;
+    while(tmp){
+//        println(" # free %s", tmp->Name);
+        Locals = Locals->Next;
+        free(tmp);
+        tmp = Locals;
+    }
 
-// 获取标识符
-static char *getIdent(Token *Tok) {
-    if (Tok->Kind != TK_IDENT)
-        error("%s: expected an identifier", tokenName(Tok));
-    return tokenName(Tok);
+    // 从解析完成的Ty中读取ident
+    Function *Fn = calloc(1, sizeof(Function));
+    Fn->Name = getIdent(Ty->Name);
+    // 函数参数. add the formal parms to its local variables
+    createParamLVars(Ty->Params);
+    Fn->Params = Locals;
+
+    // 函数体存储语句的AST，Locals存储变量
+    Fn->Body = compoundStmt(Rest, Tok);
+    Fn->Locals = Locals;
+
+    return Fn;
 }
 
 // declspec = "int"
@@ -114,7 +137,8 @@ static Type *declspec(Token **Rest, Token *Tok) {
 }
 
 // declarator = "*"* ident typeSuffix
-// examples: ***var, fn(), fn
+// examples: ***var, fn(int x), a
+// a further step on type parsing. also help to assign Ty->Name
 static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     // "*"*
     // 构建所有的（多重）指针
@@ -122,21 +146,15 @@ static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
         Ty = pointerTo(Ty);
     // not an identifier, can't be declared
     if (Tok->Kind != TK_IDENT)
-        error("%s: expected an identifier name", tokenName(Tok));
+        error("%s: expect an identifier name", tokenName(Tok));
 
-    // a small bug: if the function doesn't have a "()" suffix, it still compiles. such as in main{...}
-    // temp solution: if Tok->next="{", then report an error
+    // a small bug: if the function doesn't have a "()" suffix, it still compiles. such as int main{...}
+    // temp solution: if Tok -> next = "{", then report an error. todo
     if(equal(Tok->Next, "{"))
-        error("%s: expect a function here", tokenName(Tok));
-    // typeSuffix
-    // ("(" ")")?
-    if (equal(Tok->Next, "(")) {
-        *Rest = Tok->Next->Next->Next;
-        Ty = funcType(Ty);
-    }
+        error("%s: expect a function", tokenName(Tok));
 
-    else
-        *Rest = Tok->Next;
+    // typeSuffix
+    Ty = typeSuffix(Rest, Tok->Next, Ty);
     // ident
     // 变量名 或 函数名
     Ty->Name = Tok;
@@ -144,25 +162,41 @@ static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     return Ty;
 }
 
-// functionDefinition = declspec declarator "{" compoundStmt*
-static Function *function(Token **Rest, Token *Tok) {
-    // declspec
-    Type *Ty = declspec(&Tok, Tok);
-    // declarator? ident "(" ")"
-    Ty = declarator(&Tok, Tok, Ty);
+// typeSuffix = ("(" funcParams? ")")? = ( "(" declspec declarator  ")" )?
+// funcParams = param ("," param)*
+// param = declspec declarator
+// if function, construct its formal parms. otherwise do nothing
+static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
+    // ("(" funcParams? ")")?
+    if (equal(Tok, "(")) {
+        // is a function
+        Tok = Tok->Next;
 
-    // 清空全局变量Locals
-    Locals = NULL;
+        // 存储形参的链表
+        Type Head = {};
+        Type *Cur = &Head;
+        while (!equal(Tok, ")")) {
+            // funcParams = param ("," param)*
+            // param = declspec declarator
+            if (Cur != &Head)
+                Tok = skip(Tok, ",");
+            Type *BaseTy = declspec(&Tok, Tok);
+            Type *DeclarTy = declarator(&Tok, Tok, BaseTy);
+            // 将类型复制到形参链表一份
+            Cur->Next = copyType(DeclarTy);
+            Cur = Cur->Next;
+        }
 
-    // 从解析完成的Ty中读取ident
-    Function *Fn = calloc(1, sizeof(Function));
-    Fn->Name = getIdent(Ty->Name);
-
-    Tok = skip(Tok, "{");
-    // 函数体存储语句的AST，Locals存储变量
-    Fn->Body = compoundStmt(Rest, Tok);
-    Fn->Locals = Locals;
-    return Fn;
+        // 封装一个函数节点
+        Ty = funcType(Ty);
+        // 传递形参
+        Ty -> Params = Head.Next;
+        *Rest = Tok->Next;
+        return Ty;
+    }
+    // not a function, nothing to do here
+    *Rest = Tok;
+    return Ty;
 }
 
 // declaration =
@@ -209,14 +243,11 @@ static Node *declaration(Token **Rest, Token *Tok) {
     return Nd;
 }
 
-//
-// 生成AST（抽象语法树），语法解析
-//
-
 // 解析复合语句
-// compoundStmt = (stmt | declaration)* "}"
+// compoundStmt = "{" (stmt | declaration)* "}"
 static Node *compoundStmt(Token **Rest, Token *Tok) {
     // 这里使用了和词法分析类似的单向链表结构
+    Tok = skip(Tok, "{");
     Node Head = {};
     Node *Cur = &Head;
     // (stmt | declaration)* "}"
@@ -239,7 +270,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 // 解析语句
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
-//        | "{" compoundStmt
+//        | compoundStmt
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
@@ -313,7 +344,8 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
     // "{" compoundStmt
     if (equal(Tok, "{"))
-        return compoundStmt(Rest, Tok->Next);
+//        return compoundStmt(Rest, Tok->Next);
+        return compoundStmt(Rest, Tok);
 
     // exprStmt
     return exprStmt(Rest, Tok);
@@ -501,7 +533,7 @@ static Node *unary(Token **Rest, Token *Tok) {
 // the arg `Tok` is an ident
 static Node *funCall(Token **Rest, Token *Tok) {
     Token *Start = Tok;
-    // get the 1st arg, or ")"
+    // get the 1st arg, or ")". jump skip indet and "("
     Tok = Tok->Next->Next;
 
     Node Head = {};

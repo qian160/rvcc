@@ -70,6 +70,7 @@ struct Function {
     int StackSize;  // 栈大小
     Function *Next; // 下一函数
     char *Name;     // 函数名
+    Obj *Params;    // 形参
 };
 
 // AST的节点种类
@@ -112,7 +113,7 @@ struct Node {
     Token * Tok;    // 节点对应的终结符. debug
     // 函数
     char *FuncName; // 函数名
-    Node *Args;     // 函数参数, 表达式
+    Node *Args;     // 函数被调用时代入的实参，可看作是一串表达式链表。 形参则保存在Nd->Ty->Parms中
     // "if"语句
     Node *Cond;     // 条件内的表达式
     Node *Then;     // 符合条件后的语句
@@ -136,9 +137,11 @@ typedef enum {
 struct Type {
     TypeKind Kind; // 种类
     Type *Base;    // 基类, 指向的类型(only in effect for pointer)
-    Token *Name;   // 变量名. not char* ?
+    Token *Name;   // 类型对应名称，如：变量名、函数名
     // 函数类型
     Type *ReturnTy; // 函数返回的类型
+    Type *Params;   // 存储形参的链表. head.
+    Type *Next;     // 下一类型
 };
 
 // 声明一个全局变量，定义在type.c中。
@@ -171,8 +174,10 @@ void addType(Node *Nd);
 Type *pointerTo(Type *Base);
 // 函数类型
 Type *funcType(Type *ReturnTy);
+// 复制类型
+Type *copyType(Type *Ty);
 
-/* ---------- node.c ---------- */
+/* ---------- parse-helper.c ---------- */
 Node *newNode(NodeKind Kind, Token *Tok);
 Node *newUnary(NodeKind Kind, Node *Expr, Token *Tok);
 Node *newBinary(NodeKind Kind, Node *LHS, Node *RHS, Token *Tok);
@@ -180,6 +185,10 @@ Node *newNum(int Val, Token *Tok);
 Node *newAdd(Node *LHS, Node *RHS, Token *Tok);
 Node *newSub(Node *LHS, Node *RHS, Token *Tok);
 Node *newVarNode(Obj* Var, Token *Tok);
+Obj *findVar(Token *Tok);
+Obj *newLVar(char *Name, Type *Ty);
+char *getIdent(Token *Tok);
+void createParamLVars(Type *Param);
 
 //
 // macros
