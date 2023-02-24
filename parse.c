@@ -66,7 +66,7 @@
 // functionDefinition = declspec declarator compoundStmt*           int ***foo(int a, int b, int fn(int a, int b)){return 1;}
 // declspec = "int"
 // declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
-// typeSuffix = ( funcParams  | "[" num "]")?                           null | () | (int a) | (int a, int f(int a)) | [4]   // these suffix tells that an ident is special
+// typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?               null | () | (int a) | (int a, int f(int a)) | [4] | [4][4]  // these suffix tells that an ident is special
 // funcParams =  "(" (param ("," param)*)? ")"                          (int a, int b) | (int fn(int x), int a, int b) | ()
 //      param = declspec declarator                                     int * a | int a | int fn(int a, int b)      // function para also allowed, not not supproted yet...
 // compoundStmt = "{" (stmt | declaration)* "}"                         { int a=4; return a; } | {6;} | {{;;;}}     // always be wrapped in pairs of "{}"
@@ -215,7 +215,7 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
         return Ty;
 }
 
-// typeSuffix = ( funcParams?  | "[" expr "]")?
+// typeSuffix = ( funcParams?  | "[" num "] typeSuffix")?
 // if function, construct its formal parms. otherwise do nothing
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
     // ("(" funcParams? ")")?
@@ -224,7 +224,9 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
 
     if (equal(Tok, "[")) {
         int Sz = getNumber(Tok->Next);
-        *Rest = skip(Tok->Next->Next, "]");
+        // skip num and ]
+        Tok = skip(Tok->Next->Next, "]");
+        Ty = typeSuffix(Rest, Tok, Ty);
         return arrayOf(Ty, Sz);
     }
 
