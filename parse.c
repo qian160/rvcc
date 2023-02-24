@@ -90,8 +90,8 @@
 // add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
 // mul = unary ("*" unary | "/" unary)*                                 -(3+4) * a | -(5+6) | *a * b | 6
 // unary = ("+" | "-" | "*" | "&") unary | postfix                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
-// postfix = primary ("[" expr "]")*                                    a[4] | a
-// primary = "(" expr ")" | num | ident args?                           (1+8*5 / a != 2) | a | fx(6) | 6
+// postfix = primary ("[" expr "]")*                                    a[4] | a 
+// primary = "(" expr ")" | num | ident args? | "sizeof" unary          (1+8*5 / a != 2) | a | fx(6) | 6
 // args = "(" (expr ("," expr)*)? ")"
 // funcall = ident "(" (expr ("," expr)*)? ")"                          foo(1, 2, 3+5, bar(6, 4))
 
@@ -631,7 +631,7 @@ static Node *funCall(Token **Rest, Token *Tok) {
 
 
 // 解析括号、数字
-// primary = "(" expr ")" | num | ident args?
+// primary = "(" expr ")" | num | ident args? | "sizeof" unary
 // args = "(" (expr ("," expr)*)? ")"
 static Node *primary(Token **Rest, Token *Tok) {
     // "(" expr ")"
@@ -640,6 +640,14 @@ static Node *primary(Token **Rest, Token *Tok) {
         *Rest = skip(Tok, ")");     // ?
         return Nd;
     }
+
+    // "sizeof" unary
+    if (equal(Tok, "sizeof")) {
+        Node *Nd = unary(Rest, Tok->Next);
+        addType(Nd);
+        return newNum(Nd->Ty->Size, Tok);
+    }
+
 
     // num
     if (Tok->Kind == TK_NUM) {

@@ -308,13 +308,13 @@ static void genStmt(Node *Nd) {
                 // 生成条件循环语句
                 genExpr(Nd->Cond);
                 // 判断结果是否为0，为0则跳转到结束部分
-                printf("  beqz a0, .L.end.%d\n", C);
+                println("  beqz a0, .L.end.%d", C);
             }
             // 生成循环体语句
             genStmt(Nd->Then);
             // 处理循环递增语句
             if (Nd -> Inc){
-                printf("\n# Inc语句%d\n", C);
+                println("\n# Inc语句%d", C);
                 // 生成循环递增语句
                 genExpr(Nd->Inc);
             }
@@ -347,21 +347,21 @@ void codegen(Function * Prog) {
     assignLVarOffsets(Prog);
     // 为每个函数单独生成代码
     for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
-        printf("  .globl %s\n", Fn->Name);
-        printf("# =====%s段开始===============\n", Fn->Name);
-        printf("%s:\n", Fn->Name);
+        println("  .globl %s", Fn->Name);
+        println("# =====%s段开始===============", Fn->Name);
+        println("%s:", Fn->Name);
         CurrentFn = Fn;
 
         // Prologue, 前言
         // 将ra寄存器压栈,保存ra的值
-        printf("  addi sp, sp, -16\n");
-        printf("  sd ra, 8(sp)\n");
+        println("  addi sp, sp, -16");
+        println("  sd ra, 8(sp)");
         // 将fp压入栈中，保存fp的值
-        printf("  sd fp, 0(sp)\n");
+        println("  sd fp, 0(sp)");
         // 将sp写入fp
-        printf("  mv fp, sp\n");
+        println("  mv fp, sp");
         // 偏移量为实际变量所用的栈大小
-        printf("  addi sp, sp, -%d\n", Fn->StackSize);
+        println("  addi sp, sp, -%d", Fn->StackSize);
 
         // map the actual params to formal params
         // this needs to be done before entering the fn body
@@ -372,26 +372,26 @@ void codegen(Function * Prog) {
                 println(" # map the args....");
             // 将寄存器的值存入fn的栈地址
             println(" # map %s to fp %d", tokenName(Var->Ty->Name), Var->Offset);
-            printf("  sd %s, %d(fp)\n", ArgReg[I++], Var->Offset);
+            println("  sd %s, %d(fp)", ArgReg[I++], Var->Offset);
         }
 
         // 生成语句链表的代码
-        printf("# =====%s段主体===============\n", Fn->Name);
+        println("# =====%s段主体===============", Fn->Name);
         genStmt(Fn->Body);
         Assert(Depth == 0, "bad depth: %d", Depth);
 
         // Epilogue，后语
         // 输出return段标签
-        printf("# =====%s段结束===============\n", Fn->Name);
-        printf(".L.return.%s:\n", Fn->Name);
+        println("# =====%s段结束===============\n", Fn->Name);
+        println(".L.return.%s:", Fn->Name);
         // 将fp的值改写回sp
-        printf("  mv sp, fp\n");
+        println("  mv sp, fp");
         // 将最早fp保存的值弹栈，恢复fp。
-        printf("  ld fp, 0(sp)\n");
+        println("  ld fp, 0(sp)");
         // 将ra寄存器弹栈,恢复ra的值
-        printf("  ld ra, 8(sp)\n");
-        printf("  addi sp, sp, 16\n");
+        println("  ld ra, 8(sp)");
+        println("  addi sp, sp, 16");
         // 返回
-        printf("  ret\n");
+        println("  ret");
     }
 }
