@@ -89,7 +89,8 @@
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*a+5) > (2*2+8) | 6
 // add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
 // mul = unary ("*" unary | "/" unary)*                                 -(3+4) * a | -(5+6) | *a * b | 6
-// unary = ("+" | "-" | "*" | "&") unary | primary                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
+// unary = ("+" | "-" | "*" | "&") unary | postfix                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
+// postfix = primary ("[" expr "]")*                                    a[4] | a
 // primary = "(" expr ")" | num | ident args?                           (1+8*5 / a != 2) | a | fx(6) | 6
 // args = "(" (expr ("," expr)*)? ")"
 // funcall = ident "(" (expr ("," expr)*)? ")"                          foo(1, 2, 3+5, bar(6, 4))
@@ -109,6 +110,7 @@ static Node *relational(Token **Rest, Token *Tok);
 static Node *add(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
 static Node *unary(Token **Rest, Token *Tok);
+static Node *postfix(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
 
 // 在解析时，全部的变量实例都被累加到这个列表里。
@@ -227,7 +229,7 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
         // skip num and ]
         Tok = skip(Tok->Next->Next, "]");
         Ty = typeSuffix(Rest, Tok, Ty);
-        return arrayOf(Ty, Sz);
+        return arrayOf(Ty, Sz);     // recursion 
     }
 
     // not a function, nothing to do here
@@ -544,7 +546,7 @@ static Node *mul(Token **Rest, Token *Tok) {
 }
 
 // 解析一元运算
-// unary = ("+" | "-" | "*" | "&") unary | primary
+// unary = ("+" | "-" | "*" | "&") unary | postfix
 static Node *unary(Token **Rest, Token *Tok) {
     // "+" unary
     if (equal(Tok, "+"))
@@ -561,7 +563,42 @@ static Node *unary(Token **Rest, Token *Tok) {
         return newUnary(ND_ADDR, unary(Rest, Tok->Next), Tok);
     }
     // primary
-    return primary(Rest, Tok);
+    return postfix(Rest, Tok);
+}
+
+// postfix = primary ("[" expr "]")*
+/*
+//  essence: convert the [] operator to some pointer dereferrence
+//    input = a[5][10]
+
+//    primary = a
+
+//                   Nd
+//                   | deref
+//                   +
+//                 /   \
+//                /     \
+//               /       \
+//              Nd    expr(idx=10)
+//              | deref
+//              +
+//            /   \
+//       primary  expr(idx=5)
+*/
+static Node *postfix(Token **Rest, Token *Tok) {
+    // primary
+    Node *Nd = primary(&Tok, Tok);
+
+    // ("[" expr "]")*
+    while (equal(Tok, "[")) {
+        // x[y] 等价于 *(x+y)
+        Token *Start = Tok;
+        Node *Idx = expr(&Tok, Tok->Next);
+        Tok = skip(Tok, "]");
+        Nd = newUnary(ND_DEREF, newAdd(Nd, Idx, Start), Start);
+    }
+    *Rest = Tok;
+    return Nd;
 }
 
 // 解析函数调用. a helper function used by primary

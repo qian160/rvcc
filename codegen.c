@@ -43,9 +43,12 @@ static void pop(char *Reg) {
 
 // 加载a0(为一个地址)指向的值
 static void load(Type *Ty) {
-    // the arrary ident itself is already an address
+    // to load a value, for normal types we need to get its address
+    // in stack and load from that address. but for pointer type we just need
+    // to get its address. the true "load" op is done by later deref
     if (Ty->Kind == TY_ARRAY)
         return;
+    // some kind of "dereferrence"
     println("  ld a0, 0(a0)");
 }
 
@@ -125,11 +128,10 @@ static void genExpr(Node *Nd) {
             return;
         // 变量. note: array also has VAR type
         case ND_VAR:
-            println(" ########## VAR ##########");
-            // 计算出变量的地址，然后存入a0
+            // 计算出变量的地址, 存入a0
             genAddr(Nd);
+            // load a value from the generated address
             load(Nd->Ty);
-            println(" ########## VAR ##########");
             return;
         // 赋值
         case ND_ASSIGN:
@@ -143,8 +145,10 @@ static void genExpr(Node *Nd) {
         // 解引用. *var
         case ND_DEREF:
             // get the address first
+            println(" ##### deref #####");
             genExpr(Nd->LHS);
             load(Nd->Ty);
+            println(" ##### deref #####");
             return;
         // 取地址 &var
         case ND_ADDR:
