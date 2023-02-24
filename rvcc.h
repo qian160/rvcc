@@ -132,6 +132,7 @@ typedef enum {
     TY_PTR,        // 指针
     TY_FUNC,       // 函数
     TY_ARRAY,      // 数组. very similar to ptr
+    TY_CHAR,       // 字符类型
 } TypeKind;
 
 struct Type {
@@ -148,6 +149,7 @@ struct Type {
 
 // 声明一个全局变量，定义在type.c中。
 extern Type *TyInt;
+extern Type *TyChar;
 
 // functions
 

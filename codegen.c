@@ -48,14 +48,45 @@ static void load(Type *Ty) {
     // to get its address. the true "load" op is done by later deref
     if (Ty->Kind == TY_ARRAY)
         return;
-    // some kind of "dereferrence"
-    println("  ld a0, 0(a0)");
+    switch (Ty->Size)
+    {
+        case 1:
+            println("  lb a0, 0(a0)");
+            break;
+        case 2:
+            println("  lh a0, 0(a0)");
+            break;
+        case 4:
+            println("  lw a0, 0(a0)");
+            break;
+        case 8:
+            println("  ld a0, 0(a0)");
+            break;
+        default:
+            error("wtf");
+    }
 }
 
 // 将a0存入栈顶值(为一个地址)
-static void store(void) {
+static void store(Type *Ty) {
     pop("a1");
-    println("  sd a0, 0(a1)");
+    switch (Ty->Size)
+    {
+        case 1:
+            println("  sb a0, 0(a1)");
+            break;
+        case 2:
+            println("  sh a0, 0(a1)");
+            break;
+        case 4:
+            println("  sw a0, 0(a1)");
+            break;
+        case 8:
+            println("  sd a0, 0(a1)");
+            break;
+        default:
+            error("wtf");
+    }
 };
 
 //
@@ -147,7 +178,7 @@ static void genExpr(Node *Nd) {
             push();
             // 右部是右值，为表达式的值
             genExpr(Nd->RHS);
-            store();
+            store(Nd->Ty);
             return;
         // 解引用. *var
         case ND_DEREF:
@@ -394,8 +425,12 @@ void emitText(Obj *Prog) {
         // then in the fn body we can use the formal params in stack
         int I = 0;
         for (Obj *Var = Fn->Params; Var; Var = Var->Next)
-            println("  sd %s, %d(fp)", ArgReg[I++], Var->Offset);
-
+        {
+            if (Var->Ty->Size == 1)
+                printf("  sb %s, %d(fp)\n", ArgReg[I++], Var->Offset);
+            else
+                printf("  sd %s, %d(fp)\n", ArgReg[I++], Var->Offset);
+        }
         // 生成语句链表的代码
         println("# =====%s段主体===============", Fn->Name);
         genStmt(Fn->Body);

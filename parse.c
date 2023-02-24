@@ -61,8 +61,8 @@
 // 越往下优先级越高
 
 // program = (functionDefination | global-variables)*                  "int main(){ int a=3*6-7; int b=a+3;b; } | void f1(){6;} void f2(){;;;}
-// functionDefinition = declspec declarator compoundStmt*           int ***foo(int a, int b, int fn(int a, int b)){return 1;}
-// declspec = "int"
+// functionDefinition = declspec declarator compoundStmt*               int ***foo(int a, int b, int fn(int a, int b)){return 1;}
+// declspec = "int" | "char"
 // declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
 // typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?               null | () | (int a) | (int a, int f(int a)) | [4] | [4][4]  // these suffix tells that an ident is special
 // funcParams =  "(" (param ("," param)*)? ")"                          (int a, int b) | (int fn(int x), int a, int b) | ()
@@ -164,11 +164,18 @@ static Token *function(Token *Tok) {
 }
 
 
-// declspec = "int"
+// declspec = "int" | "char"
 // 声明的 基础类型
 static Type *declspec(Token **Rest, Token *Tok) {
-    *Rest = skip(Tok, "int");
-    return TyInt;
+    if (equal(Tok, "char")){
+        *Rest = Tok -> Next;
+        return TyChar;
+    }
+    if (equal(Tok, "int")){
+        *Rest = Tok -> Next;
+        return TyInt;
+    }
+    error("unexpected type: %s", tokenName(Tok));
 }
 
 /*declarator：
@@ -303,7 +310,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
     Node *Cur = &Head;
     // (stmt | declaration)* "}"
     while (!equal(Tok, "}")) {
-        if (equal(Tok, "int"))
+        if (equal(Tok, "char") || equal(Tok, "int"))
             Cur->Next = declaration(&Tok, Tok);
         // stmt
         else

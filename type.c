@@ -4,9 +4,16 @@
 // TyInt这个全局变量的作用主要是方便了其他变量的初始化。直接设置为指向他就好。
 // 而且似乎也节省了空间，创建一次就能被用很多次
 Type *TyInt = &(Type){TY_INT, 8};
+Type *TyChar = &(Type){TY_CHAR, 1};
 
 // 判断Type是否为int类型
-bool isInteger(Type *Ty) { return Ty->Kind == TY_INT; }
+bool isInteger(Type *Ty){
+    return Ty->Kind == TY_INT || Ty -> Kind == TY_CHAR; 
+}
+
+bool isChar(Type *Ty){
+    return Ty->Kind == TY_CHAR;
+}
 
 // 复制类型
 Type *copyType(Type *Ty) {
