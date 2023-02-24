@@ -12,6 +12,12 @@ int main(int Argc, char **Argv) {
     // 解析终结符流
     Obj *Prog = parse(Tok);
 
+    println(" ## objects: ##");
+    for (Obj*tmp = Prog; tmp; tmp = tmp -> Next) {
+      println(" ## %s", (tmp->Name));
+    }
+    println(" #############");
+
     codegen(Prog);
 
     return 0;

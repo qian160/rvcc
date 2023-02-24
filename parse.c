@@ -120,13 +120,30 @@ Obj *Globals;   // 全局变量
 // 生成AST（抽象语法树），语法解析
 //
 
+// 构造全局变量
+static Token *globalVariable(Token *Tok) {
+    bool First = true;
+    Type *Basety = declspec(&Tok, Tok);
+
+    while (!consume(&Tok, Tok, ";")) {
+        if (!First)
+        Tok = skip(Tok, ",");
+        First = false;
+
+        Type *Ty = declarator(&Tok, Tok, Basety);
+        newGVar(getIdent(Ty->Name), Ty);
+    }
+    return Tok;
+}
+
 // functionDefinition = declspec declarator compoundStmt*
 static Token *function(Token *Tok) {
     Type *BaseTy = declspec(&Tok, Tok);
     Type *Ty = declarator(&Tok, Tok, BaseTy);
 
+    // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
-    Fn->IsFunction = true;
+    Fn -> IsFunction = true;
 
     // 清空全局变量Locals
     Obj *tmp = Locals;
@@ -674,11 +691,17 @@ static Node *primary(Token **Rest, Token *Tok) {
 // 语法解析入口函数
 // program = (functionDefinition* | global-variable)*
 Obj *parse(Token *Tok) {
-
     Globals = NULL;
 
+    // fn or gv?
+    // int fn()
     while (Tok->Kind != TK_EOF) {
-        Tok = function(Tok);
+        // current = int, next = ident, next -> next = (
+        bool isFn = equal(Tok->Next->Next, "(");
+        if (isFn)
+            Tok = function(Tok);
+        else
+            Tok = globalVariable(Tok);
     }
 
     return Globals;

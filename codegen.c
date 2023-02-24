@@ -69,8 +69,13 @@ static void genAddr(Node *Nd) {
     switch (Nd->Kind){
         // 变量
         case ND_VAR:
-            // 偏移量是相对于fp的
-            println("  addi a0, fp, %d", Nd->Var->Offset);
+            if (Nd->Var->IsLocal) {
+                // 局部变量的偏移量是相对于fp的, 栈内
+                println("  addi a0, fp, %d", Nd->Var->Offset);
+            } else {
+                // 获取全局变量的地址
+                println("  la a0, %s", Nd->Var->Name);
+            }
             return;
         // 解引用*
         case ND_DEREF:
@@ -342,26 +347,45 @@ static void genStmt(Node *Nd) {
     //           表达式计算
     //-------------------------------//
 
+static void emitData(Obj *Prog) {
+    for (Obj *Var = Prog; Var; Var = Var->Next) {
+        if (Var->IsFunction)
+            continue;
+
+        println("  # 数据段标签");
+        println("  .data");
+        println("  .globl %s", Var->Name);
+        println("  # 全局变量%s", Var->Name);
+        println("%s:", Var->Name);
+        println("  # 零填充%d位", Var->Ty->Size);
+        println("  .zero %d", Var->Ty->Size);
+    }
+}
+
 
 // 代码生成入口函数，包含代码块的基础信息
-void codegen(Obj * Prog) {
-    // 为本地变量计算偏移量, 以及决定函数最终的栈大小
-    assignLVarOffsets(Prog);
+void emitText(Obj *Prog) {
     // 为每个函数单独生成代码
     for (Obj *Fn = Prog; Fn; Fn = Fn->Next) {
-        if(!Fn -> IsFunction)
+        if (!Fn->IsFunction)
             continue;
+
         println("  .globl %s", Fn->Name);
+
         println("  .text");
         println("# =====%s段开始===============", Fn->Name);
         println("%s:", Fn->Name);
         CurrentFn = Fn;
 
         // Prologue, 前言
+        // 将ra寄存器压栈,保存ra的值
         println("  addi sp, sp, -16");
         println("  sd ra, 8(sp)");
+        // 将fp压入栈中，保存fp的值
         println("  sd fp, 0(sp)");
+        // 将sp写入fp
         println("  mv fp, sp");
+
         // 偏移量为实际变量所用的栈大小
         println("  addi sp, sp, -%d", Fn->StackSize);
 
@@ -369,22 +393,17 @@ void codegen(Obj * Prog) {
         // this needs to be done before entering the fn body
         // then in the fn body we can use the formal params in stack
         int I = 0;
-        for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
-            if (Var == Fn->Params)
-                println(" # map the args....");
-            // 将寄存器的值存入fn的栈地址
-            println(" # map %s to fp %d", tokenName(Var->Ty->Name), Var->Offset);
+        for (Obj *Var = Fn->Params; Var; Var = Var->Next)
             println("  sd %s, %d(fp)", ArgReg[I++], Var->Offset);
-        }
 
         // 生成语句链表的代码
         println("# =====%s段主体===============", Fn->Name);
         genStmt(Fn->Body);
-        Assert(Depth == 0, "bad depth: %d", Depth);
+        Assert(Depth == 0, "depth = %d", Depth);
 
         // Epilogue，后语
         // 输出return段标签
-        println("# =====%s段结束===============\n", Fn->Name);
+        println("# =====%s段结束===============", Fn->Name);
         println(".L.return.%s:", Fn->Name);
         // 将fp的值改写回sp
         println("  mv sp, fp");
@@ -396,4 +415,14 @@ void codegen(Obj * Prog) {
         // 返回
         println("  ret");
     }
+}
+
+// 代码生成入口函数，包含代码块的基础信息
+void codegen(Obj * Prog) {
+    // 为本地变量计算偏移量, 以及决定函数最终的栈大小
+    assignLVarOffsets(Prog);
+    // 生成数据
+    emitData(Prog);
+    // 生成代码
+    emitText(Prog);
 }

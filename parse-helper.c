@@ -7,7 +7,7 @@
 extern Obj *Locals;
 extern Obj *Globals;
 
-// 通过名称，查找一个本地变量.
+// 通过名称，查找一个变量.
 Obj *findVar(Token *Tok) {
     // 查找Locals变量中是否存在同名变量
     for (Obj *Var = Locals; Var; Var = Var->Next)
@@ -15,6 +15,14 @@ Obj *findVar(Token *Tok) {
         if (strlen(Var->Name) == Tok->Len &&
             !strncmp(Tok->Loc, Var->Name, Tok->Len))
         return Var;
+    
+    // 查找Globals变量中是否存在同名变量
+    for (Obj *Var = Globals; Var; Var = Var->Next)
+        // 判断变量名是否和终结符名长度一致，然后逐字比较。
+        if (strlen(Var->Name) == Tok->Len &&
+            !strncmp(Tok->Loc, Var->Name, Tok->Len))
+            return Var;
+
     return NULL;
 }
 
@@ -43,7 +51,6 @@ Obj *newGVar(char *Name, Type *Ty) {
     Globals = Var;
     return Var;
 }
-
 
 // 获取标识符
 char *getIdent(Token *Tok) {
