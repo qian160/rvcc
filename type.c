@@ -33,11 +33,12 @@ Type *funcType(Type *ReturnTy) {
 }
 
 // 构造数组类型, 传入 数组基类, 元素个数
+// array of the base type
 Type *arrayOf(Type *Base, int Len) {
     Type *Ty = calloc(1, sizeof(Type));
     Ty->Kind = TY_ARRAY;
     // 数组大小为所有元素大小之和
-    Ty->Size = Base->Size * Len;
+    Ty->Size = Base->Size * Len;        // higher level array uses lower's as base
     Ty->Base = Base;
     Ty->ArrayLen = Len;
     return Ty;

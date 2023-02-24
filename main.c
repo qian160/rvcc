@@ -10,7 +10,7 @@ int main(int Argc, char **Argv) {
     Token *Tok = tokenize(Argv[1]);
 
     // 解析终结符流
-    Function *Prog = parse(Tok);
+    Obj *Prog = parse(Tok);
 
     codegen(Prog);
 

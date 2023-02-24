@@ -5,6 +5,7 @@
 //
 
 extern Obj *Locals;
+extern Obj *Globals;
 
 // 通过名称，查找一个本地变量.
 Obj *findVar(Token *Tok) {
@@ -17,24 +18,32 @@ Obj *findVar(Token *Tok) {
     return NULL;
 }
 
-// 在链表中新增一个变量. insert from head
-Obj *newLVar(char *Name, Type *Ty) {
-    // check if already defined
-    for (Obj *tmp = Locals; tmp; tmp = tmp -> Next){
-        size_t len1 = strlen(Name);
-        size_t len2 = strlen(tmp->Name);
-        if (len1 == len2 && !strncmp(Name, tmp->Name, len1))
-            error("redefinition of '%s'!", Name);
-    }
-    // ok
+// 新建变量
+Obj *newVar(char *Name, Type *Ty) {
     Obj *Var = calloc(1, sizeof(Obj));
     Var->Name = Name;
     Var->Ty = Ty;
+    return Var;
+}
+
+// 在链表中新增一个局部变量
+Obj *newLVar(char *Name, Type *Ty) {
+    Obj *Var = newVar(Name, Ty);
+    Var->IsLocal = true;
     // 将变量插入头部
     Var->Next = Locals;
     Locals = Var;
     return Var;
 }
+
+// 在链表中新增一个全局变量
+Obj *newGVar(char *Name, Type *Ty) {
+    Obj *Var = newVar(Name, Ty);
+    Var->Next = Globals;
+    Globals = Var;
+    return Var;
+}
+
 
 // 获取标识符
 char *getIdent(Token *Tok) {

@@ -54,23 +54,22 @@ struct Token {
 // 生成AST（抽象语法树），语法解析
 //
 
-// 本地变量
+// both variables and functions are objects
 // connected by a linked list
 struct Obj {
-    Obj *Next;  // 指向下一对象
-    char *Name; // 变量名
-    int Offset; // fp的偏移量
-    Type *Ty;   // 变量类型
-};
-
-// 函数.
-struct Function {
-    Node *Body;     // 函数体, made up by statements.
-    Obj *Locals;    // 本地变量,
-    int StackSize;  // 栈大小
-    Function *Next; // 下一函数
-    char *Name;     // 函数名
+    Obj *Next;      // 指向下一对象
+    char *Name;     // 变量名/函数名
+    int Offset;     // fp的偏移量
+    Type *Ty;       // 变量类型
+    bool IsLocal;   // 是 局部或全局 变量
+    // 函数 或 全局变量
+    bool IsFunction;
+    // 函数
     Obj *Params;    // 形参
+    Node *Body;     // 函数体
+    Obj *Locals;    // 本地变量
+    int StackSize;  // 栈大小
+
 };
 
 // AST的节点种类
@@ -163,11 +162,11 @@ int getNumber(Token *Tok);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
-Function *parse(Token *Tok);
+Obj *parse(Token *Tok);
 
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
-void codegen(Function *Prog);
+void codegen(Obj *Prog);
 
 /* ---------- type.c ---------- */
 // 判断是否为整型
@@ -196,6 +195,10 @@ Obj *newLVar(char *Name, Type *Ty);
 char *getIdent(Token *Tok);
 void createParamLVars(Type *Param);
 int getNumber(Token *Tok);
+
+Obj *newVar(char *Name, Type *Ty);
+Obj *newLVar(char *Name, Type *Ty);
+Obj *newGVar(char *Name, Type *Ty);
 
 //
 // macros

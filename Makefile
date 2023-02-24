@@ -20,7 +20,7 @@ $(OBJS): rvcc.h
 	@$(CC) -c $*.c
 test:rvcc
 	@./test.sh
-count:
+l:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
 	@rm *.d
 # 清理标签，清理所有非源代码文件
@@ -29,7 +29,7 @@ clean:
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
-.PHONY: test clean count
+.PHONY: test clean l
 
 -include $(DEPS)
 %.d: %.c

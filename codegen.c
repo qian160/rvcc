@@ -10,7 +10,7 @@ static int Depth;
 // 用于函数参数的寄存器们
 static char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
-static Function *CurrentFn;
+static Obj *CurrentFn;
 
 // 代码段计数
 static int count(void) {
@@ -84,10 +84,12 @@ static void genAddr(Node *Nd) {
 
 // 根据变量的链表计算出偏移量
 // 其实是为每个变量分配地址
-static void assignLVarOffsets(Function *Prog) {
+static void assignLVarOffsets(Obj *Prog) {
     // 为每个函数计算其变量所用的栈空间
-    for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
+    for (Obj *Fn = Prog; Fn; Fn = Fn->Next) {
         int Offset = 0;
+        if(!Fn->IsFunction)
+            continue;
         println(" # local variables of Fn %s:", Fn->Name);
         // 读取所有变量
         for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
@@ -342,23 +344,23 @@ static void genStmt(Node *Nd) {
 
 
 // 代码生成入口函数，包含代码块的基础信息
-void codegen(Function * Prog) {
+void codegen(Obj * Prog) {
     // 为本地变量计算偏移量, 以及决定函数最终的栈大小
     assignLVarOffsets(Prog);
     // 为每个函数单独生成代码
-    for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
+    for (Obj *Fn = Prog; Fn; Fn = Fn->Next) {
+        if(!Fn -> IsFunction)
+            continue;
         println("  .globl %s", Fn->Name);
+        println("  .text");
         println("# =====%s段开始===============", Fn->Name);
         println("%s:", Fn->Name);
         CurrentFn = Fn;
 
         // Prologue, 前言
-        // 将ra寄存器压栈,保存ra的值
         println("  addi sp, sp, -16");
         println("  sd ra, 8(sp)");
-        // 将fp压入栈中，保存fp的值
         println("  sd fp, 0(sp)");
-        // 将sp写入fp
         println("  mv fp, sp");
         // 偏移量为实际变量所用的栈大小
         println("  addi sp, sp, -%d", Fn->StackSize);
