@@ -132,16 +132,19 @@ typedef enum {
     TY_INT,        // int整型
     TY_PTR,        // 指针
     TY_FUNC,       // 函数
+    TY_ARRAY,      // 数组. very similar to ptr
 } TypeKind;
 
 struct Type {
     TypeKind Kind; // 种类
+    int Size;      // 大小, sizeof返回的值
     Type *Base;    // 基类, 指向的类型(only in effect for pointer)
     Token *Name;   // 类型对应名称，如：变量名、函数名
     // 函数类型
     Type *ReturnTy; // 函数返回的类型
     Type *Params;   // 存储形参的链表. head.
     Type *Next;     // 下一类型
+    int ArrayLen;   // 数组长度, 元素总个数
 };
 
 // 声明一个全局变量，定义在type.c中。
@@ -156,6 +159,7 @@ bool equal(Token *Tok, char *Str);
 Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);
+int getNumber(Token *Tok);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
@@ -176,6 +180,8 @@ Type *pointerTo(Type *Base);
 Type *funcType(Type *ReturnTy);
 // 复制类型
 Type *copyType(Type *Ty);
+// 构造数组类型, 传入 数组基类, 元素个数
+Type *arrayOf(Type *Base, int Len);
 
 /* ---------- parse-helper.c ---------- */
 Node *newNode(NodeKind Kind, Token *Tok);
@@ -189,6 +195,7 @@ Obj *findVar(Token *Tok);
 Obj *newLVar(char *Name, Type *Ty);
 char *getIdent(Token *Tok);
 void createParamLVars(Type *Param);
+int getNumber(Token *Tok);
 
 //
 // macros

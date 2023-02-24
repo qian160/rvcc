@@ -44,7 +44,7 @@ char *getIdent(Token *Tok) {
 }
 
 // 将形参添加到Locals
-// recursively call newVar()
+// name, type
 void createParamLVars(Type *Param) {
     if (Param) {
         // 先将最底部的加入Locals中，之后的都逐个加入到顶部，保持顺序不变
@@ -114,8 +114,8 @@ Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
     }
 
     // ptr + num
-    // 指针加法，ptr+1，这里的1不是1个字节，而是1个元素的空间，所以需要 ×8 操作
-    RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
+    // 指针加法，ptr+1，这里的1不是1个字节，而是1个元素的空间，所以需要 ×size 操作
+    RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
     return newBinary(ND_ADD, LHS, RHS, Tok);
 }
 
@@ -131,7 +131,7 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
 
     // ptr - num
     if (LHS->Ty->Base && isInteger(RHS->Ty)) {
-        RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
+        RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
         addType(RHS);
         Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
         // 节点类型为指针
@@ -143,7 +143,7 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
     if (LHS->Ty->Base && RHS->Ty->Base) {
         Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
         Nd->Ty = TyInt;
-        return newBinary(ND_DIV, Nd, newNum(8, Tok), Tok);
+        return newBinary(ND_DIV, Nd, newNum(LHS->Ty->Base->Size, Tok), Tok);
     }
 
     error("%s: invalid operands", strndup(Tok->Loc, Tok->Len));

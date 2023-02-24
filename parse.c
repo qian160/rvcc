@@ -12,20 +12,27 @@
 //            1      2         3     4
 
 //    input = "{1; {2;}; 3;}" :
+//
+//                  compoundStmt                           LHS = NULL <- ND_BLOCK  -> RHS = NULL
+//                      |                                                   |
+//      ----------------+------------------                                 ↓ Body
+//      |               |                 |                  LHS = 1 <- ND_EXPR_STMT -> RHS = NULL  . note: expr_stmt is unary.
+//  ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT      ->                   |
+//      |               |                 |                                 ↓ Next         
+//      1          ND_EXPR_STMT           3                             ND_BLOCK -> Body = ND_EXPR_STMT, LHS = 2
+//                      |                                                   |
+//                      2                                                   ↓ Next
+//                                                           LHS = 3 <- ND_EXPR_STMT -> RHS = NULL
 
-//                  compoundStmt
-//                      |
-//      ----------------+------------------
-//      |               |                 |
-//  ND_EXPR_STMT   compoundStmt      ND_EXPR_STMT
-//      |               |                 |
-//      1          ND_EXPR_STMT           3
-//                      |
-//                      2
-
+/*
+//    这里也隐含了这样一层信息：类型为ND_BLOCK的节点并没有lhs与rhs
+//    (每次构造的时候调用的也是newNode这个不完全初始化的函数)。 
+//    真正有用的信息其实保留在Body里。最后codegen的时候遇到块语句，
+//    不用管lhs与rhs，直接去他的body里面遍历生成语句就好
+*/
 //      
 //                           declarator
-//                               ↓
+//                               ↑
 //                +--------------+-------------+
 //                |                funcParams  |
 //                |                +----------+|
@@ -33,9 +40,22 @@
 //        int     **      fn      (int a, int b)  { ... ... }         and the whole thing is a functionDefination
 //         ↑               ↑      |            |  |         |
 //      declspec         ident    +-----+------+  +----+----+
-//                                    ↓                ↓
-//                              typeSuffix        compoundStmt
+//                                      ↓              ↓
+//                                 typeSuffix     compoundStmt
 
+//      input = add(1 + 4, 2) + 5;
+//
+//                      +
+//                     / \
+//                   /     \
+//                 /         \
+//            ND_FUNCALL      2
+//                |             1               // ugly...
+//                ↓ Args       /
+//           ND_EXPR_STMT -> +
+//                |            \
+//                ↓ Next        4
+//           ND_EXPR_STMT -> 2
 
 // ↓↑
 //                                                                      //e.g.
@@ -46,10 +66,10 @@
 // functionDefinition = declspec declarator compoundStmt*           int ***foo(int a, int b, int fn(int a, int b)){return 1;}
 // declspec = "int"
 // declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
-// typeSuffix = ("(" funcParams? ")")?                                  null | () | (int a) | (int a, int f(int a)) // this tells whether an ident is a variable or function
-//      funcParams = param ("," param)*                                 int a, int b | int fn(int x), int a, int b
+// typeSuffix = ( funcParams  | "[" num "]")?                           null | () | (int a) | (int a, int f(int a)) | [4]   // these suffix tells that an ident is special
+// funcParams =  "(" (param ("," param)*)? ")"                          (int a, int b) | (int fn(int x), int a, int b) | ()
 //      param = declspec declarator                                     int * a | int a | int fn(int a, int b)      // function para also allowed, not not supproted yet...
-// compoundStmt = "{" (stmt | declaration)* "}"                         { int a=4; return a; } | {6;} | {return {1}; } | {{;;;}}        // always be wrapped in pairs of "{}"
+// compoundStmt = "{" (stmt | declaration)* "}"                         { int a=4; return a; } | {6;} | {{;;;}}     // always be wrapped in pairs of "{}"
 
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
@@ -75,9 +95,9 @@
 // funcall = ident "(" (expr ("," expr)*)? ")"                          foo(1, 2, 3+5, bar(6, 4))
 
 static Function *function(Token **Rest, Token *Tok);
-static Node *declaration(Token **Rest, Token *Tok);             // 声明
-static Type *declspec(Token **Rest, Token *Tok);                // 声明的基础类型
-static Type *declarator(Token **Rest, Token *Tok, Type *Ty);    // 说明符, 声明符
+static Node *declaration(Token **Rest, Token *Tok);
+static Type *declspec(Token **Rest, Token *Tok);
+static Type *declarator(Token **Rest, Token *Tok, Type *Ty);
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty);
 static Node *compoundStmt(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
@@ -136,6 +156,9 @@ static Type *declspec(Token **Rest, Token *Tok) {
     return TyInt;
 }
 
+/*declarator：
+    声明符，其实是介于declspec（声明的基础类型）与一直到声明结束(目前是左花括号)
+    这之间的所有东西。与前面的declspec搭配就完整地定义了一个函数的签名。也可以用来定义变量*/
 // declarator = "*"* ident typeSuffix
 // examples: ***var, fn(int x), a
 // a further step on type parsing. also help to assign Ty->Name
@@ -158,20 +181,16 @@ static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     // ident
     // 变量名 或 函数名
     Ty->Name = Tok;
+//    println(" #### name = %s, type = %d", tokenName(Tok), Ty->Kind);
 
     return Ty;
 }
 
-// typeSuffix = ("(" funcParams? ")")? = ( "(" declspec declarator  ")" )?
-// funcParams = param ("," param)*
+// funcParams =  "(" (param ("," param)*)? ")"
 // param = declspec declarator
-// if function, construct its formal parms. otherwise do nothing
-static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
-    // ("(" funcParams? ")")?
-    if (equal(Tok, "(")) {
-        // is a function
-        Tok = Tok->Next;
-
+static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
+        // skip "(" at the begining of fn
+        Tok = Tok -> Next;
         // 存储形参的链表
         Type Head = {};
         Type *Cur = &Head;
@@ -191,9 +210,24 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
         Ty = funcType(Ty);
         // 传递形参
         Ty -> Params = Head.Next;
+        // skip ")" at the end of function
         *Rest = Tok->Next;
         return Ty;
+}
+
+// typeSuffix = ( funcParams?  | "[" expr "]")?
+// if function, construct its formal parms. otherwise do nothing
+static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
+    // ("(" funcParams? ")")?
+    if (equal(Tok, "("))
+        return funcParams(Rest, Tok, Ty);
+
+    if (equal(Tok, "[")) {
+        int Sz = getNumber(Tok->Next);
+        *Rest = skip(Tok->Next->Next, "]");
+        return arrayOf(Ty, Sz);
     }
+
     // not a function, nothing to do here
     *Rest = Tok;
     return Ty;
@@ -342,7 +376,7 @@ static Node *stmt(Token **Rest, Token *Tok) {
     }
 
 
-    // "{" compoundStmt
+    // compoundStmt
     if (equal(Tok, "{"))
 //        return compoundStmt(Rest, Tok->Next);
         return compoundStmt(Rest, Tok);
@@ -571,7 +605,6 @@ static Node *primary(Token **Rest, Token *Tok) {
     // num
     if (Tok->Kind == TK_NUM) {
         Node *Nd = newNum(Tok->Val, Tok);
-        // this modifies `mul`'s Tok in fact
         *Rest = Tok->Next;
         return Nd;
     }

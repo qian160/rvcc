@@ -190,6 +190,12 @@ assert 1 'int main() { return sub2(4,3); } int sub2(int x, int y) { return x-y; 
 assert 55 'int main() { return fib(9); } int fib(int x) { if (x<=1) return 1; return fib(x-1) + fib(x-2); }'
 printf "$COLOR_GREEN [26] $COLOR_NONE\n"
 
+# [27] 支持一维数组
+assert 3 'int main() { int x[2]; int *y=&x; *y=3; return *x; }'
+assert 3 'int main() { int x[3]; *x=3; *(x+1)=4; *(x+2)=5; return *x; }'
+assert 4 'int main() { int x[3]; *x=3; *(x+1)=4; *(x+2)=5; return *(x+1); }'
+assert 5 'int main() { int x[3]; *x=3; *(x+1)=4; *(x+2)=5; return *(x+2); }'
+
 # 如果运行正常未提前退出，程序将显示OK
 printf "$COLOR_GREEN PASS! $COLOR_NONE\n"
 

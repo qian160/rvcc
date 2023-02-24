@@ -1,10 +1,9 @@
 #include "rvcc.h"
 
 // (Type){...}构造了一个复合字面量，相当于Type的匿名变量。
-// TyInt-> Kind = TY_INT, TyInt->base/name = NULL
 // TyInt这个全局变量的作用主要是方便了其他变量的初始化。直接设置为指向他就好。
 // 而且似乎也节省了空间，创建一次就能被用很多次
-Type *TyInt = &(Type){TY_INT};
+Type *TyInt = &(Type){TY_INT, 8};
 
 // 判断Type是否为int类型
 bool isInteger(Type *Ty) { return Ty->Kind == TY_INT; }
@@ -21,6 +20,7 @@ Type *pointerTo(Type *Base) {
     Type *Ty = calloc(1, sizeof(Type));
     Ty->Kind = TY_PTR;
     Ty->Base = Base;
+    Ty->Size = 8;
     return Ty;
 }
 
@@ -32,6 +32,16 @@ Type *funcType(Type *ReturnTy) {
     return Ty;
 }
 
+// 构造数组类型, 传入 数组基类, 元素个数
+Type *arrayOf(Type *Base, int Len) {
+    Type *Ty = calloc(1, sizeof(Type));
+    Ty->Kind = TY_ARRAY;
+    // 数组大小为所有元素大小之和
+    Ty->Size = Base->Size * Len;
+    Ty->Base = Base;
+    Ty->ArrayLen = Len;
+    return Ty;
+}
 
 // 为节点内的所有节点添加类型
 void addType(Node *Nd) {
@@ -62,7 +72,11 @@ void addType(Node *Nd) {
         case ND_MUL:
         case ND_DIV:
         case ND_NEG:
+            Nd->Ty = Nd->LHS->Ty;
+            return;
+        // 左部不能是数组节点
         case ND_ASSIGN:
+            Assert(Nd->LHS->Ty->Kind != TY_ARRAY, "not a lvalue");
             Nd->Ty = Nd->LHS->Ty;
             return;
         // 将节点类型设为 int
@@ -81,13 +95,17 @@ void addType(Node *Nd) {
         // note: a node's base type will only be set
         // under these 2 cases below
         // 将节点类型设为 指针，并指向左部的类型
-        case ND_ADDR:       // &var. unary only has lhs
-            Nd->Ty = pointerTo(Nd->LHS->Ty);
+        case ND_ADDR:{
+            Type *Ty = Nd->LHS->Ty;
+            if(Ty -> Kind == TY_ARRAY)
+                Nd -> Ty = pointerTo(Ty -> Base);
+            else
+                Nd->Ty = pointerTo(Nd->LHS->Ty);
             return;
-        // 节点类型：如果解引用指向的是指针，则为指针指向的类型；否则报错
-        //note: 
-        case ND_DEREF:      // *var
-            if (Nd->LHS->Ty->Kind != TY_PTR)
+        }
+        case ND_DEREF:
+            // 如果不存在基类, 则无法解引用
+            if (!Nd->LHS->Ty->Base)
                 error("%s: invalid pointer dereference", tokenName(Nd->Tok));
             Nd->Ty = Nd->LHS->Ty->Base;
 

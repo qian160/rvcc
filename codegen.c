@@ -1,7 +1,7 @@
 #include "rvcc.h"
 
 //
-// 代码生成
+// some helper functions
 //
 
 // 记录栈深度
@@ -40,6 +40,25 @@ static void pop(char *Reg) {
     println("  addi sp, sp, 8");
     Depth--;
 }
+
+// 加载a0(为一个地址)指向的值
+static void load(Type *Ty) {
+    // the arrary ident itself is already an address
+    if (Ty->Kind == TY_ARRAY)
+        return;
+    println("  ld a0, 0(a0)");
+}
+
+// 将a0存入栈顶值(为一个地址)
+static void store(void) {
+    pop("a1");
+    println("  sd a0, 0(a1)");
+};
+
+//
+// codeGen
+//
+
 static void genExpr(Node *Nd);
 // 计算给定节点的绝对地址, 并打印
 // 如果报错，说明节点不在内存中
@@ -66,15 +85,15 @@ static void assignLVarOffsets(Function *Prog) {
     // 为每个函数计算其变量所用的栈空间
     for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
         int Offset = 0;
-//        println(" # local variables of Fn %s:", Fn->Name);
+        println(" # local variables of Fn %s:", Fn->Name);
         // 读取所有变量
         for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
             // the offset here is relevent to fp, which is at top of stack
-            // 每个变量分配8字节
-            Offset += 8;
+            // 每个变量分配空间
+            Offset += Var->Ty->Size;
             // 为每个变量赋一个偏移量，或者说是栈中地址
             Var->Offset = -Offset;
-//            println(" # %s, offset = %d", Var->Name, Var->Offset);
+            println(" # %s, offset = %d", Var->Name, Var->Offset);
         }
         // 将栈对齐到16字节
         Fn->StackSize = alignTo(Offset, 16);
@@ -90,7 +109,7 @@ static void assignLVarOffsets(Function *Prog) {
 //      then get the lhs sub-tree's value.
 //      now we have both sub-tree's value, 
 //      and how to deal with these two values depends on current root node
-// 生成表达式
+// 生成表达式. after expr is generated its value will be put to a0
 static void genExpr(Node *Nd) {
     // 生成各个根节点
     switch (Nd->Kind) {
@@ -104,12 +123,13 @@ static void genExpr(Node *Nd) {
             // neg a0, a0是sub a0, x0, a0的别名, 即a0=0-a0
             println("  neg a0, a0");
             return;
-        // 变量
+        // 变量. note: array also has VAR type
         case ND_VAR:
+            println(" ########## VAR ##########");
             // 计算出变量的地址，然后存入a0
             genAddr(Nd);
-            // 访问a0地址中存储的数据，存入到a0当中
-            println("  ld a0, 0(a0)");
+            load(Nd->Ty);
+            println(" ########## VAR ##########");
             return;
         // 赋值
         case ND_ASSIGN:
@@ -118,13 +138,13 @@ static void genExpr(Node *Nd) {
             push();
             // 右部是右值，为表达式的值
             genExpr(Nd->RHS);
-            pop("a1");
-            println("  sd a0, 0(a1)");
+            store();
             return;
         // 解引用. *var
         case ND_DEREF:
+            // get the address first
             genExpr(Nd->LHS);
-            println("  ld a0, 0(a0)");
+            load(Nd->Ty);
             return;
         // 取地址 &var
         case ND_ADDR:
@@ -140,7 +160,7 @@ static void genExpr(Node *Nd) {
                 push();
                 NArgs++;
             }
-            // 反向弹栈，a0->参数1，a1->参数2……
+            // 反向弹栈，a0->参数1，a1->参数2...
             for (int i = NArgs - 1; i >= 0; i--)
                 pop(ArgReg[i]);
             // 调用函数
@@ -151,7 +171,7 @@ static void genExpr(Node *Nd) {
         default:
             break;
     }
-
+    // EXPR_STMT
     // 递归到最右节点
     genExpr(Nd->RHS);
     // 将结果 a0 压入栈
@@ -336,14 +356,18 @@ void codegen(Function * Prog) {
         printf("  sd fp, 0(sp)\n");
         // 将sp写入fp
         printf("  mv fp, sp\n");
-
         // 偏移量为实际变量所用的栈大小
         printf("  addi sp, sp, -%d\n", Fn->StackSize);
 
-        // map the actual para to formal parm
+        // map the actual params to formal params
+        // this needs to be done before entering the fn body
+        // then in the fn body we can use the formal params in stack
         int I = 0;
         for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
+            if (Var == Fn->Params)
+                println(" # map the args....");
             // 将寄存器的值存入fn的栈地址
+            println(" # map %s to fp %d", tokenName(Var->Ty->Name), Var->Offset);
             printf("  sd %s, %d(fp)\n", ArgReg[I++], Var->Offset);
         }
 
