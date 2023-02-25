@@ -295,6 +295,14 @@ assert 10 'int main() { return "\ax\ny"[2]; }'
 assert 121 'int main() { return "\ax\ny"[3]; }'
 print 36
 
+# [37] 支持八进制转义字符
+assert 0 'int main() { return "\0"[0]; }'
+assert 16 'int main() { return "\20"[0]; }'
+assert 65 'int main() { return "\101"[0]; }'
+assert 104 'int main() { return "\1500"[0]; }'
+print 37
+
+
 # 如果运行正常未提前退出，程序将显示OK
 print "PASS"
 
