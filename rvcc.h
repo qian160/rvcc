@@ -164,7 +164,6 @@ Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);
 int getNumber(Token *Tok);
-void errorTok(Token *Tok, char *Fmt, ...);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
@@ -212,6 +211,11 @@ Obj *newStringLiteral(char *Str, Type *Ty);
 /* ---------- string.c ---------- */
 // 格式化后返回字符串
 char *format(char *Fmt, ...);
+
+/* ---------- debug.c ---------- */
+
+void errorTok(Token *Tok, char *Fmt, ...);
+void errorAt(char *Loc, char *Fmt, ...);
 
 
 //

@@ -20,39 +20,6 @@ char* tokenName(Token *Tok) {
     return strndup(Tok->Loc, Tok->Len);
 }
 
-// 输出错误出现的位置，并退出
-static void verrorAt(char *Loc, char *Fmt, va_list VA) {
-    // 先输出源信息
-    fprintf(stderr, "%s\n", CurrentInput);
-
-    // 输出出错信息
-    // 计算出错的位置，Loc是出错位置的指针，CurrentInput是当前输入的首地址
-    int Pos = Loc - CurrentInput;
-    // 将字符串补齐为Pos位，因为是空字符串，所以填充Pos个空格。
-    fprintf(stderr, "%*s", Pos, "");
-    fprintf(stderr, "^ ");
-    vfprintf(stderr, Fmt, VA);
-    fprintf(stderr, "\n");
-    va_end(VA);
-}
-
-// 字符解析出错
-static void errorAt(char *Loc, char *Fmt, ...) {
-    va_list VA;
-    va_start(VA, Fmt);
-    verrorAt(Loc, Fmt, VA);
-    exit(1);
-}
-
-// Tok解析出错
-void errorTok(Token *Tok, char *Fmt, ...) {
-    va_list VA;
-    va_start(VA, Fmt);
-    verrorAt(Tok->Loc, Fmt, VA);
-    exit(1);
-}
-
-
 // 返回TK_NUM的值
 int getNumber(Token *Tok) {
     Assert(Tok -> Kind == TK_NUM, "expect a number");
@@ -74,7 +41,8 @@ bool consume(Token **Rest, Token *Tok, char *Str) {
 // 判断是否为关键字
 static bool isKeyword(Token *Tok) {
     // 关键字列表
-    static char *Kw[] = {"return", "if", "else", "for", "while", "int", "sizeof", "char"};
+    static char *Kw[] = {"return", "if", "else", "for", 
+            "while", "int", "sizeof", "char"};
 
     // 遍历关键字列表匹配
     for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); ++I) {
@@ -91,6 +59,65 @@ Token *newToken(TokenKind Kind, char *Start, char *End) {
     Tok->Kind = Kind;
     Tok->Loc = Start;
     Tok->Len = End - Start;
+    return Tok;
+}
+
+// 读取转义字符
+static int readEscapedChar(char *P) {
+    switch (*P) {
+        case 'a': // 响铃（警报）
+            return '\a';
+        case 'b': // 退格
+            return '\b';
+        case 't': // 水平制表符，tab
+            return '\t';
+        case 'n': // 换行
+            return '\n';
+        case 'v': // 垂直制表符
+            return '\v';
+        case 'f': // 换页
+            return '\f';
+        case 'r': // 回车
+            return '\r';
+        // 属于GNU C拓展
+        case 'e': // 转义符
+            return 27;
+        default: // 默认将原字符返回
+            return *P;
+    }
+}
+
+// 读取字符串字面量. *Start = "
+static Token *readStringLiteral(char *Start) {
+    // check legality and compute length
+    char *P = Start + 1;
+    int len = 0;
+    for(; *P != '"'; P++){
+        if(*P == '\n' || *P == '\0')
+            error("unclosed string literal: %s", Start);
+        if(*P == '\\') 
+            P++;
+        len++;
+    }
+    len++;      // '\0'
+    char * Buf = calloc(1, len);
+
+    int i = 0;
+    // 将读取后的结果写入Buf
+    for (char *P = Start + 1; *P != '"';) {
+        if (*P == '\\') {
+            Buf[i++] = readEscapedChar(P + 1);
+            P += 2;
+        } else {
+            Buf[i++] = *P++;
+        }
+    }
+
+    // Token这里需要包含带双引号的字符串字面量
+    Token *Tok = newToken(TK_STR, Start, P + 1);
+    // 为\0增加一位
+    Tok->Ty = arrayOf(TyChar, len);
+    Tok->Str = Buf;
     return Tok;
 }
 
@@ -121,45 +148,9 @@ static int readPunct(char *Ptr) {
         return 2;
 
     // 判断1字节的操作符.
-    // + - * / | & % ^ ! ~ = ; , . ( ) [ ] ? :
+    // + - * / | & % ^ ! ~ = ; , . ( ) [ ] ? : " '
     return ispunct(*Ptr) ? 1 : 0;
 }
-
-__attribute__((unused))
-static void print_one(Token *tok) {
-    char * s = tok->Loc;
-    while (tok -> Len --)
-        putchar(*s++);
-    println("");
-}
-
-// arg 'tok' is the head of linked list. debug use
-__attribute__((unused))
-static void print_tokens(Token * tok) {
-    while (tok)
-    {
-        print_one(tok);
-        tok = tok -> Next;
-    }
-}
-
-// 读取字符串字面量
-static Token *readStringLiteral(char *Start) {
-    char *P = Start + 1;
-    // 识别字符串内的所有非"字符
-    for (; *P != '"'; ++P)
-        // 遇到换行符和'\0'则报错
-        if (*P == '\n' || *P == '\0')
-            error("unclosed string literal: '%s'", Start);
-
-    Token *Tok = newToken(TK_STR, Start, P + 1);
-    // 构建 char[] 类型
-    Tok->Ty = arrayOf(TyChar, P - Start);
-    // 拷贝双引号间的内容，结果是\0的char *类型
-    Tok->Str = strndup(Start + 1, P - Start - 1);
-    return Tok;
-}
-
 
 // 将名为xxx的终结符转为KEYWORD
 static void convertKeywords(Token *Tok) {
