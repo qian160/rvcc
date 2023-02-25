@@ -38,6 +38,7 @@ typedef enum {
     TK_PUNCT,   // 操作符如： + -
     TK_KEYWORD, // 关键字
     TK_NUM,     // 数字
+    TK_STR,     // 字符串字面量
     TK_EOF,     // 文件终止符，即文件的最后
 } TokenKind;
 
@@ -48,6 +49,9 @@ struct Token {
     int Val;        // 值
     char *Loc;      // 在解析的字符串内的位置
     int Len;        // 长度
+    Type *Ty;       // TK_STR使用, = arrayOf(TyChar, len);
+    char *Str;      // 字符串字面量，包括'\0'
+
 };
 
 //
@@ -61,15 +65,14 @@ struct Obj {
     char *Name;     // 变量名/函数名
     int Offset;     // fp的偏移量
     Type *Ty;       // 变量类型
-    bool IsLocal;   // 是 局部或全局 变量
-    // 函数 或 全局变量
-    bool IsFunction;
+    bool IsLocal;   // 是局部变量
     // 函数
     Obj *Params;    // 形参
     Node *Body;     // 函数体
     Obj *Locals;    // 本地变量
     int StackSize;  // 栈大小
-
+    // 全局变量
+    char *InitData;
 };
 
 // AST的节点种类
@@ -106,7 +109,7 @@ struct Node {
     Node *LHS;      // 左部，left-hand side. unary node also uses this side
     Node *RHS;      // 右部，right-hand side
     Node *Body;     // 块语句{...}的根节点。得到根节点后使用next进行遍历 
-    Obj * Var;      // 存储ND_VAR的字符串
+    Obj * Var;      // 存储ND_VAR种类的变量
     Type *Ty;       // 节点中数据的类型
     int Val;        // 存储ND_NUM种类的值
     Token * Tok;    // 节点对应的终结符. debug
@@ -161,6 +164,7 @@ Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);
 int getNumber(Token *Tok);
+void errorTok(Token *Tok, char *Fmt, ...);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
@@ -201,6 +205,13 @@ int getNumber(Token *Tok);
 Obj *newVar(char *Name, Type *Ty);
 Obj *newLVar(char *Name, Type *Ty);
 Obj *newGVar(char *Name, Type *Ty);
+char *newUniqueName(void);
+Obj *newAnonGVar(Type *Ty);
+Obj *newStringLiteral(char *Str, Type *Ty);
+
+/* ---------- string.c ---------- */
+
+
 
 //
 // macros
@@ -211,6 +222,13 @@ Obj *newGVar(char *Name, Type *Ty);
         printf("\33[1;31m" "[%s:%d %s] " format "\33[0m" "\n", \
             __FILE__, __LINE__, __func__, ## __VA_ARGS__);\
         exit(1);\
+    }\
+    while(0);
+
+#define trace(format, ...) \
+    do{ \
+        printf("  # \33[1;33m" "[%s:%d %s] " format "\33[0m" "\n", \
+            __FILE__, __LINE__, __func__, ## __VA_ARGS__);\
     }\
     while(0);
 

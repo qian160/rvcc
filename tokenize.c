@@ -8,6 +8,8 @@ bool equal(Token *Tok, char *Str) {
     return memcmp(Tok->Loc, Str, Tok->Len) == 0 && Str[Tok->Len] == '\0';
 }
 
+extern char * CurrentInput;
+
 // 跳过指定的Str
 Token *skip(Token *Tok, char *Str) {
     Assert(equal(Tok, Str), "expect '%s'", Str);
@@ -17,6 +19,39 @@ Token *skip(Token *Tok, char *Str) {
 char* tokenName(Token *Tok) {
     return strndup(Tok->Loc, Tok->Len);
 }
+
+// 输出错误出现的位置，并退出
+static void verrorAt(char *Loc, char *Fmt, va_list VA) {
+    // 先输出源信息
+    fprintf(stderr, "%s\n", CurrentInput);
+
+    // 输出出错信息
+    // 计算出错的位置，Loc是出错位置的指针，CurrentInput是当前输入的首地址
+    int Pos = Loc - CurrentInput;
+    // 将字符串补齐为Pos位，因为是空字符串，所以填充Pos个空格。
+    fprintf(stderr, "%*s", Pos, "");
+    fprintf(stderr, "^ ");
+    vfprintf(stderr, Fmt, VA);
+    fprintf(stderr, "\n");
+    va_end(VA);
+}
+
+// 字符解析出错
+static void errorAt(char *Loc, char *Fmt, ...) {
+    va_list VA;
+    va_start(VA, Fmt);
+    verrorAt(Loc, Fmt, VA);
+    exit(1);
+}
+
+// Tok解析出错
+void errorTok(Token *Tok, char *Fmt, ...) {
+    va_list VA;
+    va_start(VA, Fmt);
+    verrorAt(Tok->Loc, Fmt, VA);
+    exit(1);
+}
+
 
 // 返回TK_NUM的值
 int getNumber(Token *Tok) {
@@ -108,6 +143,24 @@ static void print_tokens(Token * tok) {
     }
 }
 
+// 读取字符串字面量
+static Token *readStringLiteral(char *Start) {
+    char *P = Start + 1;
+    // 识别字符串内的所有非"字符
+    for (; *P != '"'; ++P)
+        // 遇到换行符和'\0'则报错
+        if (*P == '\n' || *P == '\0')
+            error("unclosed string literal: '%s'", Start);
+
+    Token *Tok = newToken(TK_STR, Start, P + 1);
+    // 构建 char[] 类型
+    Tok->Ty = arrayOf(TyChar, P - Start);
+    // 拷贝双引号间的内容，结果是\0的char *类型
+    Tok->Str = strndup(Start + 1, P - Start - 1);
+    return Tok;
+}
+
+
 // 将名为xxx的终结符转为KEYWORD
 static void convertKeywords(Token *Tok) {
     for (Token *T = Tok; T->Kind != TK_EOF; T = T->Next) {
@@ -139,6 +192,14 @@ Token *tokenize(char *P) {
             const char *OldPtr = P;
             Cur->Val = strtoul(P, &P, 10);
             Cur->Len = P - OldPtr;
+            continue;
+        }
+
+        // 解析字符串字面量
+        if (*P == '"') {
+            Cur->Next = readStringLiteral(P);
+            Cur = Cur->Next;
+            P += Cur->Len;
             continue;
         }
 

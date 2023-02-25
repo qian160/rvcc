@@ -124,7 +124,7 @@ static void assignLVarOffsets(Obj *Prog) {
     // 为每个函数计算其变量所用的栈空间
     for (Obj *Fn = Prog; Fn; Fn = Fn->Next) {
         int Offset = 0;
-        if(!Fn->IsFunction)
+        if(Fn->Ty->Kind != TY_FUNC)
             continue;
         println(" # local variables of Fn %s:", Fn->Name);
         // 读取所有变量
@@ -183,10 +183,8 @@ static void genExpr(Node *Nd) {
         // 解引用. *var
         case ND_DEREF:
             // get the address first
-            println(" ##### deref #####");
             genExpr(Nd->LHS);
             load(Nd->Ty);
-            println(" ##### deref #####");
             return;
         // 取地址 &var
         case ND_ADDR:
@@ -380,16 +378,26 @@ static void genStmt(Node *Nd) {
 
 static void emitData(Obj *Prog) {
     for (Obj *Var = Prog; Var; Var = Var->Next) {
-        if (Var->IsFunction)
+        if (Var->Ty->Kind == TY_FUNC)
             continue;
 
-        println("  # 数据段标签");
         println("  .data");
-        println("  .globl %s", Var->Name);
-        println("  # 全局变量%s", Var->Name);
-        println("%s:", Var->Name);
-        println("  # 零填充%d位", Var->Ty->Size);
-        println("  .zero %d", Var->Ty->Size);
+        if (Var -> InitData){
+            println("%s:", Var->Name);
+            for(int i = 0; i < Var->Ty->Size; i++){
+                char C = Var->InitData[i];
+                if (isprint(C))
+                    println("  .byte %d\t# ：%c", C, C);
+                else
+                    println("  .byte %d", C);
+            }
+        }
+        else{
+            printf("  .globl %s\n", Var->Name);
+            printf("%s:\n", Var->Name);
+            printf("  # 全局变量零填充%d位\n", Var->Ty->Size);
+            printf("  .zero %d\n", Var->Ty->Size);
+        }
     }
 }
 
@@ -398,7 +406,7 @@ static void emitData(Obj *Prog) {
 void emitText(Obj *Prog) {
     // 为每个函数单独生成代码
     for (Obj *Fn = Prog; Fn; Fn = Fn->Next) {
-        if (!Fn->IsFunction)
+        if (Fn->Ty->Kind != TY_FUNC)
             continue;
 
         println("  .globl %s", Fn->Name);

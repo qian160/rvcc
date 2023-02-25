@@ -100,8 +100,6 @@ void addType(Node *Nd) {
         case ND_VAR:
             Nd->Ty = Nd->Var->Ty;
             return;
-        // note: a node's base type will only be set
-        // under these 2 cases below
         // 将节点类型设为 指针，并指向左部的类型
         case ND_ADDR:{
             Type *Ty = Nd->LHS->Ty;

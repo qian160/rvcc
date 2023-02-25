@@ -26,7 +26,7 @@ Obj *findVar(Token *Tok) {
     return NULL;
 }
 
-// 新建变量
+// 新建变量. default 'islocal' = 0
 Obj *newVar(char *Name, Type *Ty) {
     Obj *Var = calloc(1, sizeof(Obj));
     Var->Name = Name;
@@ -69,6 +69,28 @@ void createParamLVars(Type *Param) {
         newLVar(getIdent(Param->Name), Param);
     }
 }
+
+// 新增唯一名称
+char *newUniqueName(void) {
+    static int Id = 0;
+    char *Buf = calloc(1, 20);
+    // 将格式化处理过后的字符串存入Buf
+    sprintf(Buf, ".L..%d", Id++);
+    return Buf;
+}
+
+// 新增匿名全局变量
+Obj *newAnonGVar(Type *Ty) {
+    return newGVar(newUniqueName(), Ty);
+}
+
+// 新增字符串字面量
+Obj *newStringLiteral(char *Str, Type *Ty) {
+    Obj *Var = newAnonGVar(Ty);
+    Var->InitData = Str;
+    return Var;
+}
+
 
 //
 // 创建节点
