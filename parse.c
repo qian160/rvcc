@@ -89,8 +89,14 @@
 // mul = unary ("*" unary | "/" unary)*                                 -(3+4) * a | -(5+6) | *a * b | 6
 // unary = ("+" | "-" | "*" | "&") unary | postfix                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
 // postfix = primary ("[" expr "]")*                                    a[4] | a 
-// primary = "(" expr ")" | num | ident args? | "sizeof" unary | str    (1+8*5 / a != 2) | a | fx(6) | 6
-// args = "(" (expr ("," expr)*)? ")"
+// primary = "(" "{" stmt+ "}" ")"                                      ({0; 1; 6+9})  // GNU
+//         | "(" expr ")"                                               (6 + 9 * 8)
+//         | "sizeof" unary
+//         | ident funcArgs?
+//         | str
+//         | num
+
+// FuncArgs = "(" (expr ("," expr)*)? ")"
 // funcall = ident "(" (expr ("," expr)*)? ")"                          foo(1, 2, 3+5, bar(6, 4))
 
 static Token *function(Token *Tok);
@@ -658,9 +664,24 @@ static Node *funCall(Token **Rest, Token *Tok) {
 
 
 // 解析括号、数字
-// primary = "(" expr ")" | num | ident args? | "sizeof" unary | str
-// args = "(" (expr ("," expr)*)? ")"
+// primary = "(" "{" stmt+ "}" ")"
+//         | "(" expr ")"
+//         | "sizeof" unary
+//         | ident funcArgs?
+//         | str
+//         | num
+// FuncArgs = "(" (expr ("," expr)*)? ")"
 static Node *primary(Token **Rest, Token *Tok) {
+    // this needs to be parsed before "(" expr ")", otherwise the "(" will be consumed
+    // "(" "{" stmt+ "}" ")"
+    if (equal(Tok, "(") && equal(Tok->Next, "{")) {
+        // This is a GNU statement expresssion.
+        Node *Nd = newNode(ND_STMT_EXPR, Tok);
+        Nd->Body = compoundStmt(&Tok, Tok->Next)->Body;
+        *Rest = skip(Tok, ")");
+        return Nd;
+    }
+
     // "(" expr ")"
     if (equal(Tok, "(")) {
         Node *Nd = expr(&Tok, Tok->Next);
@@ -705,7 +726,7 @@ static Node *primary(Token **Rest, Token *Tok) {
         return newVarNode(Var, Tok);
     }
 
-    error("expected an expression");
+    errorTok(Tok, "expected an expression");
     return NULL;
 }
 

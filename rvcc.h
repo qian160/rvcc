@@ -87,6 +87,7 @@ typedef enum {
     ND_LT,          // <
     ND_LE,          // <=
     ND_EXPR_STMT,   // 表达式语句
+    ND_STMT_EXPR,   // 语句表达式
     ND_VAR,         // 变量
     ND_ASSIGN,      // 赋值
     ND_NUM,         // 整形
@@ -108,7 +109,7 @@ struct Node {
     Node *Next;     // 下一节点，指代下一语句
     Node *LHS;      // 左部，left-hand side. unary node also uses this side
     Node *RHS;      // 右部，right-hand side
-    Node *Body;     // 块语句{...}的根节点。得到根节点后使用next进行遍历 
+    Node *Body;     // 代码块 或 语句表达式
     Obj * Var;      // 存储ND_VAR种类的变量
     Type *Ty;       // 节点中数据的类型
     int Val;        // 存储ND_NUM种类的值

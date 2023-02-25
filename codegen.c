@@ -141,6 +141,8 @@ static void assignLVarOffsets(Obj *Prog) {
     }
 }
 
+static void genStmt(Node *Nd);
+
 // sementics: print the asm from an ast whose root node is `Nd`
 // steps: for each node,
 // 1. if it is a leaf node, then directly print the answer and return
@@ -208,6 +210,11 @@ static void genExpr(Node *Nd) {
             println("  call %s", Nd->FuncName);
             return;
         }
+        // 语句表达式
+        case ND_STMT_EXPR:
+            for (Node *N = Nd->Body; N; N = N->Next)
+                genStmt(N);
+            return;
         default:
             break;
     }
