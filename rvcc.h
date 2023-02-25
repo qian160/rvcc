@@ -210,7 +210,8 @@ Obj *newAnonGVar(Type *Ty);
 Obj *newStringLiteral(char *Str, Type *Ty);
 
 /* ---------- string.c ---------- */
-
+// 格式化后返回字符串
+char *format(char *Fmt, ...);
 
 
 //
