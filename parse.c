@@ -171,7 +171,7 @@ static Obj *findVar(Token *Tok) {
     return NULL;
 }
 
-// 新建变量. default 'islocal' = 0
+// 新建变量. default 'islocal' = 0. helper fnction of the 2 below
 static Obj *newVar(char *Name, Type *Ty) {
     Obj *Var = calloc(1, sizeof(Obj));
     Var->Name = Name;
@@ -370,15 +370,19 @@ static Token *function(Token *Tok) {
     // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
 
-    // 清空全局变量Locals
+/*
+    // dont do this...... these variables are still in use.
+    // they just dont belong to current fn anymore
     Obj *tmp = Locals;
     while(tmp){
-//        println(" # free %s", tmp->Name);
+        printf(" # free %s\n", tmp->Name);
         Locals = Locals->Next;
         free(tmp);
         tmp = Locals;
     }
-    //Locals = (void*)0;
+*/
+    // 清空全局变量Locals
+    Locals = (void*)0;
     enterScope();
     // 函数参数
     createParamLVars(Ty->Params);

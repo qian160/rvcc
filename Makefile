@@ -2,11 +2,20 @@
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
 # 指定C编译器，来构建项目
 CC=gcc
+CROSS-CC=riscv64-linux-gnu-gcc
+
+QEMU=qemu-riscv64
+
 # C源代码文件，表示所有的.c结尾的文件
 SRCS=$(wildcard *.c)
 # C文件编译生成的未链接的可重定位文件，将所有.c文件替换为同名的.o结尾的文件名
 OBJS=$(SRCS:.c=.o)
 DEPS=$(SRCS:.c=.d)
+
+# test/文件夹的c测试文件
+TEST_SRCS=$(wildcard test/*.c)
+# test/文件夹的c测试文件编译出的可执行文件
+TESTS=$(TEST_SRCS:.c=.out)
 
 # rvcc标签，表示如何构建最终的二进制文件，依赖于所有的.o文件
 # $@表示目标文件，此处为rvcc，$^表示依赖文件，此处为$(OBJS)
@@ -17,10 +26,21 @@ rvcc: $(OBJS)
 # 所有的可重定位文件依赖于rvcc.h的头文件
 $(OBJS): rvcc.h
 	@echo [CC] $(basename $@)
-	@$(CC) -c $*.c
-test:rvcc
-	@./test.sh
-	@./test-driver.sh
+	@$(CC) -c $*.c -g
+
+# 测试标签，运行测试
+# 编译测试中的每个.c文件 由于现在的rvcc功能还较弱，所以借助了一些现有编译器的功能
+# 做法是先使用系统cc预处理一遍，再把这个预处理结果交给rvcc
+# 最后再使用系统cc把刚刚产生的东西和common这个文件链接起来. 参数说明：
+# -o-将结果打印出来，-E只进行预处理，-P不输出行号信息，-C预处理时不会删除注释
+test/%.out: rvcc test/%.c
+	$(CROSS-CC) -o- -E -P -C test/$*.c | ./rvcc -o test/$*.s -
+	$(CROSS-CC) -static -o $@ test/$*.s -xc test/common
+
+test: $(TESTS)
+	@for i in $^; do echo $$i; $(QEMU) ./$$i || exit 1; echo; done
+	@test/driver.sh
+
 l:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
 	@rm *.d
