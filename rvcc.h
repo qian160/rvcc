@@ -53,6 +53,7 @@ struct Token {
     Type *Ty;       // TK_STR使用, = arrayOf(TyChar, len);
     char *Str;      // 字符串字面量，包括'\0'
 
+    int LineNo;     // 行号
 };
 
 //

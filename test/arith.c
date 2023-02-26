@@ -1,6 +1,10 @@
 #include "test.h"
 
 int main() {
+  // rvcc will treat these params as expr and compute them,
+  // then call the assert function in the file "common"
+  // as for other complex function now like "printf", we can use
+  // our cross-compiler to compile and link it to our rvcc output
   // [1] 返回指定数值
   ASSERT(0, 0);
   ASSERT(42, 42);

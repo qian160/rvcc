@@ -200,6 +200,21 @@ static void convertKeywords(Token *Tok) {
     }
 }
 
+// 为所有Token添加行号
+static void addLineNumbers(Token *Tok) {
+    char *P = CurrentInput;
+    int N = 1;
+
+    do {
+        if (P == Tok->Loc) {
+            Tok->LineNo = N;
+            Tok = Tok->Next;
+        }
+        if (*P == '\n')
+            N++;
+    } while (*P++);
+}
+
 
 // 终结符解析，文件名，文件内容
 static Token *tokenize(char *Filename, char *P) {
@@ -280,6 +295,9 @@ static Token *tokenize(char *Filename, char *P) {
 
     // 解析结束，增加一个EOF，表示终止符。
     Cur->Next = newToken(TK_EOF, P, P);
+    // 为所有Token添加行号
+    addLineNumbers(Head.Next);
+
     // 将所有关键字的终结符，都标记为KEYWORD
     convertKeywords(Head.Next);
     // Head无内容，所以直接返回Next

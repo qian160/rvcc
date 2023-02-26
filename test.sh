@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# 他的使命已经完成，可以废弃了
+
+
 gcc=riscv64-linux-gnu-gcc
 qemu=qemu-riscv64
 
