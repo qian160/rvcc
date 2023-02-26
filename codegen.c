@@ -400,10 +400,10 @@ static void emitData(Obj *Prog) {
             }
         }
         else{
-            printf("  .globl %s\n", Var->Name);
-            printf("%s:\n", Var->Name);
-            printf("  # 全局变量零填充%d位\n", Var->Ty->Size);
-            printf("  .zero %d\n", Var->Ty->Size);
+            println("  .globl %s", Var->Name);
+            println("%s:", Var->Name);
+            println("  # 全局变量零填充%d位", Var->Ty->Size);
+            println("  .zero %d", Var->Ty->Size);
         }
     }
 }
@@ -442,9 +442,9 @@ void emitText(Obj *Prog) {
         for (Obj *Var = Fn->Params; Var; Var = Var->Next)
         {
             if (Var->Ty->Size == 1)
-                printf("  sb %s, %d(fp)\n", ArgReg[I++], Var->Offset);
+                println("  sb %s, %d(fp)", ArgReg[I++], Var->Offset);
             else
-                printf("  sd %s, %d(fp)\n", ArgReg[I++], Var->Offset);
+                println("  sd %s, %d(fp)", ArgReg[I++], Var->Offset);
         }
         // 生成语句链表的代码
         println("# =====%s段主体===============", Fn->Name);
