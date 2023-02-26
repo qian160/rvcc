@@ -127,6 +127,20 @@ struct Node {
     Node *Inc;      // 递增语句
 };
 
+// 局部和全局变量的域
+typedef struct VarScope VarScope;
+struct VarScope {
+    VarScope *Next; // 下一变量域
+    Obj *Var;       // 对应的变量
+};
+
+// 表示一个块域
+typedef struct Scope Scope;
+struct Scope {
+    Scope *Next;    // 指向上一级的域
+    VarScope *Vars; // 指向当前域内的变量
+};
+
 //
 // 类型系统
 //
@@ -171,9 +185,11 @@ int getNumber(Token *Tok);
 // 语法解析入口函数
 Obj *parse(Token *Tok);
 
+
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
 void codegen(Obj *Prog, FILE *Out);
+
 
 /* ---------- type.c ---------- */
 // 判断是否为整型
@@ -189,30 +205,11 @@ Type *copyType(Type *Ty);
 // 构造数组类型, 传入 数组基类, 元素个数
 Type *arrayOf(Type *Base, int Len);
 
-/* ---------- parse-helper.c ---------- */
-Node *newNode(NodeKind Kind, Token *Tok);
-Node *newUnary(NodeKind Kind, Node *Expr, Token *Tok);
-Node *newBinary(NodeKind Kind, Node *LHS, Node *RHS, Token *Tok);
-Node *newNum(int Val, Token *Tok);
-Node *newAdd(Node *LHS, Node *RHS, Token *Tok);
-Node *newSub(Node *LHS, Node *RHS, Token *Tok);
-Node *newVarNode(Obj* Var, Token *Tok);
-Obj *findVar(Token *Tok);
-Obj *newLVar(char *Name, Type *Ty);
-char *getIdent(Token *Tok);
-void createParamLVars(Type *Param);
-int getNumber(Token *Tok);
-
-Obj *newVar(char *Name, Type *Ty);
-Obj *newLVar(char *Name, Type *Ty);
-Obj *newGVar(char *Name, Type *Ty);
-char *newUniqueName(void);
-Obj *newAnonGVar(Type *Ty);
-Obj *newStringLiteral(char *Str, Type *Ty);
 
 /* ---------- string.c ---------- */
 // 格式化后返回字符串
 char *format(char *Fmt, ...);
+
 
 /* ---------- debug.c ---------- */
 
