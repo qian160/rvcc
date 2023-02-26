@@ -714,7 +714,7 @@ static Node *primary(Token **Rest, Token *Tok) {
         // ident
         Obj *Var = findVar(Tok);
         if (!Var)
-            error("%s: undefined variable", tokenName(Tok));
+            errorTok(Tok, "undefined variable");
         *Rest = Tok->Next;
         return newVarNode(Var, Tok);
     }

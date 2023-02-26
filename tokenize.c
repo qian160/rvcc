@@ -8,7 +8,8 @@ bool equal(Token *Tok, char *Str) {
     return memcmp(Tok->Loc, Str, Tok->Len) == 0 && Str[Tok->Len] == '\0';
 }
 
-extern char * CurrentInput;
+char * CurrentInput;
+char * CurrentFilename;
 
 // 跳过指定的Str
 Token *skip(Token *Tok, char *Str) {
@@ -199,9 +200,11 @@ static void convertKeywords(Token *Tok) {
     }
 }
 
-// 终结符解析. try to generate a list of tokens from P
-// (head) -> '1' -> '+' -> '2' -> '-' -> '10'
-Token *tokenize(char *P) {
+
+// 终结符解析，文件名，文件内容
+static Token *tokenize(char *Filename, char *P) {
+    CurrentFilename = Filename;
+    CurrentInput = P;
     Token Head = {};
     Token *Cur = &Head;
 
@@ -209,8 +212,9 @@ Token *tokenize(char *P) {
         // 跳过所有空白符如：空格、回车
         if (isspace(*P)) {
             ++P;
-            continue;
-        }
+        continue;
+    }
+
         // 解析数字
         if (isdigit(*P)) {
             // 初始化，类似于C++的构造函数
@@ -233,17 +237,16 @@ Token *tokenize(char *P) {
             continue;
         }
 
-        // 解析标记符
+        // 解析标记符或关键字
         // [a-zA-Z_][a-zA-Z0-9_]*
         if (isIdent1(*P)) {
             char *Start = P;
-            do {
-                ++P;
-            } while (isIdent2(*P));
+            while (isIdent2(*++P));
             Cur->Next = newToken(TK_IDENT, Start, P);
             Cur = Cur->Next;
             continue;
         }
+
         // 解析操作符
         int PunctLen = readPunct(P);
         if (PunctLen) {
@@ -255,13 +258,62 @@ Token *tokenize(char *P) {
         }
 
         // 处理无法识别的字符
-        error("invalid token: %c", *P);
+        errorAt(P, "invalid token");
     }
+
     // 解析结束，增加一个EOF，表示终止符。
     Cur->Next = newToken(TK_EOF, P, P);
     // 将所有关键字的终结符，都标记为KEYWORD
-    // 这样他们在之后就不会被误解析成其他类型比如ident了
     convertKeywords(Head.Next);
     // Head无内容，所以直接返回Next
     return Head.Next;
+}
+
+// 返回指定文件的内容
+static char *readFile(char *Path) {
+    FILE *FP;
+    // at first I try to simply use fseek + ftell + fread to read
+    // all the data at one time, but fseek fails for stdin...
+    if (strcmp(Path, "-") == 0) {
+        // 如果文件名是"-"，那么就从输入中读取
+        FP = stdin;
+    } else {
+        FP = fopen(Path, "r");
+        if (!FP)
+            error("cannot open %s: %s", Path, strerror(errno));
+    }
+
+    // 要返回的字符串
+    char *Buf;
+    size_t BufLen;
+    FILE *Out = open_memstream(&Buf, &BufLen);
+
+    // 读取整个文件
+    while(true) {
+        char temp[4096];
+        int N = fread(temp, 1, sizeof(temp), FP);
+        if (N == 0)
+            break;
+        // 数组指针temp，数组元素大小1，实际元素个数N，文件流指针
+        fwrite(temp, 1, N, Out);
+    }
+
+    // 对文件完成了读取
+    if (FP != stdin)
+        fclose(FP);
+
+    // 刷新流的输出缓冲区，确保内容都被输出到流中
+    fflush(Out);
+    // 确保最后一行以'\n'结尾
+    if (BufLen == 0 || Buf[BufLen - 1] != '\n')
+        // 将字符输出到流中
+        fputc('\n', Out);
+    fputc('\0', Out);
+    fclose(Out);
+    return Buf;
+}
+
+// 对文件进行词法分析
+Token *tokenizeFile(char *Path) {
+    return tokenize(Path, readFile(Path));
 }

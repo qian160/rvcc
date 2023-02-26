@@ -4,6 +4,7 @@
 #include<ctype.h>
 #include<stdarg.h>
 #include<stdbool.h>
+#include<errno.h>
 #include<string.h>
 /*
 // 使用POSIX.1标准
@@ -159,7 +160,7 @@ extern Type *TyChar;
 
 /* ---------- tokenize.c ---------- */
 // 词法分析
-Token* tokenize(char* P);
+Token* tokenizeFile(char* Path);
 bool equal(Token *Tok, char *Str);
 Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
