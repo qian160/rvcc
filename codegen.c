@@ -157,6 +157,9 @@ static void genStmt(Node *Nd);
 //      and how to deal with these two values depends on current root node
 // 生成表达式. after expr is generated its value will be put to a0
 static void genExpr(Node *Nd) {
+    // .loc 文件编号 行号. debug use
+    println("  .loc 1 %d", Nd->Tok->LineNo);
+
     // 生成各个根节点
     switch (Nd->Kind) {
         // 加载数字到a0, leaf node
@@ -276,6 +279,9 @@ static void genExpr(Node *Nd) {
 
 // 生成语句
 static void genStmt(Node *Nd) {
+    // .loc 文件编号 行号, debug use
+    println("  .loc 1 %d", Nd->Tok->LineNo);
+
     switch (Nd->Kind){
         // 生成代码块，遍历代码块的语句链表
         case ND_BLOCK:
