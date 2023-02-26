@@ -12,6 +12,9 @@ static char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
 static Obj *CurrentFn;
 
+// 输出文件
+static FILE *OutputFile;
+
 // 代码段计数
 static int count(void) {
     static int I = 1;
@@ -468,7 +471,8 @@ void emitText(Obj *Prog) {
 }
 
 // 代码生成入口函数，包含代码块的基础信息
-void codegen(Obj * Prog) {
+void codegen(Obj * Prog, FILE *Out) {
+    OutputFile = Out;
     // 为本地变量计算偏移量, 以及决定函数最终的栈大小
     assignLVarOffsets(Prog);
     // 生成数据

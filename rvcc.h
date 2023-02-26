@@ -173,7 +173,7 @@ Obj *parse(Token *Tok);
 
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
-void codegen(Obj *Prog);
+void codegen(Obj *Prog, FILE *Out);
 
 /* ---------- type.c ---------- */
 // 判断是否为整型
@@ -219,7 +219,6 @@ char *format(char *Fmt, ...);
 void errorTok(Token *Tok, char *Fmt, ...);
 void errorAt(char *Loc, char *Fmt, ...);
 
-
 //
 // macros
 //
@@ -245,7 +244,7 @@ void errorAt(char *Loc, char *Fmt, ...);
     }\
     while(0);
 
-#define println(format, ...) printf(format "\n", ## __VA_ARGS__)
+#define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
 // macro testing
 // See https://stackoverflow.com/questions/26099745/test-if-preprocessor-symbol-is-defined-inside-macro

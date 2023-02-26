@@ -3,24 +3,6 @@
 extern char * CurrentInput;
 extern char * CurrentFilename;
 
-__attribute__((unused))
-void print_one(Token *tok) {
-    char * s = tok->Loc;
-    while (tok -> Len --)
-        putchar(*s++);
-    println("");
-}
-
-// arg 'tok' is the head of linked list. debug use
-__attribute__((unused))
-void print_tokens(Token * tok) {
-    while (tok)
-    {
-        print_one(tok);
-        tok = tok -> Next;
-    }
-}
-
 // 输出错误出现的位置，并退出
 void verrorAt(char *Loc, char *Fmt, va_list VA) {
     // 查找包含loc的行
