@@ -20,6 +20,7 @@ $(OBJS): rvcc.h
 	@$(CC) -c $*.c
 test:rvcc
 	@./test.sh
+	@./test-driver.sh
 l:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
 	@rm *.d

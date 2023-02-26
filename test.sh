@@ -317,6 +317,13 @@ assert 6 'int main() { return ({ 1; }) + ({ 2; }) + ({ 3; }); }'
 assert 3 'int main() { return ({ int x=3; x; }); }'
 print 39
 
+# [43] 支持注释
+assert 2 'int main() { /* return 1; */
+            return 2; }'
+assert 2 'int main() { // return 1;
+            return 2; }'
+print 43
+
 # 如果运行正常未提前退出，程序将显示OK
 print "PASS"
 
