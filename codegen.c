@@ -22,10 +22,7 @@ static int count(void) {
 }
 
 
-// 压栈，将结果临时压入栈中备用
-// sp为栈指针，栈反向向下增长，64位下，8个字节为一个单位，所以sp-8
-// 当前栈指针的地址就是sp，将a0的值压入栈
-// 不使用寄存器存储的原因是因为需要存储的值的数量是变化的。
+// 压栈，将结果临时(a0)压入栈中备用.
 static void push(void) {
     println("  addi sp, sp, -8");
     println("  sd a0, 0(sp)");
@@ -44,7 +41,7 @@ static void load(Type *Ty) {
     // to load a value, for normal types we need to get its address
     // in stack and load from that address. but for pointer type we just need
     // to get its address. the true "load" op is done by later deref
-    if (Ty->Kind == TY_ARRAY)
+    if (Ty->Kind == TY_ARRAY || Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION)
         return;
     switch (Ty->Size)
     {
@@ -65,9 +62,18 @@ static void load(Type *Ty) {
     }
 }
 
-// 将a0存入栈顶值(为一个地址)
+// 将a0存入栈顶值(为一个地址). used in assign, and lhs value's address was pushed to stack already
 static void store(Type *Ty) {
     pop("a1");
+    // copy all the bytes from one struct to another
+    if (Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION) {
+        for (int I = 0; I < Ty->Size; ++I) {
+            println("  lb t1, %d(a0)", I);
+            println("  sb t1, %d(a1)", I);
+        }
+        return;
+    }
+
     switch (Ty->Size)
     {
         case 1:

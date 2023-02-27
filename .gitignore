@@ -28,7 +28,7 @@ a.out
 /rvcc
 
 # 测试生成的可执行文件
-/test/*.exe
+/test/*.out
 
 # CMake生成的文件目录
 build/
