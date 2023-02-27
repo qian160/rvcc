@@ -120,6 +120,14 @@ static void genAddr(Node *Nd) {
             genExpr(Nd->LHS);
             genAddr(Nd->RHS);
             return;
+        // 结构体成员
+        case ND_MEMBER:
+            // base addr = a0, offset = t1
+            genAddr(Nd->LHS);
+            // 计算成员变量的地址偏移量
+            println("  li t0, %d", Nd->Mem->Offset);
+            println("  add a0, a0, t0");
+            return;
 
         default:
             error("%s: not an lvalue", strndup(Nd->Tok->Loc, Nd->Tok->Len));
@@ -180,6 +188,7 @@ static void genExpr(Node *Nd) {
             return;
         // 变量. note: array also has VAR type
         case ND_VAR:
+        case ND_MEMBER:
             // 计算出变量的地址, 存入a0
             genAddr(Nd);
             // load a value from the generated address

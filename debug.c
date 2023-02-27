@@ -53,5 +53,5 @@ void errorTok(Token *Tok, char *Fmt, ...) {
     va_list VA;
     va_start(VA, Fmt);
     verrorAt(Tok->LineNo, Tok->Loc, Fmt, VA);
-    exit(1);
+//    error("bad token: %s", tokenName(Tok));
 }

@@ -22,6 +22,7 @@ typedef struct Obj Obj;
 typedef struct Function Function;
 typedef struct Node Node;
 typedef struct Type Type;
+typedef struct Member Member;
 
 // put some data structures and useful macros here
 
@@ -101,6 +102,7 @@ typedef enum {
     ND_DEREF,       // 解引用 *
     ND_FUNCALL,     // 函数调用
     ND_COMMA,       // , 逗号
+    ND_MEMBER,      // . 结构体成员访问
 
 } NodeKind;
 
@@ -110,7 +112,7 @@ struct Node {
     // 可理解为指向另外一颗树的根节点
     NodeKind Kind;  // 节点种类
     Node *Next;     // 下一节点，指代下一语句
-    Node *LHS;      // 左部，left-hand side. unary node also uses this side
+    Node *LHS;      // 左部，left-hand side. unary node only uses this side
     Node *RHS;      // 右部，right-hand side
     Node *Body;     // 代码块 或 语句表达式
     Obj * Var;      // 存储ND_VAR种类的变量
@@ -127,6 +129,8 @@ struct Node {
     // "for"语句. 循环体存储在Then里
     Node *Init;     // 初始化语句
     Node *Inc;      // 递增语句
+    // 结构体成员访问
+    Member *Mem;
 };
 
 // 局部和全局变量的域
@@ -143,6 +147,7 @@ struct Scope {
     VarScope *Vars; // 指向当前域内的变量
 };
 
+
 //
 // 类型系统
 //
@@ -154,6 +159,7 @@ typedef enum {
     TY_FUNC,       // 函数
     TY_ARRAY,      // 数组. very similar to ptr
     TY_CHAR,       // 字符类型
+    TY_STRUCT,     // 结构体
 } TypeKind;
 
 struct Type {
@@ -166,6 +172,16 @@ struct Type {
     Type *Params;   // 存储形参的链表. head.
     Type *Next;     // 下一类型
     int ArrayLen;   // 数组长度, 元素总个数
+    // 结构体
+    Member *Mems;
+};
+
+// 结构体成员
+struct Member {
+    Member *Next; // 下一成员
+    Type *Ty;     // 类型
+    Token *Name;  // 名称
+    int Offset;   // 偏移量
 };
 
 // 声明一个全局变量，定义在type.c中。
@@ -245,6 +261,7 @@ void errorAt(char *Loc, char *Fmt, ...);
 
 #define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
+#define todo() Assert(0, "todo")
 // macro testing
 // See https://stackoverflow.com/questions/26099745/test-if-preprocessor-symbol-is-defined-inside-macro
 #define CHOOSE2nd(a, b, ...) b

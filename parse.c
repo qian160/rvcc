@@ -62,7 +62,9 @@
 
 // program = (functionDefination | global-variables)*                  "int main(){ int a=3*6-7; int b=a+3;b; } | void f1(){6;} void f2(){;;;}
 // functionDefinition = declspec declarator compoundStmt*               int ***foo(int a, int b, int fn(int a, int b)){return 1;}
-// declspec = "int" | "char"
+// declspec = "int" | "char" | "struct" structDecl
+// structDecl = "{" structMembers "}"
+// structMembers = (declspec declarator (","  declarator)* ";")*
 // declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
 // typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?               null | () | (int a) | (int a, int f(int a)) | [4] | [4][4]  // these suffix tells that an ident is special
 // funcParams =  "(" (param ("," param)*)? ")"                          (int a, int b) | (int fn(int x), int a, int b) | ()
@@ -88,7 +90,7 @@
 // add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
 // mul = unary ("*" unary | "/" unary)*                                 -(3+4) * a | -(5+6) | *a * b | 6
 // unary = ("+" | "-" | "*" | "&") unary | postfix                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
-// postfix = primary ("[" expr "]")*                                    a[4] | a 
+// postfix = primary ("[" expr "]" | "." ident)*                        a[4] | a.foo | a  
 // primary = "(" "{" stmt+ "}" ")"                                      ({0; 1; 6+9})  // GNU
 //         | "(" expr ")"                                               (6 + 9 * 8)
 //         | "sizeof" unary
@@ -102,6 +104,7 @@
 static Token *function(Token *Tok);
 static Node *declaration(Token **Rest, Token *Tok);
 static Type *declspec(Token **Rest, Token *Tok);
+static Type *structDecl(Token **Rest, Token *Tok);
 static Type *declarator(Token **Rest, Token *Tok, Type *Ty);
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty);
 static Node *compoundStmt(Token **Rest, Token *Tok);
@@ -233,7 +236,11 @@ static Obj *newStringLiteral(char *Str, Type *Ty) {
     return Var;
 }
 
-
+// 判断是否为类型名
+static bool isTypename(Token *Tok) 
+{
+    return equal(Tok, "char") || equal(Tok, "int") || equal(Tok, "struct");
+}
 
 //
 // 创建节点
@@ -396,7 +403,7 @@ static Token *function(Token *Tok) {
 }
 
 
-// declspec = "int" | "char"
+// declspec = "int" | "char" | "struct" structDecl
 // 声明的 基础类型
 static Type *declspec(Token **Rest, Token *Tok) {
     if (equal(Tok, "char")){
@@ -407,6 +414,10 @@ static Type *declspec(Token **Rest, Token *Tok) {
         *Rest = Tok -> Next;
         return TyInt;
     }
+    if (equal(Tok, "struct")){
+        return structDecl(Rest, Tok->Next);
+    }
+
     error("unexpected type: %s", tokenName(Tok));
 }
 
@@ -423,20 +434,13 @@ static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
         Ty = pointerTo(Ty);
     // not an identifier, can't be declared
     if (Tok->Kind != TK_IDENT)
-        error("%s: expect an identifier name", tokenName(Tok));
-
-    // a small bug: if the function doesn't have a "()" suffix, it still compiles. such as int main{...}
-    // temp solution: if Tok -> next = "{", then report an error. todo
-    if(equal(Tok->Next, "{"))
-        error("%s: expect a function", tokenName(Tok));
+        errorTok(Tok, "%s: expect an identifier name", tokenName(Tok));
 
     // typeSuffix
     Ty = typeSuffix(Rest, Tok->Next, Ty);
     // ident
     // 变量名 或 函数名
     Ty->Name = Tok;
-//    println(" #### name = %s, type = %d", tokenName(Tok), Ty->Kind);
-
     return Ty;
 }
 
@@ -455,7 +459,10 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
                 Tok = skip(Tok, ",");
             Type *BaseTy = declspec(&Tok, Tok);
             Type *DeclarTy = declarator(&Tok, Tok, BaseTy);
-            // 将类型复制到形参链表一份
+            // 将类型复制到形参链表一份. why copy?
+            // because we are acting on a same address in this loop,
+            // if not copy, the latter type will just cover the previous's.
+            // trace("%p", DeclarTy);
             Cur->Next = copyType(DeclarTy);
             Cur = Cur->Next;
         }
@@ -490,6 +497,80 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
     return Ty;
 }
 
+// structMembers = (declspec declarator (","  declarator)* ";")*
+static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
+    Member Head = {};
+    Member *Cur = &Head;
+    // struct {int a; int b;} x
+    while (!equal(Tok, "}")) {
+        // declspec
+        Type *BaseTy = declspec(&Tok, Tok);
+        int First = true;
+
+        while (!consume(&Tok, Tok, ";")) {
+            if (!First)
+                Tok = skip(Tok, ",");
+            First = false;
+
+            Member *Mem = calloc(1, sizeof(Member));
+            // declarator
+            Mem->Ty = declarator(&Tok, Tok, BaseTy);
+            Mem->Name = Mem->Ty->Name;
+            Cur = Cur->Next = Mem;
+        }
+    }
+
+    *Rest = Tok;
+    Ty->Mems = Head.Next;
+}
+
+// structDecl = "{" structMembers "}"
+static Type *structDecl(Token **Rest, Token *Tok) {
+    Tok = skip(Tok, "{");
+
+    // 构造一个结构体
+    Type *Ty = calloc(1, sizeof(Type));
+    Ty->Kind = TY_STRUCT;
+    structMembers(Rest, Tok, Ty);
+
+    // 计算结构体内成员的偏移量
+    int Offset = 0;
+    for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
+        Mem->Offset = Offset;
+        Offset += Mem->Ty->Size;
+    }
+    Ty->Size = Offset;
+    *Rest = skip(*Rest, "}");
+    return Ty;
+}
+
+// 获取结构体成员
+static Member *getStructMember(Type *Ty, Token *Tok) {
+    for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
+        if (Mem->Name->Len == Tok->Len &&
+                !strncmp(Mem->Name->Loc, Tok->Loc, Tok->Len))
+            return Mem;
+        errorTok(Tok, "no such member");
+    return NULL;
+}
+
+// a.x 
+//      ND_MEMBER -> x (Nd->Mem)
+//       /   
+//     a (ND_VAR)
+// 构建结构体成员的节点. LHS = that struct variable
+static Node *structRef(Node *LHS, Token *Tok) {
+    addType(LHS);
+    if (LHS->Ty->Kind != TY_STRUCT)
+        errorTok(LHS->Tok, "not a struct");
+
+    //
+    Node *Nd = newUnary(ND_MEMBER, LHS, Tok);
+    Nd->Mem = getStructMember(LHS->Ty, Tok);
+    return Nd;
+}
+
+
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 //      declarator = "*"* ident typeSuffix
@@ -513,6 +594,7 @@ static Node *declaration(Token **Rest, Token *Tok) {
         // 声明获取到变量类型，包括变量名
         Type *Ty = declarator(&Tok, Tok, Basety);
         Obj *Var = newLVar(getIdent(Ty->Name), Ty);
+        // trace(" new local var: %s, type = %d", tokenName(Ty->Name), Ty->Kind)
 
         // 如果不存在"="则为变量声明，不需要生成节点，已经存储在Locals中了
         if (!equal(Tok, "="))
@@ -547,7 +629,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
     enterScope();
     // (stmt | declaration)* "}"
     while (!equal(Tok, "}")) {
-        if (equal(Tok, "char") || equal(Tok, "int"))
+        if (isTypename(Tok))
             Cur->Next = declaration(&Tok, Tok);
         // stmt
         else
@@ -833,7 +915,6 @@ static Node *unary(Token **Rest, Token *Tok) {
     return postfix(Rest, Tok);
 }
 
-// postfix = primary ("[" expr "]")*
 /*
 //  essence: convert the [] operator to some pointer dereferrence
 //    input = a[5][10]
@@ -850,22 +931,34 @@ static Node *unary(Token **Rest, Token *Tok) {
 //              | deref
 //              +
 //            /   \
-//       primary  expr(idx=5)
-*/
+//       primary  expr(idx=5)       */
+
+// postfix = primary ("[" expr "]" | "." ident)*
 static Node *postfix(Token **Rest, Token *Tok) {
     // primary
     Node *Nd = primary(&Tok, Tok);
 
     // ("[" expr "]")*
-    while (equal(Tok, "[")) {
-        // x[y] 等价于 *(x+y)
-        Token *Start = Tok;
-        Node *Idx = expr(&Tok, Tok->Next);
-        Tok = skip(Tok, "]");
-        Nd = newUnary(ND_DEREF, newAdd(Nd, Idx, Start), Start);
+    while (true) {
+        if (equal(Tok, "[")) {
+            // x[y] 等价于 *(x+y)
+            Token *Start = Tok;
+            Node *Idx = expr(&Tok, Tok->Next);
+            Tok = skip(Tok, "]");
+            Nd = newUnary(ND_DEREF, newAdd(Nd, Idx, Start), Start);
+            continue;
+        }
+
+        // "." ident
+        if (equal(Tok, ".")) {
+            Nd = structRef(Nd, Tok->Next);
+            Tok = Tok->Next->Next;
+            continue;
+        }
+
+        *Rest = Tok;
+        return Nd;
     }
-    *Rest = Tok;
-    return Nd;
 }
 
 // 解析函数调用. a helper function used by primary
@@ -959,7 +1052,6 @@ static Node *primary(Token **Rest, Token *Tok) {
         *Rest = Tok->Next;
         return newVarNode(Var, Tok);
     }
-
     errorTok(Tok, "expected an expression");
     return NULL;
 }

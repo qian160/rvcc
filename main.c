@@ -72,8 +72,6 @@ int main(int Argc, char **Argv) {
     // 解析终结符流
     Obj *Prog = parse(Tok);
 
-
-
     // 生成代码
     FILE *Out = openFile(OptO);
     // .file 文件编号 文件名, debug use

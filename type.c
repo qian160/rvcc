@@ -132,6 +132,11 @@ void addType(Node *Nd) {
         case ND_COMMA:
             Nd->Ty = Nd->RHS->Ty;
             return;
+        // 将节点类型设为 成员的类型
+        case ND_MEMBER:
+            Nd->Ty = Nd->Mem->Ty;
+            return;
+
         default:
             break;
     }
