@@ -90,7 +90,7 @@
 // add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
 // mul = unary ("*" unary | "/" unary)*                                 -(3+4) * a | -(5+6) | *a * b | 6
 // unary = ("+" | "-" | "*" | "&") unary | postfix                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
-// postfix = primary ("[" expr "]" | "." ident)*                        a[4] | a.foo | a  
+// postfix = primary ("[" expr "]" | "." ident)* | | "->" ident)*       a[4] | a.foo | a  | a->foo
 // primary = "(" "{" stmt+ "}" ")"                                      ({0; 1; 6+9})  // GNU
 //         | "(" expr ")"                                               (6 + 9 * 8)
 //         | "sizeof" unary
@@ -978,7 +978,7 @@ static Node *unary(Token **Rest, Token *Tok) {
 //            /   \
 //       primary  expr(idx=5)       */
 
-// postfix = primary ("[" expr "]" | "." ident)*
+// postfix = primary ("[" expr "]" | "." ident)* | "->" ident)*
 static Node *postfix(Token **Rest, Token *Tok) {
     // primary
     Node *Nd = primary(&Tok, Tok);
@@ -996,6 +996,15 @@ static Node *postfix(Token **Rest, Token *Tok) {
 
         // "." ident
         if (equal(Tok, ".")) {
+            Nd = structRef(Nd, Tok->Next);
+            Tok = Tok->Next->Next;
+            continue;
+        }
+
+        // "->" ident
+        if (equal(Tok, "->")) {
+            // x->y 等价于 (*x).y
+            Nd = newUnary(ND_DEREF, Nd, Tok);
             Nd = structRef(Nd, Tok->Next);
             Tok = Tok->Next->Next;
             continue;
