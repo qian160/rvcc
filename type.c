@@ -3,8 +3,17 @@
 // (Type){...}构造了一个复合字面量，相当于Type的匿名变量。
 // TyInt这个全局变量的作用主要是方便了其他变量的初始化。直接设置为指向他就好。
 // 而且似乎也节省了空间，创建一次就能被用很多次
-Type *TyInt = &(Type){TY_INT, 8};
-Type *TyChar = &(Type){TY_CHAR, 1};
+// type, size, align
+Type *TyInt = &(Type){TY_INT, 8, 8};
+Type *TyChar = &(Type){TY_CHAR, 1, 1};
+
+static Type *newType(TypeKind Kind, int Size, int Align) {
+    Type *Ty = calloc(1, sizeof(Type));
+    Ty->Kind = Kind;
+    Ty->Size = Size;
+    Ty->Align = Align;
+    return Ty;
+}
 
 // 判断Type是否为int类型
 bool isInteger(Type *Ty){
@@ -24,10 +33,8 @@ Type *copyType(Type *Ty) {
 
 // 指针类型，并且指向基类
 Type *pointerTo(Type *Base) {
-    Type *Ty = calloc(1, sizeof(Type));
-    Ty->Kind = TY_PTR;
+    Type *Ty = newType(TY_PTR, 8, 8);
     Ty->Base = Base;
-    Ty->Size = 8;
     return Ty;
 }
 
@@ -42,10 +49,8 @@ Type *funcType(Type *ReturnTy) {
 // 构造数组类型, 传入 数组基类, 元素个数
 // array of the base type
 Type *arrayOf(Type *Base, int Len) {
-    Type *Ty = calloc(1, sizeof(Type));
-    Ty->Kind = TY_ARRAY;
     // 数组大小为所有元素大小之和
-    Ty->Size = Base->Size * Len;        // higher level array uses lower's as base
+    Type *Ty = newType(TY_ARRAY, Base -> Size * Len, Base -> Align);
     Ty->Base = Base;
     Ty->ArrayLen = Len;
     return Ty;

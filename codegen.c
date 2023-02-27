@@ -21,11 +21,6 @@ static int count(void) {
     return I++;
 }
 
-// 对齐到Align的整数倍
-// (0,Align]返回Align
-static int alignTo(int N, int Align) {
-    return (N + Align - 1) / Align * Align;
-}
 
 // 压栈，将结果临时压入栈中备用
 // sp为栈指针，栈反向向下增长，64位下，8个字节为一个单位，所以sp-8

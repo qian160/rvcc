@@ -165,6 +165,7 @@ typedef enum {
 struct Type {
     TypeKind Kind; // 种类
     int Size;      // 大小, sizeof返回的值
+    int Align;     // 对齐
     Type *Base;    // 基类, 指向的类型(only in effect for pointer)
     Token *Name;   // 类型对应名称，如：变量名、函数名
     // 函数类型
@@ -207,7 +208,9 @@ Obj *parse(Token *Tok);
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
 void codegen(Obj *Prog, FILE *Out);
-
+// 对齐到Align的整数倍
+// (0,Align]返回Align
+int alignTo(int N, int Align);
 
 /* ---------- type.c ---------- */
 // 判断是否为整型
@@ -237,6 +240,10 @@ void errorAt(char *Loc, char *Fmt, ...);
 //
 // macros
 //
+
+// 对齐到Align的整数倍
+// (0,Align]返回Align
+#define alignTo(N, Align) ((N + Align - 1) / Align * Align)
 
 #define error(format, ...) \
     do{ \
