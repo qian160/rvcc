@@ -99,7 +99,8 @@ typedef enum {
     ND_FOR,         // "for" 或 "while" 循环
     ND_ADDR,        // 取地址 &
     ND_DEREF,       // 解引用 *
-    ND_FUNCALL      // 函数调用
+    ND_FUNCALL,     // 函数调用
+    ND_COMMA,       // , 逗号
 
 } NodeKind;
 

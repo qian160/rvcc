@@ -17,6 +17,9 @@ TEST_SRCS=$(wildcard test/*.c)
 # test/文件夹的c测试文件编译出的可执行文件
 TESTS=$(TEST_SRCS:.c=.out)
 
+# run the specific test
+all=""
+
 # rvcc标签，表示如何构建最终的二进制文件，依赖于所有的.o文件
 # $@表示目标文件，此处为rvcc，$^表示依赖文件，此处为$(OBJS)
 rvcc: $(OBJS)
@@ -37,11 +40,18 @@ test/%.out: rvcc test/%.c
 	$(CROSS-CC) -o- -E -P -C test/$*.c | ./rvcc -o test/$*.s -
 	$(CROSS-CC) -static -o $@ test/$*.s -xc test/common
 
+# usage: make test all=xxx
 test: $(TESTS)
+# default run all
+ifeq ($(all),"")
 	@for i in $^; do echo $$i; $(QEMU) ./$$i || exit 1; echo; done
 	@test/driver.sh
+else
+	@$(QEMU) ./test/$(all).out || exit 1; echo done
 
-l:
+endif
+
+count:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
 	@rm *.d
 # 清理标签，清理所有非源代码文件
@@ -50,7 +60,7 @@ clean:
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
-.PHONY: test clean l
+.PHONY: test clean count
 
 -include $(DEPS)
 %.d: %.c
