@@ -81,8 +81,8 @@
 //        | "while" "(" expr ")" stmt
 // exprStmt = expr? ";"                                                 a = 3+5; | 6; | ;   note: must ends up with a ';'
 
-// expr = assign
-// assign = equality ("=" assign)?                                      a = (3*6-7) | a = b = 6 | 6  note: if it's the first case, then its lhs must be a lvalue
+// expr = assign ("," expr)?                                            (a = 1, j) = 6 | int c = (a = 1, 2)  [a = 1, c = 2] | int c = (b = 1, a = 2) [a = c = 2, b = 1]
+// assign = equality ("=" assign)?                                      a = (3*6-7) | a = b = 6 | a == b  | 6  note: if it's the first case, then its lhs must be a lvalue
 // equality = relational ("==" relational | "!=" relational)*           3*6==18 | 6
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*a+5) > (2*2+8) | 6
 // add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
@@ -97,7 +97,7 @@
 //         | num
 
 // FuncArgs = "(" (expr ("," expr)*)? ")"
-// funcall = ident "(" (expr ("," expr)*)? ")"                          foo(1, 2, 3+5, bar(6, 4))
+// funcall = ident "(" (assign ("," assign)*)? ")"                      foo(1, 2, 3+5, bar(6, 4))
 
 static Token *function(Token *Tok);
 static Node *declaration(Token **Rest, Token *Tok);
@@ -493,7 +493,7 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 //      declarator = "*"* ident typeSuffix
-// add a variable to current fn's lv list, then create a node with kind ND_ASSIGN if possible
+// add a variable to current scope, then create a node with kind ND_ASSIGN if possible
 static Node *declaration(Token **Rest, Token *Tok) {
     // declspec
     // 声明的 基础类型
@@ -503,7 +503,6 @@ static Node *declaration(Token **Rest, Token *Tok) {
     Node *Cur = &Head;
     // 对变量声明次数计数
     int I = 0;
-
     // (declarator ("=" expr)? ("," declarator ("=" expr)?)*)?
     while (!equal(Tok, ";")) {
         // 第1个变量不必匹配 ","
@@ -513,7 +512,6 @@ static Node *declaration(Token **Rest, Token *Tok) {
         // declarator
         // 声明获取到变量类型，包括变量名
         Type *Ty = declarator(&Tok, Tok, Basety);
-//        trace(" name = '%s', type = %d", tokenName(Ty->Name), Ty->Kind);
         Obj *Var = newLVar(getIdent(Ty->Name), Ty);
 
         // 如果不存在"="则为变量声明，不需要生成节点，已经存储在Locals中了
@@ -523,7 +521,9 @@ static Node *declaration(Token **Rest, Token *Tok) {
         // 解析“=”后面的Token
         Node *LHS = newVarNode(Var, Ty->Name);
         // 解析递归赋值语句
-        Node *RHS = expr(&Tok, Tok->Next);
+        // we use assign instead of expr here to avoid expr's 
+        // further parsing in ND_COMMA, which is not what we want
+        Node *RHS = assign(&Tok, Tok->Next);
         Node *Node = newBinary(ND_ASSIGN, LHS, RHS, Tok);
         // 存放在表达式语句中
         Cur->Next = newUnary(ND_EXPR_STMT, Node, Tok);
@@ -666,13 +666,22 @@ static Node *exprStmt(Token **Rest, Token *Tok) {
 }
 
 // 解析表达式
-// expr = equality
-static Node *expr(Token **Rest, Token *Tok) { 
-    return assign(Rest, Tok);
+// expr = assign ("," expr)?
+static Node *expr(Token **Rest, Token *Tok) {
+    Node *Nd = assign(&Tok, Tok);
+
+    if (equal(Tok, ","))
+        // this is strange grammar...  the lhs will still make effects, and
+        // the final value of the comma expr depends on its right-most one
+        return newBinary(ND_COMMA, Nd, expr(Rest, Tok->Next), Tok);
+    *Rest = Tok;
+    return Nd;
 }
 
+// difference between expr and assign: expr will add a further step in parsing
+// ND_COMMA, which could be unnecessary sometimes and causes bugs. use assign instead
 // 解析赋值
-// assign = equality ("=" assign)?
+// assign = equality ("=" assign)?. note: lvalue
 static Node *assign(Token **Rest, Token *Tok) {
     // equality
     Node *Nd = equality(&Tok, Tok);
@@ -860,7 +869,7 @@ static Node *postfix(Token **Rest, Token *Tok) {
 }
 
 // 解析函数调用. a helper function used by primary
-// funcall = ident "(" (expr ("," expr)*)? ")"
+// funcall = ident "(" (assign ("," assign)*)? ")"
 // the arg `Tok` is an ident
 static Node *funCall(Token **Rest, Token *Tok) {
     Token *Start = Tok;
@@ -874,7 +883,7 @@ static Node *funCall(Token **Rest, Token *Tok) {
         if (Cur != &Head)
             Tok = skip(Tok, ",");
         // expr
-        Cur->Next = expr(&Tok, Tok);
+        Cur->Next = assign(&Tok, Tok);
         Cur = Cur->Next;
     }
 
