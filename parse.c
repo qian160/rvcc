@@ -62,13 +62,17 @@
 
 // program = (functionDefination | global-variables)*                  "int main(){ int a=3*6-7; int b=a+3;b; } | void f1(){6;} void f2(){;;;}
 // functionDefinition = declspec declarator compoundStmt*               int ***foo(int a, int b, int fn(int a, int b)){return 1;}
-// declspec = "int" | "char" | "struct" structDecl
-// structDecl = "{" structMembers "}"
-// structMembers = (declspec declarator (","  declarator)* ";")*
+// declspec = "int" | "char" | structDecl | unionDecl
 // declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
 // typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?               null | () | (int a) | (int a, int f(int a)) | [4] | [4][4]  // these suffix tells that an ident is special
 // funcParams =  "(" (param ("," param)*)? ")"                          (int a, int b) | (int fn(int x), int a, int b) | ()
 //      param = declspec declarator                                     int * a | int a | int fn(int a, int b)      // function para also allowed, not not supproted yet...
+
+// structDecl = structUnionDecl
+// unionDecl = structUnionDecl
+// structUnionDecl = ident? ("{" structMembers "}")?
+// structMembers = (declspec declarator (","  declarator)* ";")*
+
 // compoundStmt = "{" (stmt | declaration)* "}"                         { int a=4; return a; } | {6;} | {{;;;}}     // always be wrapped in pairs of "{}"
 
 // declaration =
@@ -105,6 +109,7 @@ static Token *function(Token *Tok);
 static Node *declaration(Token **Rest, Token *Tok);
 static Type *declspec(Token **Rest, Token *Tok);
 static Type *structDecl(Token **Rest, Token *Tok);
+static Type *unionDecl(Token **Rest, Token *Tok);
 static Type *declarator(Token **Rest, Token *Tok, Type *Ty);
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty);
 static Node *compoundStmt(Token **Rest, Token *Tok);
@@ -160,14 +165,19 @@ static VarScope *pushScope(char *Name, Obj *Var) {
     return S;
 }
 
-static void pushTagScope(Token *Tok, Type *Ty) {
+static void pushTagScope(Token *Tok, Type *Ty, bool is_struct) {
     TagScope *S = calloc(1, sizeof(TagScope));
     S->Name = tokenName(Tok);
     S->Ty = Ty;
-    S->Next = Scp->Tags;
-    Scp->Tags = S;
+    if(is_struct){
+        S->Next = Scp->structTags;
+        Scp->structTags = S;
+    }
+    else{
+        S->Next = Scp->unionTags;
+        Scp->unionTags = S;
+    }
 }
-
 
 // ---------- variables managements ----------
 
@@ -211,9 +221,9 @@ static Obj *newGVar(char *Name, Type *Ty) {
 }
 
 // 通过Token查找标签
-static Type *findTag(Token *Tok) {
+static Type *findTag(Token *Tok, bool is_struct) {
     for (Scope *S = Scp; S; S = S->Next)
-        for (TagScope *S2 = S->Tags; S2; S2 = S2->Next)
+        for (TagScope *S2 = is_struct? S->structTags: S->unionTags; S2; S2 = S2->Next)
             if (equal(Tok, S2->Name))
                 return S2->Ty;
         return NULL;
@@ -257,7 +267,8 @@ static Obj *newStringLiteral(char *Str, Type *Ty) {
 // 判断是否为类型名
 static bool isTypename(Token *Tok) 
 {
-    return equal(Tok, "char") || equal(Tok, "int") || equal(Tok, "struct");
+    return equal(Tok, "char") || equal(Tok, "int") || equal(Tok, "struct") || \
+        equal(Tok, "union");
 }
 
 //
@@ -421,7 +432,7 @@ static Token *function(Token *Tok) {
 }
 
 
-// declspec = "int" | "char" | "struct" structDecl
+// declspec = "int" | "char" | structDecl | unionDecl
 // 声明的 基础类型
 static Type *declspec(Token **Rest, Token *Tok) {
     if (equal(Tok, "char")){
@@ -435,6 +446,10 @@ static Type *declspec(Token **Rest, Token *Tok) {
     if (equal(Tok, "struct")){
         return structDecl(Rest, Tok->Next);
     }
+
+    // unionDecl
+    if (equal(Tok, "union"))
+        return unionDecl(Rest, Tok->Next);
 
     error("unexpected type: %s", tokenName(Tok));
 }
@@ -548,19 +563,20 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
 //      struct (tag)? {int a; ...} foo; foo.a = 10;
 //  2. use a struct tag to type a variable
 //      struct tag bar; bar.a = 1;
-static Type *structDecl(Token **Rest, Token *Tok) {
-    // do not skip the "{", check which usage it is first
-    // 读取结构体标签
+
+// structUnionDecl = ident? ("{" structMembers "}")?
+static Type *structUnionDecl(Token **Rest, Token *Tok, bool is_struct) {
+    // 读取标签
     Token *Tag = NULL;
     if (Tok->Kind == TK_IDENT) {
         Tag = Tok;
         Tok = Tok->Next;
     }
-    // use struct tag to type a variable
+
     if (Tag && !equal(Tok, "{")) {
-        Type *Ty = findTag(Tag);
+        Type *Ty = findTag(Tag, is_struct);
         if (!Ty)
-            errorTok(Tag, "unknown struct type");
+            errorTok(Tag, "unknown struct or union type");
         *Rest = Tok;
         return Ty;
     }
@@ -569,24 +585,51 @@ static Type *structDecl(Token **Rest, Token *Tok) {
     Type *Ty = calloc(1, sizeof(Type));
     Ty->Kind = TY_STRUCT;
     structMembers(Rest, Tok->Next, Ty);
-    Ty -> Align = 1;
+    Ty->Align = 1;
+
+    // 如果有名称就注册结构体类型
+    if (Tag)
+        pushTagScope(Tag, Ty, is_struct);
+
+    *Rest = skip(*Rest, "}");
+    return Ty;
+}
+
+// structDecl = structUnionDecl
+static Type *structDecl(Token **Rest, Token *Tok) {
+    Type *Ty = structUnionDecl(Rest, Tok, true);
+    Ty->Kind = TY_STRUCT;
+
     // 计算结构体内成员的偏移量
     int Offset = 0;
     for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
         Offset = alignTo(Offset, Mem->Ty->Align);
-        Mem -> Offset = Offset;
-        Offset += Mem -> Ty -> Size;
+        Mem->Offset = Offset;
+        Offset += Mem->Ty->Size;
         // determining the whole struct's alignment, which
         // depends on the biggest elem
-        if(Ty->Align < Mem->Ty->Align)
+        if (Ty->Align < Mem->Ty->Align)
             Ty->Align = Mem->Ty->Align;
     }
     Ty->Size = alignTo(Offset, Ty->Align);
-    // 如果有名称就注册结构体类型
-    if (Tag)
-        pushTagScope(Tag, Ty);
 
-    *Rest = skip(*Rest, "}");
+    return Ty;
+}
+
+// unionDecl = structUnionDecl
+static Type *unionDecl(Token **Rest, Token *Tok) {
+    Type *Ty = structUnionDecl(Rest, Tok, false);
+    Ty->Kind = TY_UNION;
+
+    // 联合体需要设置为最大的对齐量与大小，变量偏移量都默认为0
+    for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
+        if (Ty->Align < Mem->Ty->Align)
+            Ty->Align = Mem->Ty->Align;
+        if (Ty->Size < Mem->Ty->Size)
+            Ty->Size = Mem->Ty->Size;
+    }
+    // 将大小对齐
+    Ty->Size = alignTo(Ty->Size, Ty->Align);
     return Ty;
 }
 
@@ -594,7 +637,7 @@ static Type *structDecl(Token **Rest, Token *Tok) {
 static Member *getStructMember(Type *Ty, Token *Tok) {
     for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
         if (Mem->Name->Len == Tok->Len &&
-                !strncmp(Mem->Name->Loc, Tok->Loc, Tok->Len))
+            !strncmp(Mem->Name->Loc, Tok->Loc, Tok->Len))
             return Mem;
         errorTok(Tok, "no such member");
     return NULL;
@@ -607,8 +650,8 @@ static Member *getStructMember(Type *Ty, Token *Tok) {
 // 构建结构体成员的节点. LHS = that struct variable
 static Node *structRef(Node *LHS, Token *Tok) {
     addType(LHS);
-    if (LHS->Ty->Kind != TY_STRUCT)
-        errorTok(LHS->Tok, "not a struct");
+    if (LHS->Ty->Kind != TY_STRUCT && LHS->Ty->Kind != TY_UNION)
+        errorTok(LHS->Tok, "not a struct or union");
 
     Node *Nd = newUnary(ND_MEMBER, LHS, Tok);
     Nd->Mem = getStructMember(LHS->Ty, Tok);

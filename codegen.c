@@ -118,7 +118,7 @@ static void genAddr(Node *Nd) {
         // 结构体成员
         case ND_MEMBER:
             // base addr = a0, offset = t1
-            genAddr(Nd->LHS);
+            genAddr(Nd->LHS);   // that struct variable's address
             // 计算成员变量的地址偏移量
             println("  li t0, %d", Nd->Mem->Offset);
             println("  add a0, a0, t0");
@@ -138,7 +138,7 @@ static void assignLVarOffsets(Obj *Prog) {
         int Offset = 0;
         if(Fn->Ty->Kind != TY_FUNC)
             continue;
-        println(" # local variables of Fn %s:", Fn->Name);
+//        println(" # local variables of Fn %s:", Fn->Name);
         // 读取所有变量
         for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
             // the offset here is relevent to fp, which is at top of stack
@@ -147,7 +147,7 @@ static void assignLVarOffsets(Obj *Prog) {
             Offset = alignTo(Offset, Var->Ty->Align);
             // 为每个变量赋一个偏移量，或者说是栈中地址
             Var->Offset = -Offset;
-            println(" # %s, offset = %d", Var->Name, Var->Offset);
+//            println(" # %s, offset = %d", Var->Name, Var->Offset);
         }
         // 将栈对齐到16字节
         Fn->StackSize = alignTo(Offset, 16);

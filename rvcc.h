@@ -144,7 +144,7 @@ struct VarScope {
     Obj *Var;       // 对应的变量
 };
 
-// 结构体标签的域
+// 结构体和联合体标签的域
 typedef struct TagScope TagScope;
 struct TagScope {
     TagScope *Next; // 下一标签域
@@ -155,9 +155,10 @@ struct TagScope {
 // 表示一个块域
 typedef struct Scope Scope;
 struct Scope {
-    Scope *Next;    // 指向上一级的域
-    VarScope *Vars; // 指向当前域内的变量
-    TagScope *Tags; // 指向当前域内的结构体标签
+    Scope *Next;            // 指向上一级的域
+    VarScope *Vars;         // 指向当前域内的变量
+    TagScope *structTags;   // 指向当前域内的结构体标签
+    TagScope *unionTags;    // 指向当前域内的union标签
 };
 
 
@@ -173,6 +174,7 @@ typedef enum {
     TY_ARRAY,      // 数组. very similar to ptr
     TY_CHAR,       // 字符类型
     TY_STRUCT,     // 结构体
+    TY_UNION,      // 联合体
 } TypeKind;
 
 struct Type {
