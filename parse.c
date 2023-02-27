@@ -160,6 +160,15 @@ static VarScope *pushScope(char *Name, Obj *Var) {
     return S;
 }
 
+static void pushTagScope(Token *Tok, Type *Ty) {
+    TagScope *S = calloc(1, sizeof(TagScope));
+    S->Name = tokenName(Tok);
+    S->Ty = Ty;
+    S->Next = Scp->Tags;
+    Scp->Tags = S;
+}
+
+
 // ---------- variables managements ----------
 
 // 通过名称，查找一个变量.
@@ -199,6 +208,15 @@ static Obj *newGVar(char *Name, Type *Ty) {
     Var->Next = Globals;
     Globals = Var;
     return Var;
+}
+
+// 通过Token查找标签
+static Type *findTag(Token *Tok) {
+    for (Scope *S = Scp; S; S = S->Next)
+        for (TagScope *S2 = S->Tags; S2; S2 = S2->Next)
+            if (equal(Tok, S2->Name))
+                return S2->Ty;
+        return NULL;
 }
 
 // 获取标识符
@@ -460,7 +478,7 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
             Type *BaseTy = declspec(&Tok, Tok);
             Type *DeclarTy = declarator(&Tok, Tok, BaseTy);
             // 将类型复制到形参链表一份. why copy?
-            // because we are acting on a same address in this loop,
+            // because we are operating on a same address in this loop,
             // if not copy, the latter type will just cover the previous's.
             // trace("%p", DeclarTy);
             Cur->Next = copyType(DeclarTy);
@@ -525,13 +543,32 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
 }
 
 // structDecl = "{" structMembers "}"
+// specially, this function has 2 usages:
+//  1. declare a struct variable
+//      struct (tag)? {int a; ...} foo; foo.a = 10;
+//  2. use a struct tag to type a variable
+//      struct tag bar; bar.a = 1;
 static Type *structDecl(Token **Rest, Token *Tok) {
-    Tok = skip(Tok, "{");
+    // do not skip the "{", check which usage it is first
+    // 读取结构体标签
+    Token *Tag = NULL;
+    if (Tok->Kind == TK_IDENT) {
+        Tag = Tok;
+        Tok = Tok->Next;
+    }
+    // use struct tag to type a variable
+    if (Tag && !equal(Tok, "{")) {
+        Type *Ty = findTag(Tag);
+        if (!Ty)
+            errorTok(Tag, "unknown struct type");
+        *Rest = Tok;
+        return Ty;
+    }
 
     // 构造一个结构体
     Type *Ty = calloc(1, sizeof(Type));
     Ty->Kind = TY_STRUCT;
-    structMembers(Rest, Tok, Ty);
+    structMembers(Rest, Tok->Next, Ty);
     Ty -> Align = 1;
     // 计算结构体内成员的偏移量
     int Offset = 0;
@@ -544,7 +581,11 @@ static Type *structDecl(Token **Rest, Token *Tok) {
         if(Ty->Align < Mem->Ty->Align)
             Ty->Align = Mem->Ty->Align;
     }
-    Ty->Size = alignTo(Offset, Ty -> Align);
+    Ty->Size = alignTo(Offset, Ty->Align);
+    // 如果有名称就注册结构体类型
+    if (Tag)
+        pushTagScope(Tag, Ty);
+
     *Rest = skip(*Rest, "}");
     return Ty;
 }

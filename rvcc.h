@@ -133,6 +133,10 @@ struct Node {
     Member *Mem;
 };
 
+//
+// scope
+//
+
 // 局部和全局变量的域
 typedef struct VarScope VarScope;
 struct VarScope {
@@ -140,11 +144,20 @@ struct VarScope {
     Obj *Var;       // 对应的变量
 };
 
+// 结构体标签的域
+typedef struct TagScope TagScope;
+struct TagScope {
+    TagScope *Next; // 下一标签域
+    char *Name;     // struct's name
+    Type *Ty;       // 域类型
+};
+
 // 表示一个块域
 typedef struct Scope Scope;
 struct Scope {
     Scope *Next;    // 指向上一级的域
     VarScope *Vars; // 指向当前域内的变量
+    TagScope *Tags; // 指向当前域内的结构体标签
 };
 
 
