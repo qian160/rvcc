@@ -51,7 +51,7 @@ struct Token {
     int Val;        // 值
     char *Loc;      // 在解析的字符串内的位置
     int Len;        // 长度
-    Type *Ty;       // TK_STR使用, = arrayOf(TyChar, len);
+    int strLen;     // TK_STR使用. 由于转义字符的存在，strlen可能会小于len
     char *Str;      // 字符串字面量，包括'\0'
 
     int LineNo;     // 行号
@@ -223,9 +223,7 @@ Obj *parse(Token *Tok);
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
 void codegen(Obj *Prog, FILE *Out);
-// 对齐到Align的整数倍
-// (0,Align]返回Align
-int alignTo(int N, int Align);
+
 
 /* ---------- type.c ---------- */
 // 判断是否为整型
@@ -284,6 +282,8 @@ void errorAt(char *Loc, char *Fmt, ...);
 #define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
 #define todo() Assert(0, "todo")
+
+
 // macro testing
 // See https://stackoverflow.com/questions/26099745/test-if-preprocessor-symbol-is-defined-inside-macro
 #define CHOOSE2nd(a, b, ...) b

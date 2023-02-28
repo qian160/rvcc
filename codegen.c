@@ -36,6 +36,27 @@ static void pop(char *Reg) {
     Depth--;
 }
 
+// 将整形寄存器的值存入栈中
+static void storeGeneral(int Reg, int Offset, int Size) {
+    // 将%s寄存器的值存入%d(fp)的栈地址
+    switch (Size) {
+    case 1:
+        println("  sb %s, %d(fp)", ArgReg[Reg], Offset);
+        return;
+    case 2:
+        println("  sh %s, %d(fp)", ArgReg[Reg], Offset);
+        return;
+    case 4:
+        println("  sw %s, %d(fp)", ArgReg[Reg], Offset);
+        return;
+    case 8:
+        println("  sd %s, %d(fp)", ArgReg[Reg], Offset);
+    return;
+    }
+    error("unreachable");
+}
+
+
 // 加载a0(为一个地址)指向的值
 static void load(Type *Ty) {
     // to load a value, for normal types we need to get its address
@@ -472,12 +493,7 @@ void emitText(Obj *Prog) {
         // then in the fn body we can use the formal params in stack
         int I = 0;
         for (Obj *Var = Fn->Params; Var; Var = Var->Next)
-        {
-            if (Var->Ty->Size == 1)
-                println("  sb %s, %d(fp)", ArgReg[I++], Var->Offset);
-            else
-                println("  sd %s, %d(fp)", ArgReg[I++], Var->Offset);
-        }
+            storeGeneral(I++, Var->Offset, Var->Ty->Size);
         // 生成语句链表的代码
         println("# =====%s段主体===============", Fn->Name);
         genStmt(Fn->Body);

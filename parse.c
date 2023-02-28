@@ -1145,7 +1145,7 @@ static Node *primary(Token **Rest, Token *Tok) {
 
     // str, recognized in tokenize
     if (Tok->Kind == TK_STR) {
-        Obj *Var = newStringLiteral(Tok->Str, Tok->Ty);
+        Obj *Var = newStringLiteral(Tok->Str, arrayOf(TyChar, Tok->strLen));
         *Rest = Tok->Next;
         return newVarNode(Var, Tok);
     }

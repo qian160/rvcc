@@ -156,7 +156,7 @@ static Token *readStringLiteral(char *Start) {
     // Token这里需要包含带双引号的字符串字面量
     Token *Tok = newToken(TK_STR, Start, P + 1);
     // 为\0增加一位
-    Tok->Ty = arrayOf(TyChar, len);
+    Tok->strLen = len;
     Tok->Str = Buf;
     return Tok;
 }
