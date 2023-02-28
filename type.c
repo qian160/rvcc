@@ -6,6 +6,7 @@
 // type, size, align
 Type *TyInt = &(Type){TY_INT, 4, 4};
 Type *TyChar = &(Type){TY_CHAR, 1, 1};
+Type *TyLong = &(Type){TY_LONG, 8, 8};
 
 static Type *newType(TypeKind Kind, int Size, int Align) {
     Type *Ty = calloc(1, sizeof(Type));
@@ -17,7 +18,7 @@ static Type *newType(TypeKind Kind, int Size, int Align) {
 
 // 判断Type是否为int类型
 bool isInteger(Type *Ty){
-    return Ty->Kind == TY_INT || Ty -> Kind == TY_CHAR; 
+    return Ty->Kind == TY_INT || Ty->Kind == TY_CHAR || Ty->Kind == TY_LONG; 
 }
 
 bool isChar(Type *Ty){
@@ -99,7 +100,7 @@ void addType(Node *Nd) {
         case ND_LE:
         case ND_NUM:
         case ND_FUNCALL:
-            Nd->Ty = TyInt;
+            Nd->Ty = TyLong;
             return;
         // 将节点类型设为 变量的类型
         case ND_VAR:

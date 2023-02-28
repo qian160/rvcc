@@ -201,7 +201,7 @@ static void genExpr(Node *Nd) {
     switch (Nd->Kind) {
         // 加载数字到a0, leaf node
         case ND_NUM:
-            println("  li a0, %d", Nd->Val);
+            println("  li a0, %ld", Nd->Val);
             return;
         // 对寄存器取反
         case ND_NEG:

@@ -22,7 +22,7 @@ char* tokenName(Token *Tok) {
 }
 
 // 返回TK_NUM的值
-int getNumber(Token *Tok) {
+int64_t getNumber(Token *Tok) {
     Assert(Tok -> Kind == TK_NUM, "expect a number");
     return Tok->Val;
 }

@@ -6,6 +6,7 @@
 #include<stdbool.h>
 #include<errno.h>
 #include<string.h>
+#include<stdint.h>
 /*
 // 使用POSIX.1标准
 // 使用了strndup函数:
@@ -48,7 +49,7 @@ typedef enum {
 struct Token {
     TokenKind Kind; // 种类
     Token *Next;    // 指向下一终结符
-    int Val;        // 值
+    int64_t Val;        // 值
     char *Loc;      // 在解析的字符串内的位置
     int Len;        // 长度
     int strLen;     // TK_STR使用. 由于转义字符的存在，strlen可能会小于len
@@ -117,7 +118,7 @@ struct Node {
     Node *Body;     // 代码块 或 语句表达式
     Obj * Var;      // 存储ND_VAR种类的变量
     Type *Ty;       // 节点中数据的类型
-    int Val;        // 存储ND_NUM种类的值
+    int64_t Val;    // 存储ND_NUM种类的值
     Token * Tok;    // 节点对应的终结符. debug
     // 函数
     char *FuncName; // 函数名
@@ -173,6 +174,7 @@ typedef enum {
     TY_FUNC,       // 函数
     TY_ARRAY,      // 数组. very similar to ptr
     TY_CHAR,       // 字符类型
+    TY_LONG,       // long长整型
     TY_STRUCT,     // 结构体
     TY_UNION,      // 联合体
 } TypeKind;
@@ -203,6 +205,7 @@ struct Member {
 // 声明一个全局变量，定义在type.c中。
 extern Type *TyInt;
 extern Type *TyChar;
+extern Type *TyLong;
 
 // functions
 
@@ -213,7 +216,7 @@ bool equal(Token *Tok, char *Str);
 Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);
-int getNumber(Token *Tok);
+int64_t getNumber(Token *Tok);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数

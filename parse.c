@@ -62,7 +62,7 @@
 
 // program = (functionDefination | global-variables)*                  "int main(){ int a=3*6-7; int b=a+3;b; } | void f1(){6;} void f2(){;;;}
 // functionDefinition = declspec declarator compoundStmt*               int ***foo(int a, int b, int fn(int a, int b)){return 1;}
-// declspec = "int" | "char" | structDecl | unionDecl
+// declspec = "int" | "char" | "long" | structDecl | unionDecl
 // declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
 // typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?               null | () | (int a) | (int a, int f(int a)) | [4] | [4][4]  // these suffix tells that an ident is special
 // funcParams =  "(" (param ("," param)*)? ")"                          (int a, int b) | (int fn(int x), int a, int b) | ()
@@ -267,8 +267,12 @@ static Obj *newStringLiteral(char *Str, Type *Ty) {
 // 判断是否为类型名
 static bool isTypename(Token *Tok) 
 {
-    return equal(Tok, "char") || equal(Tok, "int") || equal(Tok, "struct") || \
-        equal(Tok, "union");
+    static char *types[] = {"char", "int", "struct", "union", "long"};
+    for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
+        if(equal(Tok, types[i]))
+            return true;
+    }
+    return false;
 }
 
 //
@@ -299,7 +303,7 @@ static Node *newBinary(NodeKind Kind, Node *LHS, Node *RHS, Token *Tok) {
 }
 
 // 新建一个数字节点
-static Node *newNum(int Val, Token *Tok) {
+static Node *newNum(int64_t Val, Token *Tok) {
     Node *Nd = newNode(ND_NUM, Tok);
     Nd->Val = Val;
     return Nd;
@@ -432,7 +436,7 @@ static Token *function(Token *Tok) {
 }
 
 
-// declspec = "int" | "char" | structDecl | unionDecl
+// declspec = "int" | "char" | "long" | structDecl | unionDecl
 // 声明的 基础类型
 static Type *declspec(Token **Rest, Token *Tok) {
     if (equal(Tok, "char")){
@@ -443,10 +447,15 @@ static Type *declspec(Token **Rest, Token *Tok) {
         *Rest = Tok -> Next;
         return TyInt;
     }
+    // "long"
+    if (equal(Tok, "long")) {
+        *Rest = Tok->Next;
+        return TyLong;
+    }
+
     if (equal(Tok, "struct")){
         return structDecl(Rest, Tok->Next);
     }
-
     // unionDecl
     if (equal(Tok, "union"))
         return unionDecl(Rest, Tok->Next);
@@ -518,7 +527,7 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
         return funcParams(Rest, Tok, Ty);
     // "[" num "] typeSuffix"
     if (equal(Tok, "[")) {
-        int Sz = getNumber(Tok->Next);  // array size
+        int64_t Sz = getNumber(Tok->Next);  // array size
         // skip num and ]
         Tok = skip(Tok->Next->Next, "]");
         Ty = typeSuffix(Rest, Tok, Ty);
