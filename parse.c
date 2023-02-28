@@ -523,7 +523,7 @@ static Type *declspec(Token **Rest, Token *Tok) {
         }
 
         Tok = Tok->Next;
-    } // while (isTypename(Tok))
+    }
 
     *Rest = Tok;
     return Ty;
