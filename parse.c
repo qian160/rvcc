@@ -90,7 +90,7 @@
 
 // program = (functionDefination | global-variables)*
 // functionDefinition = declspec declarator compoundStmt*
-// declspec = "int" | "char" | "long" | structDecl | unionDecl
+// declspec = ("int" | "char" | "long" | "short" | "void" | structDecl | unionDecl)+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?
 // funcParams =  "(" (param ("," param)*)? ")"
@@ -294,7 +294,7 @@ static Obj *newStringLiteral(char *Str, Type *Ty) {
 // 判断是否为类型名
 static bool isTypename(Token *Tok) 
 {
-    static char *types[] = {"char", "int", "struct", "union", "long", "short"};
+    static char *types[] = {"char", "int", "struct", "union", "long", "short", "void"};
     for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
         if(equal(Tok, types[i]))
             return true;
@@ -455,33 +455,78 @@ static Token *function(Token *Tok) {
 }
 
 
-// declspec = "int" | "char" | "long" | structDecl | unionDecl
-// 声明的 基础类型
+// declspec = ("int" | "char" | "long" | "short" | "void" | structDecl | unionDecl)+
+// 声明的 基础类型. declaration specifiers
 static Type *declspec(Token **Rest, Token *Tok) {
-    if (equal(Tok, "char")){
-        *Rest = Tok -> Next;
-        return TyChar;
-    }
-    if (equal(Tok, "int")){
-        *Rest = Tok -> Next;
-        return TyInt;
-    }
-    if (equal(Tok, "long")) {
-        *Rest = Tok->Next;
-        return TyLong;
-    }
-    if (equal(Tok, "short")) {
-        *Rest = Tok->Next;
-        return TyShort;
-    }
-    if (equal(Tok, "struct")){
-        return structDecl(Rest, Tok->Next);
-    }
-    // unionDecl
-    if (equal(Tok, "union"))
-        return unionDecl(Rest, Tok->Next);
 
-    error("unexpected type: %s", tokenName(Tok));
+    // 类型的组合，被表示为例如：LONG+LONG=1<<9
+    // 可知long int和int long是等价的。
+    enum {
+        VOID  = 1 << 0,
+        CHAR  = 1 << 2,
+        SHORT = 1 << 4,
+        INT   = 1 << 6,
+        LONG  = 1 << 8,
+        OTHER = 1 << 10,
+    };
+
+    Type *Ty = TyInt;
+    int Counter = 0; // 记录类型相加的数值
+
+    // 遍历所有类型名的Tok
+    while (isTypename(Tok)) {
+        if (equal(Tok, "struct") || equal(Tok, "union")) {
+            if (equal(Tok, "struct"))
+                Ty = structDecl(&Tok, Tok->Next);
+            else
+                Ty = unionDecl(&Tok, Tok->Next);
+            Counter += OTHER;
+            continue;
+        }
+
+        // 对于出现的类型名加入Counter
+        // 每一步的Counter都需要有合法值
+        if (equal(Tok, "void"))
+            Counter += VOID;
+        else if (equal(Tok, "char"))
+            Counter += CHAR;
+        else if (equal(Tok, "short"))
+            Counter += SHORT;
+        else if (equal(Tok, "int"))
+            Counter += INT;
+        else if (equal(Tok, "long"))
+            Counter += LONG;
+        else
+            error("unreachable");
+
+        // 根据Counter值映射到对应的Type
+        switch (Counter) {
+            case VOID:
+                Ty = TyVoid;
+                break;
+            case CHAR:
+                Ty = TyChar;
+                break;
+            case SHORT:
+            case SHORT + INT:
+                Ty = TyShort;
+                break;
+            case INT:
+                Ty = TyInt;
+                break;
+            case LONG:
+            case LONG + INT:
+                Ty = TyLong;
+                break;
+            default:
+                errorTok(Tok, "invalid type");
+        }
+
+        Tok = Tok->Next;
+    } // while (isTypename(Tok))
+
+    *Rest = Tok;
+    return Ty;
 }
 
 /*declarator：
@@ -501,10 +546,6 @@ static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     if (equal(Tok, "(")) {
         // 记录"("的位置
         Token *Start = Tok;
-        // 使Tok前进到")"后面的位置
-//        while(!equal(Tok, ")"))
-//            Tok = Tok -> Next;
-//        Tok=Tok->Next;
         Type Dummy = {};
         declarator(&Tok, Start->Next, &Dummy);
         Tok = skip(Tok, ")");
@@ -730,6 +771,10 @@ static Node *declaration(Token **Rest, Token *Tok) {
         // declarator
         // 声明获取到变量类型，包括变量名
         Type *Ty = declarator(&Tok, Tok, Basety);
+
+        if(Ty->Kind == TY_VOID)
+            errorTok(Tok, "variable declared void");
+
         Obj *Var = newLVar(getIdent(Ty->Name), Ty);
         // trace(" new local var: %s, type = %d", tokenName(Ty->Name), Ty->Kind)
 

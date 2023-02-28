@@ -40,20 +40,21 @@ static void pop(char *Reg) {
 static void storeGeneral(int Reg, int Offset, int Size) {
     // 将%s寄存器的值存入%d(fp)的栈地址
     switch (Size) {
-    case 1:
-        println("  sb %s, %d(fp)", ArgReg[Reg], Offset);
+        case 1:
+            println("  sb %s, %d(fp)", ArgReg[Reg], Offset);
+            return;
+        case 2:
+            println("  sh %s, %d(fp)", ArgReg[Reg], Offset);
+            return;
+        case 4:
+            println("  sw %s, %d(fp)", ArgReg[Reg], Offset);
+            return;
+        case 8:
+            println("  sd %s, %d(fp)", ArgReg[Reg], Offset);
         return;
-    case 2:
-        println("  sh %s, %d(fp)", ArgReg[Reg], Offset);
-        return;
-    case 4:
-        println("  sw %s, %d(fp)", ArgReg[Reg], Offset);
-        return;
-    case 8:
-        println("  sd %s, %d(fp)", ArgReg[Reg], Offset);
-    return;
+        default:
+            error("unreachable");
     }
-    error("unreachable");
 }
 
 
@@ -467,7 +468,7 @@ void emitText(Obj *Prog) {
     // 为每个函数单独生成代码
     for (Obj *Fn = Prog; Fn; Fn = Fn->Next) {
         // not a function, or just a function defination without body.
-        if (Fn->Ty->Kind != TY_FUNC || (Fn->Ty->Kind == TY_FUNC && !Fn->Body))
+        if (!Fn->Body)
             continue;
 
         println("  .globl %s", Fn->Name);

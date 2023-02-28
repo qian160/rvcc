@@ -176,6 +176,7 @@ typedef enum {
     TY_CHAR,       // 字符类型
     TY_LONG,       // long长整型
     TY_SHORT,      // short短整型
+    TY_VOID,       // void类型
     TY_STRUCT,     // 结构体
     TY_UNION,      // 联合体
 } TypeKind;
@@ -208,6 +209,8 @@ extern Type *TyInt;
 extern Type *TyChar;
 extern Type *TyLong;
 extern Type *TyShort;
+extern Type *TyVoid;
+
 // functions
 
 /* ---------- tokenize.c ---------- */
