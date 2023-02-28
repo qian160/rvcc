@@ -41,6 +41,34 @@
 //                                      ↓              ↓
 //                                 typeSuffix     compoundStmt
 
+
+// declarator = "*"* ( "(" ident ")" | "(" declarator ")" | ident ) typeSuffix
+
+
+//                                     declarator1(type1)
+//                                         ↑
+//              +--------------------------+-----------------------------------+
+//              |                                                              |
+//              |                                                              |
+//        int   **    (     *(  * (     foo     )   [6]          )     [6]     )   [6][6][6]
+//      declspec            |   |      ident    | typeSuffix3    | typeSuffix2     typeSuffix1
+//                          |   |               |                |
+//                          |   +-------+-------+                |
+//                          |           ↓                        |
+//                          |    declarator3(type3)              |
+//                          +--------------+---------------------+
+//                                         ↓
+//                                  declarator2(type2)
+
+
+// final goal: to recognize declarator, the biggest one
+// note that inside our declarator, there are many other sub-declarations
+// since the function declarator() returns a type, we can call it recursively and build new type upon old ones(base)
+
+// final type  = declspec + declarator1 + typeSuffix1
+// declarator1 = declarator2 + typeSuffix2
+// declarator2 = declarator3 + typeSuffix3
+
 //      input = add(1 + 4, 2) + 5;
 //
 //                      +
@@ -56,28 +84,27 @@
 //           ND_EXPR_STMT -> 2
 
 // ↓↑
-//                                                                      //e.g.
+
 // note: a single number can match almost all the cases.
 // 越往下优先级越高
 
-// program = (functionDefination | global-variables)*                  "int main(){ int a=3*6-7; int b=a+3;b; } | void f1(){6;} void f2(){;;;}
-// functionDefinition = declspec declarator compoundStmt*               int ***foo(int a, int b, int fn(int a, int b)){return 1;}
+// program = (functionDefination | global-variables)*
+// functionDefinition = declspec declarator compoundStmt*
 // declspec = "int" | "char" | "long" | structDecl | unionDecl
-// declarator = "*"* ident typeSuffix                                   ***** a |  a | a()
-// typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?               null | () | (int a) | (int a, int f(int a)) | [4] | [4][4]  // these suffix tells that an ident is special
-// funcParams =  "(" (param ("," param)*)? ")"                          (int a, int b) | (int fn(int x), int a, int b) | ()
-//      param = declspec declarator                                     int * a | int a | int fn(int a, int b)      // function para also allowed, not not supproted yet...
+// declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?
+// funcParams =  "(" (param ("," param)*)? ")"
+//      param = declspec declarator
 
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
 // structUnionDecl = ident? ("{" structMembers "}")?
 // structMembers = (declspec declarator (","  declarator)* ";")*
 
-// compoundStmt = "{" (stmt | declaration)* "}"                         { int a=4; return a; } | {6;} | {{;;;}}     // always be wrapped in pairs of "{}"
+// compoundStmt = "{" (stmt | declaration)* "}"
 
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
-//                                                                      int; | int a = 1; | int *a = &b; | int *******a; | int a = 3, b = 2; | int a, b = 2; 
 
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
@@ -85,25 +112,25 @@
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
-// exprStmt = expr? ";"                                                 a = 3+5; | 6; | ;   note: must ends up with a ';'
+// exprStmt = expr? ";"
 
-// expr = assign ("," expr)?                                            (a = 1, j) = 6 | int c = (a = 1, 2)  [a = 1, c = 2] | int c = (b = 1, a = 2) [a = c = 2, b = 1]
-// assign = equality ("=" assign)?                                      a = (3*6-7) | a = b = 6 | a == b  | 6  note: if it's the first case, then its lhs must be a lvalue
-// equality = relational ("==" relational | "!=" relational)*           3*6==18 | 6
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*          (3*a+5) > (2*2+8) | 6
-// add = mul ("+" mul | "-" mul)*                                       -4*5 + 4* (*a) | 6
-// mul = unary ("*" unary | "/" unary)*                                 -(3+4) * a | -(5+6) | *a * b | 6
-// unary = ("+" | "-" | "*" | "&") unary | postfix                      -(3+5) | -4 | +4 | a | &a | *a | *****a | 6 
-// postfix = primary ("[" expr "]" | "." ident)* | | "->" ident)*       a[4] | a.foo | a  | a->foo
-// primary = "(" "{" stmt+ "}" ")"                                      ({0; 1; 6+9})  // GNU
-//         | "(" expr ")"                                               (6 + 9 * 8)
+// expr = assign ("," expr)?
+// assign = equality ("=" assign)?
+// equality = relational ("==" relational | "!=" relational)*
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+// add = mul ("+" mul | "-" mul)*
+// mul = unary ("*" unary | "/" unary)*
+// unary = ("+" | "-" | "*" | "&") unary | postfix 
+// postfix = primary ("[" expr "]" | "." ident)* | | "->" ident)*
+// primary = "(" "{" stmt+ "}" ")"
+//         | "(" expr ")"
 //         | "sizeof" unary
 //         | ident funcArgs?
 //         | str
 //         | num
 
 // FuncArgs = "(" (expr ("," expr)*)? ")"
-// funcall = ident "(" (assign ("," assign)*)? ")"                      foo(1, 2, 3+5, bar(6, 4))
+// funcall = ident "(" (assign ("," assign)*)? ")"
 
 static Token *function(Token *Tok);
 static Node *declaration(Token **Rest, Token *Tok);
@@ -466,9 +493,11 @@ static Type *declspec(Token **Rest, Token *Tok) {
 }
 
 /*declarator：
-    声明符，其实是介于declspec（声明的基础类型）与一直到声明结束(目前是左花括号)
-    这之间的所有东西。与前面的declspec搭配就完整地定义了一个函数的签名。也可以用来定义变量*/
-// declarator = "*"* ident typeSuffix
+    声明符，其实是介于declspec（声明的基础类型）与一直到声明结束这之间的所有东西("{" for fn and ";" for var)。
+    与前面的declspec搭配就完整地定义了一个函数的签名。也可以用来定义变量*/
+// declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// int *** (a)[6] | int **(*(*(**a[6])))[6] | int **a[6]
+// the 2nd case is a little difficult to handle with... and that's also where the recursion begins
 // examples: ***var, fn(int x), a
 // a further step on type parsing. also help to assign Ty->Name
 static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
@@ -476,6 +505,23 @@ static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     // 构建所有的（多重）指针
     while (consume(&Tok, Tok, "*"))
         Ty = pointerTo(Ty);
+    // "(" declarator ")", 嵌套类型声明符
+    if (equal(Tok, "(")) {
+        // 记录"("的位置
+        Token *Start = Tok;
+        // 使Tok前进到")"后面的位置
+//        while(!equal(Tok, ")"))
+//            Tok = Tok -> Next;
+//        Tok=Tok->Next;
+        Type Dummy = {};
+        declarator(&Tok, Start->Next, &Dummy);
+        Tok = skip(Tok, ")");
+        // 获取到括号后面的类型后缀，Ty为解析完的类型，Rest指向分号
+        Ty = typeSuffix(Rest, Tok, Ty);
+        // Ty整体作为Base去构造，返回Type的值
+        return declarator(&Tok, Start->Next, Ty);
+    }
+
     // not an identifier, can't be declared
     if (Tok->Kind != TK_IDENT)
         errorTok(Tok, "%s: expect an identifier name", tokenName(Tok));
