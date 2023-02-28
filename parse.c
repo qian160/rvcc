@@ -267,7 +267,7 @@ static Obj *newStringLiteral(char *Str, Type *Ty) {
 // 判断是否为类型名
 static bool isTypename(Token *Tok) 
 {
-    static char *types[] = {"char", "int", "struct", "union", "long"};
+    static char *types[] = {"char", "int", "struct", "union", "long", "short"};
     for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
         if(equal(Tok, types[i]))
             return true;
@@ -447,12 +447,14 @@ static Type *declspec(Token **Rest, Token *Tok) {
         *Rest = Tok -> Next;
         return TyInt;
     }
-    // "long"
     if (equal(Tok, "long")) {
         *Rest = Tok->Next;
         return TyLong;
     }
-
+    if (equal(Tok, "short")) {
+        *Rest = Tok->Next;
+        return TyShort;
+    }
     if (equal(Tok, "struct")){
         return structDecl(Rest, Tok->Next);
     }

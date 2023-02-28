@@ -7,6 +7,7 @@
 Type *TyInt = &(Type){TY_INT, 4, 4};
 Type *TyChar = &(Type){TY_CHAR, 1, 1};
 Type *TyLong = &(Type){TY_LONG, 8, 8};
+Type *TyShort = &(Type){TY_LONG, 2, 2};
 
 static Type *newType(TypeKind Kind, int Size, int Align) {
     Type *Ty = calloc(1, sizeof(Type));

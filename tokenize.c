@@ -43,7 +43,9 @@ bool consume(Token **Rest, Token *Tok, char *Str) {
 static bool isKeyword(Token *Tok) {
     // 关键字列表
     static char *Kw[] = {"return", "if", "else", "for", 
-            "while", "int", "sizeof", "char", "struct", "union"};
+            "while", "int", "sizeof", "char", "struct", "union", 
+            "long", "short"
+            };
 
     // 遍历关键字列表匹配
     for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); ++I) {
