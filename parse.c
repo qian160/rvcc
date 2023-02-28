@@ -437,17 +437,9 @@ static Token *function(Token *Tok) {
     // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
 
-/*
-    // dont do this...... these variables are still in use.
-    // they just dont belong to current fn anymore
-    Obj *tmp = Locals;
-    while(tmp){
-        printf(" # free %s\n", tmp->Name);
-        Locals = Locals->Next;
-        free(tmp);
-        tmp = Locals;
-    }
-*/
+    // no function body, just a defination
+    if(equal(Tok, ";"))
+        return Tok->Next;
     // 清空全局变量Locals
     Locals = (void*)0;
     enterScope();

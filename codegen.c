@@ -466,7 +466,8 @@ static void emitData(Obj *Prog) {
 void emitText(Obj *Prog) {
     // 为每个函数单独生成代码
     for (Obj *Fn = Prog; Fn; Fn = Fn->Next) {
-        if (Fn->Ty->Kind != TY_FUNC)
+        // not a function, or just a function defination without body.
+        if (Fn->Ty->Kind != TY_FUNC || (Fn->Ty->Kind == TY_FUNC && !Fn->Body))
             continue;
 
         println("  .globl %s", Fn->Name);
