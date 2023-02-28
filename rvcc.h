@@ -138,11 +138,13 @@ struct Node {
 // scope
 //
 
-// 局部和全局变量的域
+// 局部和全局变量或是typedef的域. a varscope can only represent 1 variable... its name may be confusing
 typedef struct VarScope VarScope;
 struct VarScope {
-    VarScope *Next; // 下一变量域
-    Obj *Var;       // 对应的变量
+    VarScope *Next; // 下一变量域, another block
+    Obj *Var;       // 对应的变量, use its "next" field to get a list of variables
+    char *Name;     // a little redundant, but without this some Fn api would be hard to design..
+    Type *Typedef;  // 别名
 };
 
 // 结构体和联合体标签的域
@@ -161,6 +163,13 @@ struct Scope {
     TagScope *structTags;   // 指向当前域内的结构体标签
     TagScope *unionTags;    // 指向当前域内的union标签
 };
+
+// 变量属性
+typedef struct {
+    bool IsTypedef; // 是否为类型别名
+} VarAttr;
+
+
 
 
 //
@@ -290,6 +299,7 @@ void errorAt(char *Loc, char *Fmt, ...);
 
 #define todo() Assert(0, "todo")
 
+#define _TKNAME_ tokenName(Tok)
 
 // macro testing
 // See https://stackoverflow.com/questions/26099745/test-if-preprocessor-symbol-is-defined-inside-macro

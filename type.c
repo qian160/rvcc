@@ -4,7 +4,7 @@
 // TyInt这个全局变量的作用主要是方便了其他变量的初始化。直接设置为指向他就好。
 // 而且似乎也节省了空间，创建一次就能被用很多次
 // type, size, align
-Type *TyInt = &(Type){TY_INT, 4, 4};
+Type *TyInt = &(Type){.Kind = TY_INT, .Size = 4, .Align = 4};
 Type *TyChar = &(Type){TY_CHAR, 1, 1};
 Type *TyLong = &(Type){TY_LONG, 8, 8};
 Type *TyShort = &(Type){TY_LONG, 2, 2};

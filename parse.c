@@ -90,7 +90,9 @@
 
 // program = (functionDefination | global-variables)*
 // functionDefinition = declspec declarator compoundStmt*
-// declspec = ("int" | "char" | "long" | "short" | "void" | structDecl | unionDecl)+
+// declspec = ("int" | "char" | "long" | "short" | "void" 
+//              | "typedef"
+//              | structDecl | unionDecl | typedefName)+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?
 // funcParams =  "(" (param ("," param)*)? ")"
@@ -101,7 +103,7 @@
 // structUnionDecl = ident? ("{" structMembers "}")?
 // structMembers = (declspec declarator (","  declarator)* ";")*
 
-// compoundStmt = "{" (stmt | declaration)* "}"
+// compoundStmt = "{" ( typedef | stmt | declaration)* "}"
 
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
@@ -132,9 +134,9 @@
 // FuncArgs = "(" (expr ("," expr)*)? ")"
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
-static Token *function(Token *Tok);
-static Node *declaration(Token **Rest, Token *Tok);
-static Type *declspec(Token **Rest, Token *Tok);
+static Token *function(Token *Tok, Type *BaseTy);
+static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy);
+static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr);
 static Type *structDecl(Token **Rest, Token *Tok);
 static Type *unionDecl(Token **Rest, Token *Tok);
 static Type *declarator(Token **Rest, Token *Tok, Type *Ty);
@@ -152,6 +154,7 @@ static Node *unary(Token **Rest, Token *Tok);
 static Node *postfix(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
 
+static Token *parseTypedef(Token *Tok, Type *BaseTy);
 // 在解析时，全部的变量实例都被累加到这个列表里。
 static Obj *Locals;    // 局部变量
 static Obj *Globals;   // 全局变量
@@ -168,6 +171,7 @@ static Scope *Scp = &(Scope){};
 // --------- scope ----------
 
 // 进入域
+// insert from head，后来加入的会先被移除出去。 其实也就是越深的作用域存活时间越短
 static void enterScope(void) {
     Scope *S = calloc(1, sizeof(Scope));
     // 后来的在链表头部
@@ -182,10 +186,12 @@ static void leaveScope(void) {
 }
 
 // 将变量存入当前的域中
-static VarScope *pushScope(char *Name, Obj *Var) {
+// this api seems ugly, but convenient in fact... the only thing you need
+// to know is a string for that var's name. you can also add more other members
+// to init the varscope after it returns as long as you like
+static VarScope* pushScope(char *Name) {
     VarScope *S = calloc(1, sizeof(VarScope));
-//    S->Name = Name;
-    S->Var = Var;
+    S->Name = Name;
     // 后来的在链表头部
     S->Next = Scp->Vars;
     Scp->Vars = S;
@@ -209,14 +215,14 @@ static void pushTagScope(Token *Tok, Type *Ty, bool is_struct) {
 // ---------- variables managements ----------
 
 // 通过名称，查找一个变量.
-static Obj *findVar(Token *Tok) {
+static VarScope *findVar(Token *Tok) {
     // 此处越先匹配的域，越深层
     // inner scope has access to outer's
     for (Scope *S = Scp; S; S = S->Next)
         // 遍历域内的所有变量
         for (VarScope *S2 = S->Vars; S2; S2 = S2->Next)
-            if (equal(Tok, S2->Var->Name))
-                return S2->Var;
+            if (equal(Tok, S2->Name))
+                return S2;
     return NULL;
 }
 
@@ -225,7 +231,7 @@ static Obj *newVar(char *Name, Type *Ty) {
     Obj *Var = calloc(1, sizeof(Obj));
     Var->Name = Name;
     Var->Ty = Ty;
-    pushScope(Name, Var);
+    pushScope(Name)->Var = Var;
     return Var;
 }
 
@@ -291,15 +297,27 @@ static Obj *newStringLiteral(char *Str, Type *Ty) {
     return Var;
 }
 
+// 查找类型别名
+static Type *findTypedef(Token *Tok) {
+    // 类型别名是个标识符
+    if (Tok->Kind == TK_IDENT) {
+        // 查找是否存在于变量域内
+        VarScope *S = findVar(Tok);
+        if (S)
+            return S->Typedef;
+    }
+    return NULL;
+}
+
 // 判断是否为类型名
 static bool isTypename(Token *Tok) 
 {
-    static char *types[] = {"char", "int", "struct", "union", "long", "short", "void"};
+    static char *types[] = {"typedef", "char", "int", "struct", "union", "long", "short", "void"};
     for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
         if(equal(Tok, types[i]))
             return true;
     }
-    return false;
+    return findTypedef(Tok);
 }
 
 //
@@ -406,22 +424,19 @@ static Node *newVarNode(Obj* Var, Token *Tok) {
 }
 
 // 构造全局变量
-static Token *globalVariable(Token *Tok) {
-    // int a;
+static Token *globalVariable(Token *Tok, Type *BaseTy) {
     bool First = true;
-    Type *Basety = declspec(&Tok, Tok);
     // keep searching until we meet a ";"
     while (!consume(&Tok, Tok, ";")) {
         if (!First)
         Tok = skip(Tok, ",");
         First = false;
 
-        Type *Ty = declarator(&Tok, Tok, Basety);
+        Type *Ty = declarator(&Tok, Tok, BaseTy);
         newGVar(getIdent(Ty->Name), Ty);
     }
     return Tok;
 }
-
 
 
 //
@@ -429,9 +444,29 @@ static Token *globalVariable(Token *Tok) {
 //
 
 
+
+// 解析类型别名
+static Token *parseTypedef(Token *Tok, Type *BaseTy) {
+    bool First = true;
+
+    while (!consume(&Tok, Tok, ";")) {
+        if (!First)
+            Tok = skip(Tok, ",");
+        First = false;
+    
+        Type *Ty = declarator(&Tok, Tok, BaseTy);
+        // 类型别名的变量名存入变量域中，并设置类型
+
+        pushScope(getIdent(Ty->Name))->Typedef = Ty;
+    }
+    return Tok;
+}
+
+
+
 // functionDefinition = declspec declarator compoundStmt*
-static Token *function(Token *Tok) {
-    Type *BaseTy = declspec(&Tok, Tok);
+static Token *function(Token *Tok, Type *BaseTy) {
+//    Type *BaseTy = declspec(&Tok, Tok, BaseTy);
     Type *Ty = declarator(&Tok, Tok, BaseTy);
 
     // functions are also global variables
@@ -455,10 +490,11 @@ static Token *function(Token *Tok) {
 }
 
 
-// declspec = ("int" | "char" | "long" | "short" | "void" | structDecl | unionDecl)+
+// declspec = ("int" | "char" | "long" | "short" | "void" 
+//              | "typedef"
+//              | structDecl | unionDecl | typedefName)+
 // 声明的 基础类型. declaration specifiers
-static Type *declspec(Token **Rest, Token *Tok) {
-
+static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 类型的组合，被表示为例如：LONG+LONG=1<<9
     // 可知long int和int long是等价的。
     enum {
@@ -475,14 +511,36 @@ static Type *declspec(Token **Rest, Token *Tok) {
 
     // 遍历所有类型名的Tok
     while (isTypename(Tok)) {
-        if (equal(Tok, "struct") || equal(Tok, "union")) {
-            if (equal(Tok, "struct"))
+        // 处理typedef关键字
+        if (equal(Tok, "typedef")) {
+            if (!Attr)
+                errorTok(Tok, "storage class specifier is not allowed in this context");
+            Attr->IsTypedef = true;
+            Tok = Tok->Next;
+            continue;
+        }
+
+        // 处理用户定义的类型
+        Type *Ty2 = findTypedef(Tok);
+        if (equal(Tok, "struct") || equal(Tok, "union") || Ty2) {
+            if (Counter)
+                break;
+
+            if (equal(Tok, "struct")) {
                 Ty = structDecl(&Tok, Tok->Next);
-            else
+            }
+            else if (equal(Tok, "union")) {
                 Ty = unionDecl(&Tok, Tok->Next);
+            }
+            else {
+                // 将类型设为类型别名指向的类型
+                Ty = Ty2;
+                Tok = Tok->Next;
+            }
             Counter += OTHER;
             continue;
         }
+
 
         // 对于出现的类型名加入Counter
         // 每一步的Counter都需要有合法值
@@ -526,8 +584,7 @@ static Type *declspec(Token **Rest, Token *Tok) {
 
         Tok = Tok->Next;
     }
-
-    *Rest = Tok;
+     *Rest = Tok;
     return Ty;
 }
 
@@ -573,8 +630,9 @@ static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
 // param = declspec declarator
 static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
         // skip "(" at the begining of fn
-        Tok = Tok -> Next;
+        Tok = skip(Tok, "(");
         // 存储形参的链表
+
         Type Head = {};
         Type *Cur = &Head;
         while (!equal(Tok, ")")) {
@@ -582,7 +640,7 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
             // param = declspec declarator
             if (Cur != &Head)
                 Tok = skip(Tok, ",");
-            Type *BaseTy = declspec(&Tok, Tok);
+             Type *BaseTy = declspec(&Tok, Tok, NULL);
             Type *DeclarTy = declarator(&Tok, Tok, BaseTy);
             // 将类型复制到形参链表一份. why copy?
             // because we are operating on a same address in this loop,
@@ -591,7 +649,6 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
             Cur->Next = copyType(DeclarTy);
             Cur = Cur->Next;
         }
-
         // 封装一个函数节点
         Ty = funcType(Ty);
         // 传递形参
@@ -629,7 +686,7 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
     // struct {int a; int b;} x
     while (!equal(Tok, "}")) {
         // declspec
-        Type *BaseTy = declspec(&Tok, Tok);
+        Type *BaseTy = declspec(&Tok, Tok, NULL);
         int First = true;
 
         while (!consume(&Tok, Tok, ";")) {
@@ -755,10 +812,10 @@ static Node *structRef(Node *LHS, Token *Tok) {
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
 //      declarator = "*"* ident typeSuffix
 // add a variable to current scope, then create a node with kind ND_ASSIGN if possible
-static Node *declaration(Token **Rest, Token *Tok) {
+static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
     // declspec
     // 声明的 基础类型
-    Type *Basety = declspec(&Tok, Tok);
+    //Type *Basety = declspec(&Tok, Tok, BaseTy);
 
     Node Head = {};
     Node *Cur = &Head;
@@ -772,7 +829,7 @@ static Node *declaration(Token **Rest, Token *Tok) {
 
         // declarator
         // 声明获取到变量类型，包括变量名
-        Type *Ty = declarator(&Tok, Tok, Basety);
+        Type *Ty = declarator(&Tok, Tok, BaseTy);
 
         if(Ty->Kind == TY_VOID)
             errorTok(Tok, "variable declared void");
@@ -804,7 +861,7 @@ static Node *declaration(Token **Rest, Token *Tok) {
 }
 
 // 解析复合语句
-// compoundStmt = "{" (stmt | declaration)* "}"
+// compoundStmt = "{" ( typedef | stmt | declaration)* "}"
 static Node *compoundStmt(Token **Rest, Token *Tok) {
     // 这里使用了和词法分析类似的单向链表结构
     Tok = skip(Tok, "{");
@@ -813,8 +870,19 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
     enterScope();
     // (stmt | declaration)* "}"
     while (!equal(Tok, "}")) {
-        if (isTypename(Tok))
-            Cur->Next = declaration(&Tok, Tok);
+        if (isTypename(Tok)) {
+            VarAttr Attr = {};
+            Type *BaseTy = declspec(&Tok, Tok, &Attr);
+            // 解析typedef的语句
+            if (Attr.IsTypedef) {
+                Tok = parseTypedef(Tok, BaseTy);
+                continue;
+            }
+
+            // 解析变量声明语句
+            Cur->Next = declaration(&Tok, Tok, BaseTy);
+        }
+
         // stmt
         else
             Cur->Next = stmt(&Tok, Tok);
@@ -1232,11 +1300,11 @@ static Node *primary(Token **Rest, Token *Tok) {
             return funCall(Rest, Tok);
 
         // ident
-        Obj *Var = findVar(Tok);
-        if (!Var)
+        VarScope *S = findVar(Tok);
+        if (!S || !S->Var)
             errorTok(Tok, "undefined variable");
         *Rest = Tok->Next;
-        return newVarNode(Var, Tok);
+        return newVarNode(S->Var, Tok);
     }
 
     // str, recognized in tokenize
@@ -1250,19 +1318,27 @@ static Node *primary(Token **Rest, Token *Tok) {
 }
 
 // 语法解析入口函数
-// program = (functionDefinition* | global-variable)*
+// program = ( typedef | functionDefinition* | global-variable)*
 Obj *parse(Token *Tok) {
     Globals = NULL;
 
     // fn or gv?
     // int fn()
     while (Tok->Kind != TK_EOF) {
-        // current = int, next = ident, next -> next = (
-        bool isFn = equal(Tok->Next->Next, "(");
+        VarAttr Attr = {};
+        // at first I just use "VarAttr Attr;"
+        // but then the struct's member got random init value...
+        // use = {} to clear the member...
+        Type *BaseTy = declspec(&Tok, Tok, &Attr);
+        if(Attr.IsTypedef){
+            Tok = parseTypedef(Tok, BaseTy);
+            continue;
+        }
+        bool isFn = equal(Tok->Next, "(");
         if (isFn)
-            Tok = function(Tok);
+            Tok = function(Tok, BaseTy);
         else
-            Tok = globalVariable(Tok);
+            Tok = globalVariable(Tok, BaseTy);
     }
 
     return Globals;

@@ -13,7 +13,8 @@ char * CurrentFilename;
 
 // 跳过指定的Str
 Token *skip(Token *Tok, char *Str) {
-    Assert(equal(Tok, Str), "expect '%s', but got '%s'", Str, tokenName(Tok));
+    if(!equal(Tok, Str))
+        errorTok(Tok, "expect '%s'", Str);
     return Tok->Next;
 }
 
@@ -44,7 +45,7 @@ static bool isKeyword(Token *Tok) {
     // 关键字列表
     static char *Kw[] = {"return", "if", "else", "for", 
             "while", "int", "sizeof", "char", "struct", "union", 
-            "long", "short, void"
+            "long", "short, void", "typedef"
             };
 
     // 遍历关键字列表匹配
