@@ -208,7 +208,7 @@ static void genExpr(Node *Nd) {
         case ND_NEG:
             genExpr(Nd->LHS);
             // neg a0, a0是sub a0, x0, a0的别名, 即a0=0-a0
-            println("  neg a0, a0");
+            println("  neg%s a0, a0", Nd->Ty->Size <= 4? "w": "");
             return;
         // 变量. note: array also has VAR type
         case ND_VAR:
@@ -282,18 +282,20 @@ static void genExpr(Node *Nd) {
 
     // a0: lhs value. a1: rhs value
     // 生成各个二叉树节点
+    // ptr and long still use RV64, other data types can use RV32
+    char *Suffix = Nd->LHS->Ty->Kind == TY_LONG || Nd->LHS->Ty->Base? "" : "w";
     switch (Nd->Kind) {
         case ND_ADD: // + a0=a0+a1
-            println("  add a0, a0, a1");
+            println("  add%s a0, a0, a1", Suffix);
             return;
         case ND_SUB: // - a0=a0-a1
-            println("  sub a0, a0, a1");
+            println("  sub%s a0, a0, a1", Suffix);
             return;
         case ND_MUL: // * a0=a0*a1
-            println("  mul a0, a0, a1");
+            println("  mul%s a0, a0, a1", Suffix);
             return;
         case ND_DIV: // / a0=a0/a1
-            println("  div a0, a0, a1");
+            println("  div%s a0, a0, a1", Suffix);
             return;
         case ND_EQ:
             // if a0 == a1, then a0 ^ a1 should be 0
