@@ -128,6 +128,7 @@ struct Node {
     // 函数
     char *FuncName; // 函数名
     Node *Args;     // 函数被调用时代入的实参，可看作是一串表达式链表。 形参则保存在Nd->Ty->Parms中
+    Type *FuncType; // 函数类型
     // "if"语句
     Node *Cond;     // 条件内的表达式
     Node *Then;     // 符合条件后的语句

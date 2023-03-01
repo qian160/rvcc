@@ -996,7 +996,10 @@ static Node *funCall(Token **Rest, Token *Tok) {
     if (!S->Var || S->Var->Ty->Kind != TY_FUNC)
         errorTok(Start, "not a function");
 
-    Type *Ty = S->Var->Ty->ReturnTy;
+    // 函数名的类型
+    Type *Ty = S->Var->Ty;
+    // 函数形参的类型
+    Type *ParamTy = Ty->Params;
 
     Node Head = {};
     Node *Cur = &Head;
@@ -1005,7 +1008,20 @@ static Node *funCall(Token **Rest, Token *Tok) {
         if (Cur != &Head)
             Tok = skip(Tok, ",");
         // expr
-        Cur->Next = assign(&Tok, Tok);
+        Node *Arg = assign(&Tok, Tok);
+        addType(Arg);
+
+        if (ParamTy) {
+            if (ParamTy->Kind == TY_STRUCT || ParamTy->Kind == TY_UNION)
+                errorTok(Arg->Tok, "passing struct or union is not supported yet");
+            // 将参数节点的类型进行转换
+            Arg = newCast(Arg, ParamTy);
+            // 前进到下一个形参类型
+            ParamTy = ParamTy->Next;
+        }
+        // 对参数进行存储
+        Cur->Next = Arg;
+
         Cur = Cur->Next;
         addType(Cur);
     }
@@ -1016,7 +1032,8 @@ static Node *funCall(Token **Rest, Token *Tok) {
     // ident
     Nd->FuncName = tokenName(Start);
     Nd->Args = Head.Next;
-    Nd->Ty = Ty;
+    Nd->FuncType = Ty;
+    Nd->Ty = Ty->ReturnTy;
     return Nd;
 }
 
@@ -1148,7 +1165,7 @@ Obj *parse(Token *Tok) {
             Tok = parseTypedef(Tok, BaseTy);
             continue;
         }
-        // judge fn or gv
+        // judge fn or gv. straight-forward approach
         Token *Start = Tok;
         while(!equal(Start, ";") && !equal(Start, "("))
             Start = Start->Next;
