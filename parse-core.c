@@ -757,8 +757,14 @@ static Node *stmt(Token **Rest, Token *Tok) {
         enterScope();
         Tok = skip(Tok->Next, "(");
 
-        // exprStmt
-        Nd->Init = exprStmt(&Tok, Tok);
+        if (isTypename(Tok)) {
+            // 初始化循环变量
+            Type *BaseTy = declspec(&Tok, Tok, NULL);
+            Nd->Init = declaration(&Tok, Tok, BaseTy);
+        } else {
+            // 初始化语句
+            Nd->Init = exprStmt(&Tok, Tok);
+        }
 
         // expr?
         if (!equal(Tok, ";"))
@@ -774,6 +780,7 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
         // stmt
         Nd->Then = stmt(Rest, Tok);
+        leaveScope();
         return Nd;
     }
 
