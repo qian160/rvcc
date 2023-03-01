@@ -23,7 +23,7 @@ static Type *newType(TypeKind Kind, int Size, int Align) {
 bool isInteger(Type *Ty){
     return Ty->Kind == TY_INT || Ty->Kind == TY_CHAR
         || Ty->Kind == TY_LONG || Ty->Kind == TY_SHORT
-        || Ty->Kind == TY_BOOL; 
+        || Ty->Kind == TY_BOOL || Ty->Kind == TY_ENUM; 
 }
 
 bool isChar(Type *Ty){
@@ -61,6 +61,11 @@ Type *arrayOf(Type *Base, int Len) {
     Ty->ArrayLen = Len;
     return Ty;
 }
+
+Type *enumType(void){
+    return newType(TY_ENUM, 4, 4);
+}
+
 
 // 获取容纳左右部的类型
 Type *getCommonType(Type *Ty1, Type *Ty2) {

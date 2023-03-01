@@ -158,6 +158,7 @@ typedef enum {
     TY_STRUCT,     // 结构体
     TY_UNION,      // 联合体
     TY_BOOL,       // boolean
+    TY_ENUM,       // 枚举类型
 } TypeKind;
 
 struct Type {
@@ -225,6 +226,8 @@ Type *funcType(Type *ReturnTy);
 Type *copyType(Type *Ty);
 // 构造数组类型, 传入 数组基类, 元素个数
 Type *arrayOf(Type *Base, int Len);
+
+Type *enumType(void);
 
 
 /* ---------- string.c ---------- */

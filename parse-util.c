@@ -27,27 +27,21 @@ void leaveScope(void) {
 // 将变量存入当前的域中
 // returning the varscope for further process
 // var -> varscope
-VarScope *pushScope(Obj *Var) {
+VarScope *pushScope(char *Name) {
     VarScope *S = calloc(1, sizeof(VarScope));
-    S->Var = Var;
+    S->Name = Name;
     // 后来的在链表头部
     S->Next = Scp->Vars;
     Scp->Vars = S;
     return S;
 }
 
-void pushTagScope(Token *Tok, Type *Ty, bool is_struct) {
+void pushTagScope(Token *Tok, Type *Ty) {
     TagScope *S = calloc(1, sizeof(TagScope));
     S->Name = tokenName(Tok);
     S->Ty = Ty;
-    if(is_struct){
-        S->Next = Scp->structTags;
-        Scp->structTags = S;
-    }
-    else{
-        S->Next = Scp->unionTags;
-        Scp->unionTags = S;
-    }
+    S->Next = Scp->Tags;
+    Scp->Tags = S;
 }
 
 // ---------- variables managements ----------
@@ -60,7 +54,7 @@ VarScope *findVar(Token *Tok) {
         // 遍历域内的所有变量
         for (VarScope *S2 = S->Vars; S2; S2 = S2->Next)
             //if (equal(Tok, S2->Name))
-            if (equal(Tok, S2->Var->Name))
+            if (equal(Tok, S2->Name))
                 return S2;
     return NULL;
 }
@@ -70,7 +64,7 @@ Obj *newVar(char *Name, Type *Ty) {
     Obj *Var = calloc(1, sizeof(Obj));
     Var->Name = Name;
     Var->Ty = Ty;
-    pushScope(Var);
+    pushScope(Name)->Var = Var;
     return Var;
 }
 
@@ -93,12 +87,12 @@ Obj *newGVar(char *Name, Type *Ty) {
 }
 
 // 通过Token查找标签
-Type *findTag(Token *Tok, bool is_struct) {
+Type *findTag(Token *Tok) {
     for (Scope *S = Scp; S; S = S->Next)
-        for (TagScope *S2 = is_struct? S->structTags: S->unionTags; S2; S2 = S2->Next)
+        for (TagScope *S2 = S->Tags; S2; S2 = S2->Next)
             if (equal(Tok, S2->Name))
                 return S2->Ty;
-        return NULL;
+    return NULL;
 }
 
 // 获取标识符
@@ -151,7 +145,12 @@ Type *findTypedef(Token *Tok) {
 // 判断是否为类型名
 bool isTypename(Token *Tok) 
 {
-    static char *types[] = {"typedef", "char", "int", "struct", "union", "long", "short", "void", "_Bool"};
+    static char *types[] = 
+        {"typedef", "char", "int", "struct", "union", 
+            "long", "short", "void", "_Bool", "enum"
+        
+        };
+
     for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
         if(equal(Tok, types[i]))
             return true;

@@ -94,7 +94,12 @@
 // functionDefinition = declspec declarator compoundStmt*
 // declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
 //              | "typedef"
-//              | structDecl | unionDecl | typedefName)+
+//              | structDecl | unionDecl | typedefName | enumSpecifier)+
+
+// enumSpecifier = ident? "{" enumList? "}"
+//                 | ident ("{" enumList? "}")?
+// enumList = ident ("=" num)? ("," ident ("=" num)?)*
+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?
 // funcParams =  "(" (param ("," param)*)? ")"
@@ -144,6 +149,7 @@
 static Token *function(Token *Tok, Type *BaseTy);
 static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy);
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr);
+static Type *enumSpecifier(Token **Rest, Token *Tok);
 static Type *structDecl(Token **Rest, Token *Tok);
 static Type *unionDecl(Token **Rest, Token *Tok);
 /*  */ Type *declarator(Token **Rest, Token *Tok, Type *Ty);   // used in parse-util...
@@ -192,9 +198,7 @@ static Token *parseTypedef(Token *Tok, Type *BaseTy) {
         First = false;
         Type *Ty = declarator(&Tok, Tok, BaseTy);
         // 类型别名的变量名存入变量域中，并设置类型
-        Obj *Var = calloc(1, sizeof(Obj));
-        Var->Name = tokenName(Ty->Name);    // alias, typedef name
-        pushScope(Var)->Typedef = Ty;
+        pushScope(getIdent(Ty->Name))->Typedef = Ty;
     }
     return Tok;
 }
@@ -229,7 +233,7 @@ static Token *function(Token *Tok, Type *BaseTy) {
 
 // declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
 //              | "typedef"
-//              | structDecl | unionDecl | typedefName)+
+//              | structDecl | unionDecl | typedefName | enumSpecifier)+
 // 声明的 基础类型. declaration specifiers
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 类型的组合，被表示为例如：LONG+LONG=1<<9
@@ -260,7 +264,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
 
         // 处理用户定义的类型
         Type *Ty2 = findTypedef(Tok);
-        if (equal(Tok, "struct") || equal(Tok, "union") || Ty2) {
+        if (equal(Tok, "struct") || equal(Tok, "union") || equal(Tok, "enum") || Ty2) {
             if (Counter)
                 break;
 
@@ -269,6 +273,9 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             }
             else if (equal(Tok, "union")) {
                 Ty = unionDecl(&Tok, Tok->Next);
+            }
+            else if(equal(Tok, "enum")){
+                Ty = enumSpecifier(&Tok, Tok->Next);
             }
             else {
                 // 将类型设为类型别名指向的类型
@@ -457,7 +464,7 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
 //      struct tag bar; bar.a = 1;
 
 // structUnionDecl = ident? ("{" structMembers "}")?
-static Type *structUnionDecl(Token **Rest, Token *Tok, bool is_struct) {
+static Type *structUnionDecl(Token **Rest, Token *Tok) {
     // 读取标签
     Token *Tag = NULL;
     if (Tok->Kind == TK_IDENT) {
@@ -466,7 +473,7 @@ static Type *structUnionDecl(Token **Rest, Token *Tok, bool is_struct) {
     }
 
     if (Tag && !equal(Tok, "{")) {
-        Type *Ty = findTag(Tag, is_struct);
+        Type *Ty = findTag(Tag);
         if (!Ty)
             errorTok(Tag, "unknown struct or union type");
         *Rest = Tok;
@@ -481,7 +488,7 @@ static Type *structUnionDecl(Token **Rest, Token *Tok, bool is_struct) {
 
     // 如果有名称就注册结构体类型
     if (Tag)
-        pushTagScope(Tag, Ty, is_struct);
+        pushTagScope(Tag, Ty);
 
     *Rest = skip(*Rest, "}");
     return Ty;
@@ -489,7 +496,7 @@ static Type *structUnionDecl(Token **Rest, Token *Tok, bool is_struct) {
 
 // structDecl = structUnionDecl
 static Type *structDecl(Token **Rest, Token *Tok) {
-    Type *Ty = structUnionDecl(Rest, Tok, true);
+    Type *Ty = structUnionDecl(Rest, Tok);
     Ty->Kind = TY_STRUCT;
 
     // 计算结构体内成员的偏移量
@@ -510,7 +517,7 @@ static Type *structDecl(Token **Rest, Token *Tok) {
 
 // unionDecl = structUnionDecl
 static Type *unionDecl(Token **Rest, Token *Tok) {
-    Type *Ty = structUnionDecl(Rest, Tok, false);
+    Type *Ty = structUnionDecl(Rest, Tok);
     Ty->Kind = TY_UNION;
 
     // 联合体需要设置为最大的对齐量与大小，变量偏移量都默认为0
@@ -550,6 +557,62 @@ static Node *structRef(Node *LHS, Token *Tok) {
     return Nd;
 }
 
+// 获取枚举类型信息
+// enumSpecifier = ident? "{" enumList? "}"
+//               | ident ("{" enumList? "}")?
+// enumList      = ident ("=" num)? ("," ident ("=" num)?)*
+static Type *enumSpecifier(Token **Rest, Token *Tok) {
+    Type *Ty = enumType();
+    // 读取标签
+    // ident?
+    Token *Tag = NULL;
+    if (Tok->Kind == TK_IDENT) {
+        Tag = Tok;
+        Tok = Tok->Next;
+    }
+
+    // 处理没有{}的情况
+    if (Tag && !equal(Tok, "{")) {
+        Type *Ty = findTag(Tag);
+        if (!Ty)
+            errorTok(Tag, "unknown enum type");
+        if (Ty->Kind != TY_ENUM)
+            errorTok(Tag, "not an enum tag");
+        *Rest = Tok;
+        return Ty;
+    }
+
+    // "{" enumList? "}"
+    Tok = skip(Tok, "{");
+
+    // enumList
+    // 读取枚举列表
+    int I = 0;   // 第几个枚举常量
+    int Val = 0; // 枚举常量的值
+    while (!equal(Tok, "}")) {
+        if (I++ > 0)
+            Tok = skip(Tok, ",");
+
+        char *Name = getIdent(Tok);
+        Tok = Tok->Next;
+
+        // 判断是否存在赋值
+        if (equal(Tok, "=")) {
+            Val = getNumber(Tok->Next);
+            Tok = Tok->Next->Next;
+        }
+        // 存入枚举常量
+        VarScope *S = pushScope(Name);
+        S->EnumTy = Ty;
+        S->EnumVal = Val++;
+    }
+
+    *Rest = Tok->Next;
+
+    if (Tag)
+        pushTagScope(Tag, Ty);
+    return Ty;
+}
 
 // declaration =
 //    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
@@ -1137,11 +1200,19 @@ static Node *primary(Token **Rest, Token *Tok) {
             return funCall(Rest, Tok);
 
         // ident
+        // 查找变量（或枚举常量）
         VarScope *S = findVar(Tok);
-        if (!S || !S->Var)
+        if (!S || (!S->Var && !S->EnumTy))
             errorTok(Tok, "undefined variable");
+
         *Rest = Tok->Next;
-        return newVarNode(S->Var, Tok);
+        // 是否为变量
+        if (S->Var)
+            return newVarNode(S->Var, Tok);
+        // 否则为枚举常量
+        else
+            return newNum(S->EnumVal, Tok);
+
     }
 
     // str, recognized in tokenize

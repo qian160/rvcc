@@ -4,14 +4,22 @@
 // scope
 //
 
-// 局部和全局变量或是typedef的域.(各种标识符)
-// a varscope can only represent 1 variable... its name may be confusing
+// 局部变量，全局变量，typedef，enum常量的域(各种标识符)
 typedef struct VarScope VarScope;
 struct VarScope {
-    VarScope *Next; // 下一变量域, another block
-    Obj *Var;       // 对应的变量/别名. the header of linked list
+    VarScope *Next; // 下一变量域
+    Obj *Var;       // 对应的变量
+    char *Name;     // 变量域名称.
     Type *Typedef;  // 别名的类型info
+    Type *EnumTy;   // 枚举的类型
+    int EnumVal;    // 枚举的值
 };
+
+enum {
+    STRUCT_TAG,
+    UNION_TAG,
+    ENUM_TAG
+}tagType;
 
 // 结构体和联合体标签的域
 typedef struct TagScope TagScope;
@@ -19,16 +27,16 @@ struct TagScope {
     TagScope *Next; // 下一标签域
     char *Name;     // struct's name
     Type *Ty;       // 域类型
+    //tagType type;
 };
 
 // 表示一个块域
-// 里面存放了域中的各种标识符，包括变量名、函数名、别名
+// 里面存放了域中的各种标识符，包括变量名、函数名、别名, enum常量
 typedef struct Scope Scope;
 struct Scope {
     Scope *Next;            // 指向上一级的域
     VarScope *Vars;         // 指向当前域内的变量
-    TagScope *structTags;   // 指向当前域内的结构体标签
-    TagScope *unionTags;    // 指向当前域内的union标签
+    TagScope *Tags;         // 指向当前域内的结构体/union/enum标签
 };
 
 // 变量属性
@@ -44,8 +52,8 @@ typedef struct {
 
 void enterScope(void);
 void leaveScope(void);
-VarScope *pushScope(Obj *Var);
-void pushTagScope(Token *Tok, Type *Ty, bool is_struct);
+VarScope *pushScope(char *Var);
+void pushTagScope(Token *Tok, Type *Ty);
 
 // ---------- variable management ----------
 
@@ -53,7 +61,7 @@ VarScope *findVar(Token *Tok);
 Obj *newVar(char *Name, Type *Ty);
 Obj *newLVar(char *Name, Type *Ty);
 Obj *newGVar(char *Name, Type *Ty);
-Type *findTag(Token *Tok, bool is_struct);
+Type *findTag(Token *Tok);
 char *getIdent(Token *Tok);
 void createParamLVars(Type *Param);
 char *newUniqueName(void);
