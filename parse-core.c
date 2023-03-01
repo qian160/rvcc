@@ -174,6 +174,9 @@ Obj *Globals;   // 全局变量
 // 所有的域的链表
 Scope *Scp = &(Scope){};
 
+// 指向当前正在解析的函数
+static Obj *CurrentFn;
+
 
 //
 // 生成AST（抽象语法树），语法解析
@@ -207,6 +210,8 @@ static Token *function(Token *Tok, Type *BaseTy) {
     // no function body, just a defination
     if(equal(Tok, ";"))
         return Tok->Next;
+    
+    CurrentFn = Fn;
     // 清空全局变量Locals
     Locals = (void*)0;
     enterScope();
@@ -638,10 +643,14 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 //        | "while" "(" expr ")" stmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
+    
     if (equal(Tok, "return")) {
         Node *Nd = newNode(ND_RETURN, Tok);
-        Nd -> LHS = expr(&Tok, Tok->Next);
+        Node *Exp = expr(&Tok, Tok->Next);
+        addType(Exp);
         *Rest = skip(Tok, ";");
+        //  处理返回值的类型转换
+        Nd -> LHS = newCast(Exp, CurrentFn->Ty->ReturnTy);
         return Nd;
     }
 
@@ -1128,7 +1137,7 @@ Obj *parse(Token *Tok) {
     Globals = NULL;
 
     // fn or gv?
-    // int fn()
+    // int *** fn(){}, or int**** a;
     while (Tok->Kind != TK_EOF) {
         VarAttr Attr = {};
         // at first I just use "VarAttr Attr;"
@@ -1139,7 +1148,12 @@ Obj *parse(Token *Tok) {
             Tok = parseTypedef(Tok, BaseTy);
             continue;
         }
-        bool isFn = equal(Tok->Next, "(");
+        // judge fn or gv
+        Token *Start = Tok;
+        while(!equal(Start, ";") && !equal(Start, "("))
+            Start = Start->Next;
+        bool isFn = equal(Start, "(")? true: false;
+
         if (isFn)
             Tok = function(Tok, BaseTy);
         else
