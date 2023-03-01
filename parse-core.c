@@ -372,7 +372,7 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
             // param = declspec declarator
             if (Cur != &Head)
                 Tok = skip(Tok, ",");
-             Type *BaseTy = declspec(&Tok, Tok, NULL);
+            Type *BaseTy = declspec(&Tok, Tok, NULL);
             Type *DeclarTy = declarator(&Tok, Tok, BaseTy);
             // 将类型复制到形参链表一份. why copy?
             // because we are operating on a same address in this loop,
@@ -980,6 +980,15 @@ static Node *funCall(Token **Rest, Token *Tok) {
     // get the 1st arg, or ")". jump skip indet and "("
     Tok = Tok->Next->Next;
 
+    // 查找函数名
+    VarScope *S = findVar(Start);
+    if (!S)
+        errorTok(Start, "implicit declaration of a function");
+    if (!S->Var || S->Var->Ty->Kind != TY_FUNC)
+        errorTok(Start, "not a function");
+
+    Type *Ty = S->Var->Ty->ReturnTy;
+
     Node Head = {};
     Node *Cur = &Head;
     // expr ("," expr)*
@@ -989,6 +998,7 @@ static Node *funCall(Token **Rest, Token *Tok) {
         // expr
         Cur->Next = assign(&Tok, Tok);
         Cur = Cur->Next;
+        addType(Cur);
     }
 
     *Rest = skip(Tok, ")");
@@ -997,6 +1007,7 @@ static Node *funCall(Token **Rest, Token *Tok) {
     // ident
     Nd->FuncName = tokenName(Start);
     Nd->Args = Head.Next;
+    Nd->Ty = Ty;
     return Nd;
 }
 
