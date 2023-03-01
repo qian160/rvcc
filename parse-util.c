@@ -147,8 +147,8 @@ bool isTypename(Token *Tok)
 {
     static char *types[] = 
         {"typedef", "char", "int", "struct", "union", 
-            "long", "short", "void", "_Bool", "enum"
-        
+            "long", "short", "void", "_Bool", "enum",
+            "static"
         };
 
     for(int i = 0; i < sizeof(types) / sizeof(*types); i++){

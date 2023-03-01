@@ -537,7 +537,10 @@ void emitText(Obj *Prog) {
         if (!Fn->Body)
             continue;
 
-        println("  .globl %s", Fn->Name);
+        if (Fn->IsStatic)
+            println("  .local %s", Fn->Name);
+        else
+            println("  .globl %s", Fn->Name);
 
         println("  .text");
         println("# =====%s段开始===============", Fn->Name);

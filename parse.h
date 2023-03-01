@@ -42,6 +42,7 @@ struct Scope {
 // 变量属性
 typedef struct {
     bool IsTypedef; // 是否为类型别名
+    bool IsStatic;  // 是否为文件域内
 } VarAttr;
 
 //

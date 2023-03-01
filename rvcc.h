@@ -74,6 +74,7 @@ struct Obj {
     int Offset;     // fp的偏移量
     Type *Ty;       // 变量类型
     bool IsLocal;   // 是局部变量
+    bool IsStatic;  // 是否为文件域内的
     // 函数
     Obj *Params;    // 形参
     Node *Body;     // 函数体

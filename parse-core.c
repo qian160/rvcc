@@ -93,7 +93,7 @@
 // program = (functionDefination | global-variables)*
 // functionDefinition = declspec declarator compoundStmt*
 // declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
-//              | "typedef"
+//              | "typedef" | "static"
 //              | structDecl | unionDecl | typedefName | enumSpecifier)+
 
 // enumSpecifier = ident? "{" enumList? "}"
@@ -146,7 +146,7 @@
 // FuncArgs = "(" (expr ("," expr)*)? ")"
 // funcall = ident "(" (assign ("," assign)*)? ")"
 
-static Token *function(Token *Tok, Type *BaseTy);
+static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr);
 static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy);
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr);
 static Type *enumSpecifier(Token **Rest, Token *Tok);
@@ -205,11 +205,12 @@ static Token *parseTypedef(Token *Tok, Type *BaseTy) {
 
 
 // functionDefinition = declspec declarator compoundStmt*
-static Token *function(Token *Tok, Type *BaseTy) {
+static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     Type *Ty = declarator(&Tok, Tok, BaseTy);
 
     // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
+    Fn->IsStatic = Attr->IsStatic;
 
     // no function body, just a defination
     if(equal(Tok, ";"))
@@ -232,7 +233,7 @@ static Token *function(Token *Tok, Type *BaseTy) {
 
 
 // declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
-//              | "typedef"
+//              | "typedef" | "static"
 //              | structDecl | unionDecl | typedefName | enumSpecifier)+
 // 声明的 基础类型. declaration specifiers
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
@@ -254,10 +255,18 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 遍历所有类型名的Tok
     while (isTypename(Tok)) {
         // 处理typedef关键字
-        if (equal(Tok, "typedef")) {
+        if (equal(Tok, "typedef") || equal(Tok, "static")) {
             if (!Attr)
                 errorTok(Tok, "storage class specifier is not allowed in this context");
-            Attr->IsTypedef = true; // just leave a mark
+            if (equal(Tok, "typedef"))
+                Attr->IsTypedef = true;
+            else
+                Attr->IsStatic = true;
+
+            // typedef不应与static一起使用
+            if (Attr->IsTypedef && Attr->IsStatic)
+                errorTok(Tok, "typedef and static may not be used together");
+
             Tok = Tok->Next;
             continue;
         }
@@ -744,6 +753,8 @@ static Node *stmt(Token **Rest, Token *Tok) {
     if (equal(Tok, "for")) {
         Node *Nd = newNode(ND_FOR, Tok);
         // "("
+        // 进入for循环域
+        enterScope();
         Tok = skip(Tok->Next, "(");
 
         // exprStmt
@@ -1249,7 +1260,7 @@ Obj *parse(Token *Tok) {
         bool isFn = equal(Start, "(")? true: false;
 
         if (isFn)
-            Tok = function(Tok, BaseTy);
+            Tok = function(Tok, BaseTy, &Attr);
         else
             Tok = globalVariable(Tok, BaseTy);
     }
