@@ -9,7 +9,7 @@ Type *TyChar = &(Type){TY_CHAR, 1, 1};
 Type *TyLong = &(Type){TY_LONG, 8, 8};
 Type *TyShort = &(Type){TY_SHORT, 2, 2};
 Type *TyVoid = &(Type){TY_VOID, 1, 1};
-
+Type *TyBool = &(Type){TY_BOOL, 1, 1};
 
 static Type *newType(TypeKind Kind, int Size, int Align) {
     Type *Ty = calloc(1, sizeof(Type));
@@ -21,7 +21,9 @@ static Type *newType(TypeKind Kind, int Size, int Align) {
 
 // 判断Type是否为int类型
 bool isInteger(Type *Ty){
-    return Ty->Kind == TY_INT || Ty->Kind == TY_CHAR || Ty->Kind == TY_LONG || Ty->Kind == TY_SHORT; 
+    return Ty->Kind == TY_INT || Ty->Kind == TY_CHAR
+        || Ty->Kind == TY_LONG || Ty->Kind == TY_SHORT
+        || Ty->Kind == TY_BOOL; 
 }
 
 bool isChar(Type *Ty){

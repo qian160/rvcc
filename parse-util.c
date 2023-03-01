@@ -151,7 +151,7 @@ Type *findTypedef(Token *Tok) {
 // 判断是否为类型名
 bool isTypename(Token *Tok) 
 {
-    static char *types[] = {"typedef", "char", "int", "struct", "union", "long", "short", "void"};
+    static char *types[] = {"typedef", "char", "int", "struct", "union", "long", "short", "void", "_Bool"};
     for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
         if(equal(Tok, types[i]))
             return true;

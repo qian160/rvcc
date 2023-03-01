@@ -161,6 +161,10 @@ static char *castTable[10][10] = {
 static void cast(Type *From, Type *To) {
     if (To->Kind == TY_VOID)
         return;
+    if (To->Kind == TY_BOOL) {
+        println("  snez a0, a0");
+        return;
+    }
 
     // 获取类型的枚举值
     int T1 = getTypeId(From);

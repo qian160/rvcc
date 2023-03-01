@@ -157,6 +157,7 @@ typedef enum {
     TY_VOID,       // void类型
     TY_STRUCT,     // 结构体
     TY_UNION,      // 联合体
+    TY_BOOL,       // boolean
 } TypeKind;
 
 struct Type {
@@ -188,6 +189,7 @@ extern Type *TyChar;
 extern Type *TyLong;
 extern Type *TyShort;
 extern Type *TyVoid;
+extern Type *TyBool;
 
 // functions
 

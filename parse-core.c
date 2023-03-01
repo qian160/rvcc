@@ -92,7 +92,7 @@
 
 // program = (functionDefination | global-variables)*
 // functionDefinition = declspec declarator compoundStmt*
-// declspec = ("int" | "char" | "long" | "short" | "void" 
+// declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
 //              | "typedef"
 //              | structDecl | unionDecl | typedefName)+
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
@@ -227,7 +227,7 @@ static Token *function(Token *Tok, Type *BaseTy) {
 }
 
 
-// declspec = ("int" | "char" | "long" | "short" | "void" 
+// declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
 //              | "typedef"
 //              | structDecl | unionDecl | typedefName)+
 // 声明的 基础类型. declaration specifiers
@@ -236,11 +236,12 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 可知long int和int long是等价的。
     enum {
         VOID  = 1 << 0,
-        CHAR  = 1 << 2,
-        SHORT = 1 << 4,
-        INT   = 1 << 6,
-        LONG  = 1 << 8,
-        OTHER = 1 << 10,
+        BOOL  = 1 << 2,
+        CHAR  = 1 << 4,
+        SHORT = 1 << 6,
+        INT   = 1 << 8,
+        LONG  = 1 << 10,
+        OTHER = 1 << 12,
     };
 
     Type *Ty = TyInt;
@@ -283,6 +284,8 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
         // 每一步的Counter都需要有合法值
         if (equal(Tok, "void"))
             Counter += VOID;
+        else if(equal(Tok, "_Bool"))
+            Counter += BOOL;
         else if (equal(Tok, "char"))
             Counter += CHAR;
         else if (equal(Tok, "short"))
@@ -299,6 +302,9 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             case VOID:
                 Ty = TyVoid;
                 break;
+            case BOOL:
+                Ty = TyBool;
+                break;;
             case CHAR:
                 Ty = TyChar;
                 break;
