@@ -180,7 +180,7 @@ Scope *Scp = &(Scope){};
 //
 
 
-// 解析类型别名
+// 解析类型别名. ends with ";"
 static Token *parseTypedef(Token *Tok, Type *BaseTy) {
     bool First = true;
     while (!consume(&Tok, Tok, ";")) {
@@ -190,8 +190,8 @@ static Token *parseTypedef(Token *Tok, Type *BaseTy) {
         Type *Ty = declarator(&Tok, Tok, BaseTy);
         // 类型别名的变量名存入变量域中，并设置类型
         Obj *Var = calloc(1, sizeof(Obj));
-        Var->Name = tokenName(Ty->Name);    // alias
-        pushScope(Var)->Typedef = Ty;       // why??? push a type into variable's scope?
+        Var->Name = tokenName(Ty->Name);    // alias, typedef name
+        pushScope(Var)->Typedef = Ty;
     }
     return Tok;
 }
@@ -353,7 +353,7 @@ Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     // typeSuffix
     Ty = typeSuffix(Rest, Tok->Next, Ty);
     // ident
-    // 变量名 或 函数名
+    // 变量名 或 函数名, or typedef name
     Ty->Name = Tok;
     return Ty;
 }

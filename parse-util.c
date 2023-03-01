@@ -143,7 +143,7 @@ Type *findTypedef(Token *Tok) {
         // 查找是否存在于域内
         VarScope *S = findVar(Tok);
         if (S)
-            return S->Typedef;
+            return S->Typedef;  // could be NULL if that var is not typedefined
     }
     return NULL;
 }
@@ -194,6 +194,14 @@ Node *newNum(int64_t Val, Token *Tok) {
     return Nd;
 }
 
+// 新建一个长整型节点
+Node *newLong(int64_t Val, Token *Tok) {
+    Node *Nd = newNode(ND_NUM, Tok);
+    Nd->Val = Val;
+    Nd->Ty = TyLong;
+    return Nd;
+}
+
 // 解析各种加法.
 // 其实是newBinary的一种特殊包装。
 // 专门用来处理加法。 会根据左右节点的类型自动对此次加法做出适应
@@ -221,7 +229,8 @@ Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
 
     // ptr + num
     // 指针加法，ptr+1，这里的1不是1个字节，而是1个元素的空间，所以需要 ×size 操作
-    RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
+    // 指针用long类型存储
+    RHS = newBinary(ND_MUL, RHS, newLong(LHS->Ty->Base->Size, Tok), Tok);
     return newBinary(ND_ADD, LHS, RHS, Tok);
 }
 
@@ -236,8 +245,9 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
     return newBinary(ND_SUB, LHS, RHS, Tok);
 
     // ptr - num
+    // 指针用long类型存储
     if (LHS->Ty->Base && isInteger(RHS->Ty)) {
-        RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
+        RHS = newBinary(ND_MUL, RHS, newLong(LHS->Ty->Base->Size, Tok), Tok);
         addType(RHS);
         Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
         // 节点类型为指针
@@ -282,7 +292,6 @@ Token *globalVariable(Token *Tok, Type *BaseTy) {
 // 新转换
 Node *newCast(Node *Expr, Type *Ty) {
     addType(Expr);
-
     Node *Nd = calloc(1, sizeof(Node));
     Nd->Kind = ND_CAST;
     Nd->Tok = Expr->Tok;

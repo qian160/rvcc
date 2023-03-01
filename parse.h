@@ -4,7 +4,7 @@
 // scope
 //
 
-// 局部和全局变量或是typedef的域.
+// 局部和全局变量或是typedef的域.(各种标识符)
 // a varscope can only represent 1 variable... its name may be confusing
 typedef struct VarScope VarScope;
 struct VarScope {
@@ -22,6 +22,7 @@ struct TagScope {
 };
 
 // 表示一个块域
+// 里面存放了域中的各种标识符，包括变量名、函数名、别名
 typedef struct Scope Scope;
 struct Scope {
     Scope *Next;            // 指向上一级的域
@@ -72,3 +73,4 @@ Node *newAdd(Node *LHS, Node *RHS, Token *Tok);
 Node *newSub(Node *LHS, Node *RHS, Token *Tok);
 Node *newVarNode(Obj* Var, Token *Tok);
 Node *newCast(Node *Expr, Type *Ty);
+Node *newLong(int64_t Val, Token *Tok);

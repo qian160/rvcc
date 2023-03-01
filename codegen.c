@@ -165,10 +165,8 @@ static void cast(Type *From, Type *To) {
     // 获取类型的枚举值
     int T1 = getTypeId(From);
     int T2 = getTypeId(To);
-    if (castTable[T1][T2]) {
-        println("  # 转换函数");
+    if (castTable[T1][T2])
         println("%s", castTable[T1][T2]);
-    }
 }
 
 
