@@ -1,4 +1,6 @@
 #include"rvcc.h"
+#include"parse.h"
+
 
 //    input = "1+2; 3-4;"
 //    add a field 'next' to ast-tree node (下一语句, expr_stmt). see parse()
@@ -121,8 +123,9 @@
 // equality = relational ("==" relational | "!=" relational)*
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 // add = mul ("+" mul | "-" mul)*
-// mul = unary ("*" unary | "/" unary)*
-// unary = ("+" | "-" | "*" | "&") unary | postfix 
+// mul = cast ("*" cast | "/" cast)*
+// cast = "(" typeName ")" cast | unary
+// unary = ("+" | "-" | "*" | "&") cast | postfix 
 // postfix = primary ("[" expr "]" | "." ident)* | | "->" ident)*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
@@ -143,7 +146,7 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy);
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr);
 static Type *structDecl(Token **Rest, Token *Tok);
 static Type *unionDecl(Token **Rest, Token *Tok);
-static Type *declarator(Token **Rest, Token *Tok, Type *Ty);
+/*  */ Type *declarator(Token **Rest, Token *Tok, Type *Ty);   // used in parse-util...
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty);
 static Node *compoundStmt(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
@@ -153,6 +156,8 @@ static Node *assign(Token **Rest, Token *Tok);
 static Node *equality(Token **Rest, Token *Tok);
 static Node *relational(Token **Rest, Token *Tok);
 static Node *add(Token **Rest, Token *Tok);
+static Node *cast(Token **Rest, Token *Tok);
+static Type *typename(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
 static Node *unary(Token **Rest, Token *Tok);
 static Node *postfix(Token **Rest, Token *Tok);
@@ -160,287 +165,14 @@ static Node *primary(Token **Rest, Token *Tok);
 
 static Token *parseTypedef(Token *Tok, Type *BaseTy);
 // 在解析时，全部的变量实例都被累加到这个列表里。
-static Obj *Locals;    // 局部变量
-static Obj *Globals;   // 全局变量
+
+Obj *Locals;    // 局部变量
+Obj *Globals;   // 全局变量
 // note: it is allowed to have an variable defined both in global
 // and local on this occasion, we will use the local variable
 
 // 所有的域的链表
-static Scope *Scp = &(Scope){};
-
-//
-// helper functions
-//
-
-// --------- scope ----------
-
-// 进入域
-// insert from head，后来加入的会先被移除出去。 其实也就是越深的作用域存活时间越短
-static void enterScope(void) {
-    Scope *S = calloc(1, sizeof(Scope));
-    // 后来的在链表头部
-    // 类似于栈的结构，栈顶对应最近的域
-    S->Next = Scp;
-    Scp = S;
-}
-
-// 结束当前域
-static void leaveScope(void) {
-    Scp = Scp->Next;
-}
-
-// 将变量存入当前的域中
-// this api seems ugly, but convenient in fact... the only thing you need
-// to know is a string for that var's name. you can also add more other members
-// to init the varscope after it returns as long as you like
-static VarScope* pushScope(char *Name) {
-    VarScope *S = calloc(1, sizeof(VarScope));
-    S->Name = Name;
-    // 后来的在链表头部
-    S->Next = Scp->Vars;
-    Scp->Vars = S;
-    return S;
-}
-
-static void pushTagScope(Token *Tok, Type *Ty, bool is_struct) {
-    TagScope *S = calloc(1, sizeof(TagScope));
-    S->Name = tokenName(Tok);
-    S->Ty = Ty;
-    if(is_struct){
-        S->Next = Scp->structTags;
-        Scp->structTags = S;
-    }
-    else{
-        S->Next = Scp->unionTags;
-        Scp->unionTags = S;
-    }
-}
-
-// ---------- variables managements ----------
-
-// 通过名称，查找一个变量.
-static VarScope *findVar(Token *Tok) {
-    // 此处越先匹配的域，越深层
-    // inner scope has access to outer's
-    for (Scope *S = Scp; S; S = S->Next)
-        // 遍历域内的所有变量
-        for (VarScope *S2 = S->Vars; S2; S2 = S2->Next)
-            if (equal(Tok, S2->Name))
-                return S2;
-    return NULL;
-}
-
-// 新建变量. default 'islocal' = 0. helper fnction of the 2 below
-static Obj *newVar(char *Name, Type *Ty) {
-    Obj *Var = calloc(1, sizeof(Obj));
-    Var->Name = Name;
-    Var->Ty = Ty;
-    pushScope(Name)->Var = Var;
-    return Var;
-}
-
-// 在链表中新增一个局部变量
-static Obj *newLVar(char *Name, Type *Ty) {
-    Obj *Var = newVar(Name, Ty);
-    Var->IsLocal = true;
-    // 将变量插入头部
-    Var->Next = Locals;
-    Locals = Var;
-    return Var;
-}
-
-// 在链表中新增一个全局变量
-static Obj *newGVar(char *Name, Type *Ty) {
-    Obj *Var = newVar(Name, Ty);
-    Var->Next = Globals;
-    Globals = Var;
-    return Var;
-}
-
-// 通过Token查找标签
-static Type *findTag(Token *Tok, bool is_struct) {
-    for (Scope *S = Scp; S; S = S->Next)
-        for (TagScope *S2 = is_struct? S->structTags: S->unionTags; S2; S2 = S2->Next)
-            if (equal(Tok, S2->Name))
-                return S2->Ty;
-        return NULL;
-}
-
-// 获取标识符
-static char *getIdent(Token *Tok) {
-    if (Tok->Kind != TK_IDENT)
-        error("%s: expected an identifier", tokenName(Tok));
-    return tokenName(Tok);
-}
-
-// 将形参添加到Locals. name, type
-static void createParamLVars(Type *Param) {
-    if (Param) {
-        // 先将最底部的加入Locals中，之后的都逐个加入到顶部，保持顺序不变
-        createParamLVars(Param->Next);
-        // 添加到Locals中
-        newLVar(getIdent(Param->Name), Param);
-    }
-}
-
-// 新增唯一名称
-static char *newUniqueName(void) {
-    static int Id = 0;
-    return format(".L..%d", Id++);
-}
-
-// 新增匿名全局变量
-static Obj *newAnonGVar(Type *Ty) {
-    return newGVar(newUniqueName(), Ty);
-}
-
-// 新增字符串字面量
-static Obj *newStringLiteral(char *Str, Type *Ty) {
-    Obj *Var = newAnonGVar(Ty);
-    Var->InitData = Str;
-    return Var;
-}
-
-// 查找类型别名
-static Type *findTypedef(Token *Tok) {
-    // 类型别名是个标识符
-    if (Tok->Kind == TK_IDENT) {
-        // 查找是否存在于变量域内
-        VarScope *S = findVar(Tok);
-        if (S)
-            return S->Typedef;
-    }
-    return NULL;
-}
-
-// 判断是否为类型名
-static bool isTypename(Token *Tok) 
-{
-    static char *types[] = {"typedef", "char", "int", "struct", "union", "long", "short", "void"};
-    for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
-        if(equal(Tok, types[i]))
-            return true;
-    }
-    return findTypedef(Tok);
-}
-
-//
-// 创建节点
-//
-
-// 新建一个未完全初始化的节点. kind and token
-static Node *newNode(NodeKind Kind, Token *Tok) {
-    Node *Nd = calloc(1, sizeof(Node));
-    Nd->Kind = Kind;
-    Nd->Tok = Tok;
-    return Nd;
-}
-
-// 新建一个单叉树
-static Node *newUnary(NodeKind Kind, Node *Expr, Token *Tok) {
-    Node *Nd = newNode(Kind, Tok);
-    Nd->LHS = Expr;
-    return Nd;
-}
-
-// 新建一个二叉树节点
-static Node *newBinary(NodeKind Kind, Node *LHS, Node *RHS, Token *Tok) {
-    Node *Nd = newNode(Kind, Tok);
-    Nd->LHS = LHS;
-    Nd->RHS = RHS;
-    return Nd;
-}
-
-// 新建一个数字节点
-static Node *newNum(int64_t Val, Token *Tok) {
-    Node *Nd = newNode(ND_NUM, Tok);
-    Nd->Val = Val;
-    return Nd;
-}
-
-// 解析各种加法.
-// 其实是newBinary的一种特殊包装。
-// 专门用来处理加法。 会根据左右节点的类型自动对此次加法做出适应
-static Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
-    // 为左右部添加类型
-    addType(LHS);
-    addType(RHS);
-
-    // num + num
-    if (isInteger(LHS->Ty) && isInteger(RHS->Ty))
-        return newBinary(ND_ADD, LHS, RHS, Tok);
-
-    // 不能解析 ptr + ptr
-    // has base type, meaning that it's a pointer
-    if (LHS->Ty->Base && RHS->Ty->Base){
-        error("can not add up two pointers.");
-    }
-
-    // 将 num + ptr 转换为 ptr + num
-    if (!LHS->Ty->Base && RHS->Ty->Base) {
-        Node *Tmp = LHS;
-        LHS = RHS;
-        RHS = Tmp;
-    }
-
-    // ptr + num
-    // 指针加法，ptr+1，这里的1不是1个字节，而是1个元素的空间，所以需要 ×size 操作
-    RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
-    return newBinary(ND_ADD, LHS, RHS, Tok);
-}
-
-// 解析各种减法. 与newAdd类似
-static Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
-    // 为左右部添加类型
-    addType(LHS);
-    addType(RHS);
-
-    // num - num
-    if (isInteger(LHS->Ty) && isInteger(RHS->Ty))
-    return newBinary(ND_SUB, LHS, RHS, Tok);
-
-    // ptr - num
-    if (LHS->Ty->Base && isInteger(RHS->Ty)) {
-        RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
-        addType(RHS);
-        Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
-        // 节点类型为指针
-        Nd->Ty = LHS->Ty;
-        return Nd;
-    }
-
-    // ptr - ptr，返回两指针间有多少元素
-    if (LHS->Ty->Base && RHS->Ty->Base) {
-        Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
-        Nd->Ty = TyInt;
-        return newBinary(ND_DIV, Nd, newNum(LHS->Ty->Base->Size, Tok), Tok);
-    }
-
-    error("%s: invalid operands", strndup(Tok->Loc, Tok->Len));
-    return NULL;
-}
-
-// 新变量
-static Node *newVarNode(Obj* Var, Token *Tok) {
-    Node *Nd = newNode(ND_VAR, Tok);
-    Nd->Var = Var;
-    return Nd;
-}
-
-// 构造全局变量
-static Token *globalVariable(Token *Tok, Type *BaseTy) {
-    bool First = true;
-    // keep searching until we meet a ";"
-    while (!consume(&Tok, Tok, ";")) {
-        if (!First)
-        Tok = skip(Tok, ",");
-        First = false;
-
-        Type *Ty = declarator(&Tok, Tok, BaseTy);
-        newGVar(getIdent(Ty->Name), Ty);
-    }
-    return Tok;
-}
+Scope *Scp = &(Scope){};
 
 
 //
@@ -448,29 +180,25 @@ static Token *globalVariable(Token *Tok, Type *BaseTy) {
 //
 
 
-
 // 解析类型别名
 static Token *parseTypedef(Token *Tok, Type *BaseTy) {
     bool First = true;
-
     while (!consume(&Tok, Tok, ";")) {
         if (!First)
             Tok = skip(Tok, ",");
         First = false;
-    
         Type *Ty = declarator(&Tok, Tok, BaseTy);
         // 类型别名的变量名存入变量域中，并设置类型
-
-        pushScope(getIdent(Ty->Name))->Typedef = Ty;
+        Obj *Var = calloc(1, sizeof(Obj));
+        Var->Name = tokenName(Ty->Name);    // alias
+        pushScope(Var)->Typedef = Ty;       // why??? push a type into variable's scope?
     }
     return Tok;
 }
 
 
-
 // functionDefinition = declspec declarator compoundStmt*
 static Token *function(Token *Tok, Type *BaseTy) {
-//    Type *BaseTy = declspec(&Tok, Tok, BaseTy);
     Type *Ty = declarator(&Tok, Tok, BaseTy);
 
     // functions are also global variables
@@ -512,14 +240,14 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
 
     Type *Ty = TyInt;
     int Counter = 0; // 记录类型相加的数值
-
+    // typedef int intt
     // 遍历所有类型名的Tok
     while (isTypename(Tok)) {
         // 处理typedef关键字
         if (equal(Tok, "typedef")) {
             if (!Attr)
                 errorTok(Tok, "storage class specifier is not allowed in this context");
-            Attr->IsTypedef = true;
+            Attr->IsTypedef = true; // just leave a mark
             Tok = Tok->Next;
             continue;
         }
@@ -588,7 +316,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
 
         Tok = Tok->Next;
     }
-     *Rest = Tok;
+    *Rest = Tok;
     return Ty;
 }
 
@@ -600,7 +328,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
 // the 2nd case is a little difficult to handle with... and that's also where the recursion begins
 // examples: ***var, fn(int x), a
 // a further step on type parsing. also help to assign Ty->Name
-static Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
+Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     // "*"*
     // 构建所有的（多重）指针
     while (consume(&Tok, Tok, "*"))
@@ -978,7 +706,6 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
     // compoundStmt
     if (equal(Tok, "{"))
-//        return compoundStmt(Rest, Tok->Next);
         return compoundStmt(Rest, Tok);
 
     // exprStmt
@@ -1125,23 +852,23 @@ static Node *add(Token **Rest, Token *Tok) {
 }
 
 // 解析乘除
-// mul = unary ("*" unary | "/" unary)*
+// mul = cast ("*" cast | "/" cast)*
 static Node *mul(Token **Rest, Token *Tok) {
     // unary
-    Node *Nd = unary(&Tok, Tok);
+    Node *Nd = cast(&Tok, Tok);
 
-    // ("*" unary | "/" unary)*
+    // ("*" cast | "/" cast)*
     while (true) {
         Token * start = Tok;
-        // "*" unary
+        // "*" cast
         if (equal(Tok, "*")) {
-            Nd = newBinary(ND_MUL, Nd, unary(&Tok, Tok->Next), start);
+            Nd = newBinary(ND_MUL, Nd, cast(&Tok, Tok->Next), start);
             continue;
         }
 
-        // "/" unary
+        // "/" cast
         if (equal(Tok, "/")) {
-            Nd = newBinary(ND_DIV, Nd, unary(&Tok, Tok->Next), start);
+            Nd = newBinary(ND_DIV, Nd, cast(&Tok, Tok->Next), start);
             continue;
         }
 
@@ -1150,22 +877,41 @@ static Node *mul(Token **Rest, Token *Tok) {
     }
 }
 
-// 解析一元运算
-// unary = ("+" | "-" | "*" | "&") unary | postfix
-static Node *unary(Token **Rest, Token *Tok) {
-    // "+" unary
-    if (equal(Tok, "+"))
-        return unary(Rest, Tok->Next);
-    // "-" unary
-    if (equal(Tok, "-"))
-        return newUnary(ND_NEG, unary(Rest, Tok->Next), Tok);
-    // "*" unary. pointer
-    if (equal(Tok, "*")) {
-        return newUnary(ND_DEREF, unary(Rest, Tok->Next), Tok);
+// 解析类型转换
+// cast = "(" typeName ")" cast | unary
+static Node *cast(Token **Rest, Token *Tok) {
+    // cast = "(" typeName ")" cast
+    if (equal(Tok, "(") && isTypename(Tok->Next)) {
+        Token *Start = Tok;
+        Type *Ty = typename(&Tok, Tok->Next);
+        Tok = skip(Tok, ")");
+        // 解析嵌套的类型转换
+        Node *Nd = newCast(cast(Rest, Tok), Ty);
+        Nd->Tok = Start;
+        return Nd;
     }
-    // "*" unary. pointer
+    // unary
+    return unary(Rest, Tok);
+}
+
+
+
+// 解析一元运算
+// unary = ("+" | "-" | "*" | "&") cast | postfix
+static Node *unary(Token **Rest, Token *Tok) {
+    // "+" cast
+    if (equal(Tok, "+"))
+        return cast(Rest, Tok->Next);
+    // "-" cast
+    if (equal(Tok, "-"))
+        return newUnary(ND_NEG, cast(Rest, Tok->Next), Tok);
+    // "*" cast. pointer
+    if (equal(Tok, "*")) {
+        return newUnary(ND_DEREF, cast(Rest, Tok->Next), Tok);
+    }
+    // "*" cast. pointer
     if (equal(Tok, "&")) {
-        return newUnary(ND_ADDR, unary(Rest, Tok->Next), Tok);
+        return newUnary(ND_ADDR, cast(Rest, Tok->Next), Tok);
     }
     // primary
     return postfix(Rest, Tok);

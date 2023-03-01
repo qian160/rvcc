@@ -1,3 +1,7 @@
+#ifndef __RVCC__H__
+
+#define __RVCC__H__ 
+
 #include<stdarg.h>
 #include<stdio.h>
 #include<stdlib.h>
@@ -104,6 +108,7 @@ typedef enum {
     ND_FUNCALL,     // 函数调用
     ND_COMMA,       // , 逗号
     ND_MEMBER,      // . 结构体成员访问
+    ND_CAST,        // 类型转换
 
 } NodeKind;
 
@@ -133,43 +138,6 @@ struct Node {
     // 结构体成员访问
     Member *Mem;
 };
-
-//
-// scope
-//
-
-// 局部和全局变量或是typedef的域. a varscope can only represent 1 variable... its name may be confusing
-typedef struct VarScope VarScope;
-struct VarScope {
-    VarScope *Next; // 下一变量域, another block
-    Obj *Var;       // 对应的变量, use its "next" field to get a list of variables
-    char *Name;     // a little redundant, but without this some Fn api would be hard to design..
-    Type *Typedef;  // 别名
-};
-
-// 结构体和联合体标签的域
-typedef struct TagScope TagScope;
-struct TagScope {
-    TagScope *Next; // 下一标签域
-    char *Name;     // struct's name
-    Type *Ty;       // 域类型
-};
-
-// 表示一个块域
-typedef struct Scope Scope;
-struct Scope {
-    Scope *Next;            // 指向上一级的域
-    VarScope *Vars;         // 指向当前域内的变量
-    TagScope *structTags;   // 指向当前域内的结构体标签
-    TagScope *unionTags;    // 指向当前域内的union标签
-};
-
-// 变量属性
-typedef struct {
-    bool IsTypedef; // 是否为类型别名
-} VarAttr;
-
-
 
 
 //
@@ -346,3 +314,5 @@ void errorAt(char *Loc, char *Fmt, ...);
 #define IFONE(macro, ...) MUXONE(macro, __KEEP, __IGNORE)(__VA_ARGS__)
 // keep the code if a boolean macro is defined to 0
 #define IFZERO(macro, ...) MUXZERO(macro, __KEEP, __IGNORE)(__VA_ARGS__)
+
+#endif
