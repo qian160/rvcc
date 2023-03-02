@@ -124,7 +124,9 @@
 // exprStmt = expr? ";"
 
 // expr = assign ("," expr)?
-// assign = bitOr (assignOp assign)?
+// assign = logOr (assignOp assign)?
+//      logOr = logAnd ("||" logAnd)*
+//      logAnd = bitOr ("&&" bitOr)*
 //      bitOr = bitXor ("|" bitXor)*
 //      bitXor = bitAnd ("^" bitAnd)*
 //      bitAnd = equality ("&" equality)*
@@ -165,6 +167,8 @@ static Node *stmt(Token **Rest, Token *Tok);
 static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
 static Node *assign(Token **Rest, Token *Tok);
+static Node *logOr(Token **Rest, Token *Tok);
+static Node *logAnd(Token **Rest, Token *Tok);
 static Node *bitOr(Token **Rest, Token *Tok);
 static Node *bitXor(Token **Rest, Token *Tok);
 static Node *bitAnd(Token **Rest, Token *Tok);
@@ -881,11 +885,11 @@ static Node *toAssign(Node *Binary) {
 // difference between expr and assign: expr will add a further step in parsing
 // ND_COMMA, which could be unnecessary sometimes and causes bugs. use assign instead
 // 解析赋值
-// assign = bitOr (assignOp assign)?
+// assign = logOr (assignOp assign)?
 // assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
 static Node *assign(Token **Rest, Token *Tok) {
     // equality
-    Node *Nd = bitOr(&Tok, Tok);
+    Node *Nd = logOr(&Tok, Tok);
 
     // 可能存在递归赋值，如a=b=1
     // ("=" assign)?
@@ -932,6 +936,31 @@ static Node *bitOr(Token **Rest, Token *Tok) {
     *Rest = Tok;
     return Nd;
 }
+
+// 逻辑或
+// logOr = logAnd ("||" logAnd)*
+static Node *logOr(Token **Rest, Token *Tok) {
+    Node *Nd = logAnd(&Tok, Tok);
+    while (equal(Tok, "||")) {
+        Token *Start = Tok;
+        Nd = newBinary(ND_LOGOR, Nd, logAnd(&Tok, Tok->Next), Start);
+    }
+    *Rest = Tok;
+    return Nd;
+}
+
+// 逻辑与
+// logAnd = bitOr ("&&" bitOr)*
+static Node *logAnd(Token **Rest, Token *Tok) {
+    Node *Nd = bitOr(&Tok, Tok);
+    while (equal(Tok, "&&")) {
+        Token *Start = Tok;
+        Nd = newBinary(ND_LOGAND, Nd, bitOr(&Tok, Tok->Next), Start);
+    }
+    *Rest = Tok;
+    return Nd;
+}
+
 
 // 按位异或
 // bitXor = bitAnd ("^" bitAnd)*

@@ -270,7 +270,38 @@ static void genExpr(Node *Nd) {
             genExpr(Nd->LHS);
             println("  seqz a0, a0");
             return;
-
+        // 逻辑与
+        case ND_LOGAND: {
+            int C = count();
+            genExpr(Nd->LHS);
+            // 左部短路操作判断，为0则跳转
+            println("  beqz a0, .L.false.%d", C);
+            genExpr(Nd->RHS);
+            // 右部判断，为0则跳转
+            println("  beqz a0, .L.false.%d", C);
+            println("  li a0, 1");
+            println("  j .L.end.%d", C);
+            println(".L.false.%d:", C);
+            println("  li a0, 0");
+            println(".L.end.%d:", C);
+            return;
+        }
+        // 逻辑或
+        case ND_LOGOR: {
+            int C = count();
+            genExpr(Nd->LHS);
+            // 左部短路操作判断，不为0则跳转
+            println("  bnez a0, .L.true.%d", C);
+            genExpr(Nd->RHS);
+            // 右部判断，不为0则跳转
+            println("  bnez a0, .L.true.%d", C);
+            println("  li a0, 0");
+            println("  j .L.end.%d", C);
+            println(".L.true.%d:", C);
+            println("  li a0, 1");
+            println(".L.end.%d:", C);
+            return;
+        }
         // 对寄存器取反
         case ND_NEG:
             genExpr(Nd->LHS);
