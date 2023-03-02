@@ -240,6 +240,7 @@ Type *copyType(Type *Ty);
 Type *arrayOf(Type *Base, int Len);
 
 Type *enumType(void);
+Type *structType(void);
 
 
 /* ---------- string.c ---------- */
@@ -285,7 +286,9 @@ void errorAt(char *Loc, char *Fmt, ...);
 
 #define todo() Assert(0, "todo")
 
-#define _TKNAME_ tokenName(Tok)
+#define __TKNAME__  tokenName(Tok)
+
+#define __test__    trace("%s", tokenName(Tok));
 
 // macro testing
 // See https://stackoverflow.com/questions/26099745/test-if-preprocessor-symbol-is-defined-inside-macro

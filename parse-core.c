@@ -406,7 +406,6 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
         // skip "(" at the begining of fn
         Tok = skip(Tok, "(");
         // 存储形参的链表
-
         Type Head = {};
         Type *Cur = &Head;
         while (!equal(Tok, ")")) {
@@ -416,17 +415,20 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
                 Tok = skip(Tok, ",");
             Type *Ty2 = declspec(&Tok, Tok, NULL);
             Ty2 = declarator(&Tok, Tok, Ty2);
-
             if (Ty2 -> Kind == TY_ARRAY){
                 Token *Name = Ty2 -> Name;
+                // pointerTo will call calloc to create a new Type,
+                // which will clear the name field, so we need to keep and 
+                // reassign the name
                 Ty2 = pointerTo(Ty2 -> Base);
                 Ty2 -> Name = Name;
             }
             // 将类型复制到形参链表一份. why copy?
-            // because we are operating on a same address in this loop,
-            // if not copy, the latter type will just cover the previous's.
-            // trace("%p", DeclarTy);
+            // because we may need to modify(cast) the type in the future.
+            // if not copy, then the original type(say TyInt) will also be changed
+            // which is unacceptable. something like ownership here
             Cur->Next = copyType(Ty2);
+            //Cur->Next = Ty2;
             Cur = Cur->Next;
         }
         // 封装一个函数节点
@@ -448,6 +450,7 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
     // "[" arrayDimensions? "] typeSuffix"
     if (equal(Tok, "[")) {
         // "]" 无数组维数的 "[]"
+        // sizeof(int(*)[][10])
         if(equal(Tok->Next, "]")){
             Ty = typeSuffix(Rest, Tok->Next->Next, Ty);
             return arrayOf(Ty, -1);
@@ -511,24 +514,36 @@ static Type *structUnionDecl(Token **Rest, Token *Tok) {
     }
 
     if (Tag && !equal(Tok, "{")) {
-        Type *Ty = findTag(Tag);
-        if (!Ty)
-            errorTok(Tag, "unknown struct or union type");
         *Rest = Tok;
+        Type *Ty = findTag(Tag);
+        if (Ty)
+            return Ty;
+        // 构造不完整结构体
+        Ty = structType();
+        Ty->Size = -1;
+        pushTagScope(Tag, Ty);
+
         return Ty;
     }
 
     // 构造一个结构体
-    Type *Ty = calloc(1, sizeof(Type));
-    Ty->Kind = TY_STRUCT;
+    Type *Ty = structType();
     structMembers(Rest, Tok->Next, Ty);
     Ty->Align = 1;
 
-    // 如果有名称就注册结构体类型
-    if (Tag)
-        pushTagScope(Tag, Ty);
-
     *Rest = skip(*Rest, "}");
+    // 如果是重复定义，就覆盖之前的定义。否则有名称就注册结构体类型
+    if (Tag) {
+        for (TagScope *S = Scp->Tags; S; S = S->Next) {
+            if (equal(Tag, S->Name)) {
+                *S->Ty = *Ty;
+                // why not Ty?
+                return S->Ty;
+            }
+        }
+        pushTagScope(Tag, Ty);
+    }
+
     return Ty;
 }
 
@@ -536,6 +551,10 @@ static Type *structUnionDecl(Token **Rest, Token *Tok) {
 static Type *structDecl(Token **Rest, Token *Tok) {
     Type *Ty = structUnionDecl(Rest, Tok);
     Ty->Kind = TY_STRUCT;
+
+    // 不完整结构体
+    if (Ty->Size < 0)
+        return Ty;
 
     // 计算结构体内成员的偏移量
     int Offset = 0;

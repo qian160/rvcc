@@ -66,6 +66,11 @@ Type *enumType(void){
     return newType(TY_ENUM, 4, 4);
 }
 
+Type *structType(void) {
+    return newType(TY_STRUCT, 0, 1);
+}
+
+
 
 // 获取容纳左右部的类型
 Type *getCommonType(Type *Ty1, Type *Ty2) {
