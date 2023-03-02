@@ -124,7 +124,8 @@
 // exprStmt = expr? ";"
 
 // expr = assign ("," expr)?
-// assign = equality ("=" assign)?
+// assign = equality (assignOp assign)?
+// assignOp = "=" | "+=" | "-=" | "*=" | "/="
 // equality = relational ("==" relational | "!=" relational)*
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 // add = mul ("+" mul | "-" mul)*
@@ -162,6 +163,8 @@ static Node *assign(Token **Rest, Token *Tok);
 static Node *equality(Token **Rest, Token *Tok);
 static Node *relational(Token **Rest, Token *Tok);
 static Node *add(Token **Rest, Token *Tok);
+/*  */ Node *newAdd(Node *LHS, Node *RHS, Token *Tok);
+/*  */ Node *newSub(Node *LHS, Node *RHS, Token *Tok);
 static Node *cast(Token **Rest, Token *Tok);
 static Type *typename(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
@@ -842,7 +845,8 @@ static Node *expr(Token **Rest, Token *Tok) {
 // difference between expr and assign: expr will add a further step in parsing
 // ND_COMMA, which could be unnecessary sometimes and causes bugs. use assign instead
 // 解析赋值
-// assign = equality ("=" assign)?. note: lvalue
+// assign = equality (assignOp assign)?
+// assignOp = "=" | "+=" | "-=" | "*=" | "/="
 static Node *assign(Token **Rest, Token *Tok) {
     // equality
     Node *Nd = equality(&Tok, Tok);
@@ -851,6 +855,39 @@ static Node *assign(Token **Rest, Token *Tok) {
     // ("=" assign)?
     if (equal(Tok, "="))
         return Nd = newBinary(ND_ASSIGN, Nd, assign(Rest, Tok->Next), Tok);
+    // ("+=" assign)?
+    if (equal(Tok, "+="))
+        return newBinary(
+            ND_ASSIGN, 
+            Nd, 
+            newAdd(Nd, assign(Rest, Tok->Next), Tok), 
+            Tok
+        );
+    // ("-=" assign)?
+    if (equal(Tok, "-="))
+        return newBinary(
+            ND_ASSIGN, 
+            Nd, 
+            newSub(Nd, assign(Rest, Tok->Next), Tok), 
+            Tok
+        );
+    // ("*=" assign)?
+    if (equal(Tok, "*="))
+        return newBinary(
+            ND_ASSIGN,
+            Nd,
+            newBinary(ND_MUL, Nd, assign(Rest, Tok->Next), Tok),
+            Tok
+        );
+    // ("/=" assign)?
+    if (equal(Tok, "/="))
+        return newBinary(
+            ND_ASSIGN,
+            Nd,
+            newBinary(ND_DIV, Nd, assign(Rest, Tok->Next), Tok),
+            Tok
+        );
+
     *Rest = Tok;
     return Nd;
 }
@@ -1220,6 +1257,10 @@ static Node *primary(Token **Rest, Token *Tok) {
         // ident
         // 查找变量（或枚举常量）
         VarScope *S = findVar(Tok);
+        // it could happen that the name exists, but var not.
+        // that's because we also push typedef's name into scope(see parseTypedef)
+        // and in that case we didn't allocate a var in the varscope
+        // e.g: typedef int myint; myint = 1;  =>  undefined variable
         if (!S || (!S->Var && !S->EnumTy))
             errorTok(Tok, "undefined variable");
 

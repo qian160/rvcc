@@ -26,7 +26,6 @@ void leaveScope(void) {
 
 // 将变量存入当前的域中
 // returning the varscope for further process
-// var -> varscope
 VarScope *pushScope(char *Name) {
     VarScope *S = calloc(1, sizeof(VarScope));
     S->Name = Name;
@@ -46,16 +45,17 @@ void pushTagScope(Token *Tok, Type *Ty) {
 
 // ---------- variables managements ----------
 
-// 通过名称，查找一个变量.
+// 通过名称，查找一个变量
 VarScope *findVar(Token *Tok) {
     // 此处越先匹配的域，越深层
     // inner scope has access to outer's
     for (Scope *S = Scp; S; S = S->Next)
         // 遍历域内的所有变量
         for (VarScope *S2 = S->Vars; S2; S2 = S2->Next)
-            //if (equal(Tok, S2->Name))
+            //if (equal(Tok, S2->Var->Name))
             if (equal(Tok, S2->Name))
                 return S2;
+    // trace("%s: NOT FOUND", _TKNAME_);
     return NULL;
 }
 
