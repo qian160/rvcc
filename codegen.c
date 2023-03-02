@@ -555,6 +555,34 @@ static void genStmt(Node *Nd) {
             println("%s:", Nd->UniqueLabel);
             genStmt(Nd->LHS);
             return;
+        case ND_SWITCH:
+            println("\n# =====switch语句===============");
+            genExpr(Nd->Cond);
+
+            println("  # 遍历跳转到值等于a0的case标签");
+            for (Node *N = Nd->CaseNext; N; N = N->CaseNext) {
+                println("  li t0, %ld", N->Val);
+                println("  beq a0, t0, %s", N->Label);
+            }
+
+            if (Nd->DefaultCase) {
+                println("  # 跳转到default标签");
+                println("  j %s", Nd->DefaultCase->Label);
+            }
+
+            println("  # 结束switch，跳转break标签");
+            println("  j %s", Nd->BrkLabel);
+            // 生成case标签的语句
+            genStmt(Nd->Then);
+            println("# switch的break标签，结束switch");
+            println("%s:", Nd->BrkLabel);
+            return;
+        case ND_CASE:
+            println("# case标签，值为%ld", Nd->Val);
+            println("%s:", Nd->Label);
+            genStmt(Nd->LHS);
+            return;
+
         default:
             error("%s: invalid statement", Nd->Tok->Loc);
     }

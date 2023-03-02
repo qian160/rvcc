@@ -121,6 +121,8 @@ typedef enum {
     ND_LOGOR,       // ||，或
     ND_GOTO,        // goto，直接跳转语句
     ND_LABEL,       // 标签语句
+    ND_SWITCH,      // "switch"，分支语句
+    ND_CASE,        // "case"
 
 } NodeKind;
 
@@ -158,6 +160,10 @@ struct Node {
     char *BrkLabel;
     // "continue" 标签
     char *ContLabel;
+    // switch和case
+    Node *CaseNext;
+    Node *DefaultCase;
+
 
 };
 
