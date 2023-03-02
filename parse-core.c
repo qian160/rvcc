@@ -131,7 +131,7 @@
 // add = mul ("+" mul | "-" mul)*
 // mul = cast ("*" cast | "/" cast)*
 // cast = "(" typeName ")" cast | unary
-// unary = ("+" | "-" | "*" | "&") cast | postfix 
+// unary = ("+" | "-" | "*" | "&") cast | postfix | ("++" | "--") unary
 // postfix = primary ("[" expr "]" | "." ident)* | | "->" ident)*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
@@ -842,6 +842,38 @@ static Node *expr(Token **Rest, Token *Tok) {
     return Nd;
 }
 
+// in fact this just lets a op b return a result
+// 转换 A op= B为 TMP = &A, *TMP = *TMP op B
+static Node *toAssign(Node *Binary) {
+    // A
+    addType(Binary->LHS);
+    // B
+    addType(Binary->RHS);
+    Token *Tok = Binary->Tok;
+
+    // TMP
+    Obj *Var = newLVar("", pointerTo(Binary->LHS->Ty));
+
+    // TMP = &A
+    Node *Expr1 = newBinary(
+        ND_ASSIGN, 
+        newVarNode(Var, Tok),
+        newUnary(ND_ADDR, Binary->LHS, Tok), 
+        Tok
+    );
+
+    // *TMP = *TMP op B
+    Node *Expr2 = newBinary(
+        ND_ASSIGN, 
+        newUnary(ND_DEREF, newVarNode(Var, Tok), Tok),
+        newBinary(Binary->Kind, newUnary(ND_DEREF, newVarNode(Var, Tok), Tok),
+                Binary->RHS, Tok),
+        Tok);
+
+    // TMP = &A, *TMP = *TMP op B
+    return newBinary(ND_COMMA, Expr1, Expr2, Tok);
+}
+
 // difference between expr and assign: expr will add a further step in parsing
 // ND_COMMA, which could be unnecessary sometimes and causes bugs. use assign instead
 // 解析赋值
@@ -857,36 +889,16 @@ static Node *assign(Token **Rest, Token *Tok) {
         return Nd = newBinary(ND_ASSIGN, Nd, assign(Rest, Tok->Next), Tok);
     // ("+=" assign)?
     if (equal(Tok, "+="))
-        return newBinary(
-            ND_ASSIGN, 
-            Nd, 
-            newAdd(Nd, assign(Rest, Tok->Next), Tok), 
-            Tok
-        );
+        return toAssign(newAdd(Nd, assign(Rest, Tok->Next), Tok));
     // ("-=" assign)?
     if (equal(Tok, "-="))
-        return newBinary(
-            ND_ASSIGN, 
-            Nd, 
-            newSub(Nd, assign(Rest, Tok->Next), Tok), 
-            Tok
-        );
+        return toAssign(newSub(Nd, assign(Rest, Tok->Next), Tok));
     // ("*=" assign)?
     if (equal(Tok, "*="))
-        return newBinary(
-            ND_ASSIGN,
-            Nd,
-            newBinary(ND_MUL, Nd, assign(Rest, Tok->Next), Tok),
-            Tok
-        );
+        return toAssign(newBinary(ND_MUL, Nd, assign(Rest, Tok->Next), Tok));
     // ("/=" assign)?
     if (equal(Tok, "/="))
-        return newBinary(
-            ND_ASSIGN,
-            Nd,
-            newBinary(ND_DIV, Nd, assign(Rest, Tok->Next), Tok),
-            Tok
-        );
+        return toAssign(newBinary(ND_DIV, Nd, assign(Rest, Tok->Next), Tok));
 
     *Rest = Tok;
     return Nd;
@@ -1030,7 +1042,7 @@ static Node *cast(Token **Rest, Token *Tok) {
 
 
 // 解析一元运算
-// unary = ("+" | "-" | "*" | "&") cast | postfix
+// unary = ("+" | "-" | "*" | "&") cast | postfix | ("++" | "--") unary
 static Node *unary(Token **Rest, Token *Tok) {
     // "+" cast
     if (equal(Tok, "+"))
@@ -1046,6 +1058,17 @@ static Node *unary(Token **Rest, Token *Tok) {
     if (equal(Tok, "&")) {
         return newUnary(ND_ADDR, cast(Rest, Tok->Next), Tok);
     }
+    // 转换 ++i 为 i+=1;
+    if (equal(Tok, "++"))
+        return toAssign(
+            newAdd(unary(Rest, Tok->Next), newNum(1, Tok), Tok));
+
+    // 转换 +-i 为 i-=1
+    // "--" unary
+    if (equal(Tok, "--"))
+        return toAssign(
+            newSub(unary(Rest, Tok->Next), newNum(1, Tok), Tok));
+
     // primary
     return postfix(Rest, Tok);
 }
