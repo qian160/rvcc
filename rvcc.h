@@ -156,6 +156,8 @@ struct Node {
     Node *GotoNext;     // for match
     // "break" 标签
     char *BrkLabel;
+    // "continue" 标签
+    char *ContLabel;
 
 };
 

@@ -123,7 +123,7 @@
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
 //        | ident ":" stmt
-//        | break ";"
+//        | "break" ";" | "continue" ";"
 
 // exprStmt = expr? ";"
 
@@ -206,8 +206,11 @@ static Obj *CurrentFn;
 Node *Gotos;
 Node *Labels;
 
-// 当前goto跳转的目标
+// 当前goto跳转的目标(break is implemented by goto)
 static char *BrkLabel;
+// 当前continue跳转的目标
+static char *ContLabel;
+
 
 //
 // 生成AST（抽象语法树），语法解析
@@ -779,6 +782,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
 //        | ident ":" stmt
+//        | "break;" | "continue;"
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
     
@@ -815,11 +819,12 @@ static Node *stmt(Token **Rest, Token *Tok) {
         // "("
         // 进入for循环域
         enterScope();
-        // 存储此前break标签的名称
+        // 存储此前break和continue标签的名称
         char *Brk = BrkLabel;
+        char *Cont = ContLabel;
         // 设置break标签的名称
         BrkLabel = Nd->BrkLabel = newUniqueName();
-
+        ContLabel = Nd->ContLabel = newUniqueName();
         Tok = skip(Tok->Next, "(");
 
         if (isTypename(Tok)) {
@@ -845,8 +850,9 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
         // stmt
         Nd->Then = stmt(Rest, Tok);
-        // 恢复此前的break标签
+        // 恢复此前的break和continue标签
         BrkLabel = Brk;
+        ContLabel = Cont;
 
         leaveScope();
         return Nd;
@@ -862,14 +868,17 @@ static Node *stmt(Token **Rest, Token *Tok) {
         Nd->Cond = expr(&Tok, Tok);
         // ")"
         Tok = skip(Tok, ")");
-        // 存储此前break标签的名称
+        // 存储此前break和continue标签的名称
         char *Brk = BrkLabel;
+        char *Cont = ContLabel;
         // 设置break标签的名称
         BrkLabel = Nd->BrkLabel = newUniqueName();
+        ContLabel = Nd->ContLabel = newUniqueName();
         // stmt
         Nd->Then = stmt(Rest, Tok);
-        // 恢复此前的break标签
+        // 恢复此前的break和continue标签
         BrkLabel = Brk;
+        ContLabel = Cont;
         return Nd;
     }
 
@@ -894,6 +903,18 @@ static Node *stmt(Token **Rest, Token *Tok) {
         *Rest = skip(Tok->Next, ";");
         return Nd;
     }
+
+    // "continue" ";"
+    if (equal(Tok, "continue")) {
+        if (!ContLabel)
+            errorTok(Tok, "stray continue");
+        // 跳转到continue标签的位置
+        Node *Nd = newNode(ND_GOTO, Tok);
+        Nd->UniqueLabel = ContLabel;
+        *Rest = skip(Tok->Next, ";");
+        return Nd;
+    }
+
 
     // ident ":" stmt
     // labels
