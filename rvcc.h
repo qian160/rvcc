@@ -112,6 +112,7 @@ typedef enum {
     ND_MEMBER,      // . 结构体成员访问
     ND_CAST,        // 类型转换
     ND_NOT,         // !，非
+    ND_BITNOT,      // ~，按位取非
 
 } NodeKind;
 

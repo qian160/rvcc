@@ -194,7 +194,9 @@ void addType(Node *Nd) {
         case ND_NOT:
             Nd->Ty = TyInt;
             return;
-
+        case ND_BITNOT:
+            Nd->Ty = Nd->LHS->Ty;
+            return;
         default:
             break;
     }

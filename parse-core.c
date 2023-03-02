@@ -131,7 +131,9 @@
 // add = mul ("+" mul | "-" mul)*
 // mul = cast ("*" cast | "/" cast)*
 // cast = "(" typeName ")" cast | unary
-// unary = ("+" | "-" | "*" | "&" | "!") cast | postfix | ("++" | "--") unary
+// unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
+//       | postfix 
+//       | ("++" | "--") unary
 // postfix = primary ("[" expr "]" | "." ident)* | | "->" ident | "++" | "--")*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
@@ -1038,7 +1040,9 @@ static Node *cast(Token **Rest, Token *Tok) {
 
 
 // 解析一元运算
-// unary = ("+" | "-" | "*" | "&" | "!") cast | postfix | ("++" | "--") unary
+// unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
+//       | postfix 
+//       | ("++" | "--") unary
 static Node *unary(Token **Rest, Token *Tok) {
     // "+" cast
     if (equal(Tok, "+"))
@@ -1056,6 +1060,8 @@ static Node *unary(Token **Rest, Token *Tok) {
     }
     if (equal(Tok, "!"))
         return newUnary(ND_NOT, cast(Rest, Tok->Next), Tok);
+    if (equal(Tok, "~"))
+        return newUnary(ND_BITNOT, cast(Rest, Tok->Next), Tok);
     // 转换 ++i 为 i+=1;
     if (equal(Tok, "++"))
         return toAssign(

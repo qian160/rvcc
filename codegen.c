@@ -267,6 +267,12 @@ static void genExpr(Node *Nd) {
             genExpr(Nd->LHS);
             println("  seqz a0, a0");
             return;
+        // 按位取非运算
+        case ND_BITNOT:
+            genExpr(Nd->LHS);
+            // 这里的 not a0, a0 为 xori a0, a0, -1 的伪码
+            println("  not a0, a0");
+            return;
         // 对寄存器取反
         case ND_NEG:
             genExpr(Nd->LHS);
