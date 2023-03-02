@@ -740,7 +740,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
     enterScope();
     // (stmt | declaration)* "}"
     while (!equal(Tok, "}")) {
-        if (isTypename(Tok)) {
+        if (isTypename(Tok) && !equal(Tok->Next, ":")) {
             VarAttr Attr = {};
             Type *BaseTy = declspec(&Tok, Tok, &Attr);
             // 解析typedef的语句
