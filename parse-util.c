@@ -3,6 +3,10 @@
 
 extern Obj *Locals;    // 局部变量
 extern Obj *Globals;   // 全局变量
+
+// 当前函数内的goto和标签列表
+extern Node *Gotos;
+extern Node *Labels;
 // note: it is allowed to have an variable defined both in global
 // and local on this occasion, we will use the local variable
 
@@ -297,4 +301,30 @@ Node *newCast(Node *Expr, Type *Ty) {
     Nd->LHS = Expr;
     Nd->Ty = copyType(Ty);
     return Nd;
+}
+
+//
+// others
+//
+
+// when meeting gotos and labels during parsing, just collect
+// them using a linked list, and match them in the end. 
+// 匹配goto和标签
+// 因为标签可能会出现在goto后面，所以要在解析完函数后再进行goto和标签的解析
+void resolveGotoLabels(void) {
+    // 遍历使goto对应上label
+    for (Node *X = Gotos; X; X = X->GotoNext) {
+        for (Node *Y = Labels; Y; Y = Y->GotoNext) {
+            if (!strcmp(X->Label, Y->Label)) {
+                X->UniqueLabel = Y->UniqueLabel;
+                break;
+            }
+        }
+
+        if (X->UniqueLabel == NULL)
+            errorTok(X->Tok->Next, "use of undeclared label");
+    }
+
+    Gotos = NULL;
+    Labels = NULL;
 }

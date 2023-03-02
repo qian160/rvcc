@@ -117,10 +117,13 @@
 
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
-//        | compoundStmt        // recursion
+//        | compoundStmt
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
+//        | "goto" ident ";"
+//        | ident ":" stmt
+
 // exprStmt = expr? ";"
 
 // expr = assign ("," expr)?
@@ -198,6 +201,10 @@ Scope *Scp = &(Scope){};
 // 指向当前正在解析的函数
 static Obj *CurrentFn;
 
+// 当前函数内的goto和标签列表
+Node *Gotos;
+Node *Labels;
+
 
 //
 // 生成AST（抽象语法树），语法解析
@@ -243,6 +250,8 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     Fn->Body = compoundStmt(&Tok, Tok);
     Fn->Locals = Locals;
     leaveScope();
+    // 处理goto和标签
+    resolveGotoLabels();
     return Tok;
 }
 
@@ -765,6 +774,8 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 //        | exprStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
+//        | "goto" ident ";"
+//        | ident ":" stmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
     
@@ -842,6 +853,30 @@ static Node *stmt(Token **Rest, Token *Tok) {
         Tok = skip(Tok, ")");
         // stmt
         Nd->Then = stmt(Rest, Tok);
+        return Nd;
+    }
+
+    // "goto" ident ";"
+    if (equal(Tok, "goto")) {
+        Node *Nd = newNode(ND_GOTO, Tok);
+        Nd->Label = getIdent(Tok->Next);
+        // 将Nd同时存入Gotos，最后用于解析UniqueLabel
+        Nd->GotoNext = Gotos;
+        Gotos = Nd;
+        *Rest = skip(Tok->Next->Next, ";");
+        return Nd;
+    }
+
+    // ident ":" stmt
+    // labels
+    if (Tok->Kind == TK_IDENT && equal(Tok->Next, ":")) {
+        Node *Nd = newNode(ND_LABEL, Tok);
+        Nd->Label = tokenName(Tok);
+        Nd->UniqueLabel = newUniqueName();
+        Nd->LHS = stmt(Rest, Tok->Next->Next);
+        // 将Nd同时存入Labels，最后用于goto解析UniqueLabel
+        Nd->GotoNext = Labels;
+        Labels = Nd;
         return Nd;
     }
 

@@ -119,6 +119,8 @@ typedef enum {
     ND_BITXOR,      // ^，按位异或
     ND_LOGAND,      // &&，与
     ND_LOGOR,       // ||，或
+    ND_GOTO,        // goto，直接跳转语句
+    ND_LABEL,       // 标签语句
 
 } NodeKind;
 
@@ -148,6 +150,11 @@ struct Node {
     Node *Inc;      // 递增语句
     // 结构体成员访问
     Member *Mem;
+    // goto和标签语句
+    char *Label;
+    char *UniqueLabel;
+    Node *GotoNext;
+
 };
 
 

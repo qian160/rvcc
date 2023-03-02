@@ -544,6 +544,15 @@ static void genStmt(Node *Nd) {
             println(".L.end.%d:", C);
             return;
         }
+        // goto语句
+        case ND_GOTO:
+            println("  j %s", Nd->UniqueLabel);
+            return;
+        // 标签语句
+        case ND_LABEL:
+            println("%s:", Nd->UniqueLabel);
+            genStmt(Nd->LHS);
+            return;
         default:
             error("%s: invalid statement", Nd->Tok->Loc);
     }
