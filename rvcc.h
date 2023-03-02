@@ -184,6 +184,8 @@ struct Type {
     int ArrayLen;   // 数组长度, 元素总个数
     // 结构体
     Member *Mems;
+
+    Token *Tok;     // 用于报错信息
 };
 
 // 结构体成员

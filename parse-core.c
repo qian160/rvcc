@@ -101,7 +101,7 @@
 // enumList = ident ("=" num)? ("," ident ("=" num)?)*
 
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
-// typeSuffix = ( funcParams  | "[" num "]"  typeSuffix)?
+// typeSuffix = ( funcParams  | "[" arrayDimensions? "]"  typeSuffix)?
 // funcParams =  "(" (param ("," param)*)? ")"
 //      param = declspec declarator
 
@@ -432,20 +432,28 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
         return Ty;
 }
 
-// typeSuffix = ( funcParams?  | "[" num "] typeSuffix")?
+// typeSuffix = ( funcParams?  | "[" arrayDimensions? "] typeSuffix")?
 // if function, construct its formal parms. otherwise do nothing
 // since we want to recursively construct its type, we need to pass the former type as an argument
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
     // ("(" funcParams? ")")?
     if (equal(Tok, "("))
         return funcParams(Rest, Tok, Ty);
-    // "[" num "] typeSuffix"
+    // "[" arrayDimensions? "] typeSuffix"
     if (equal(Tok, "[")) {
-        int64_t Sz = getNumber(Tok->Next);  // array size
-        // skip num and ]
-        Tok = skip(Tok->Next->Next, "]");
-        Ty = typeSuffix(Rest, Tok, Ty);
-        return arrayOf(Ty, Sz);         // recursion 
+        // "]" 无数组维数的 "[]"
+        if(equal(Tok->Next, "]")){
+            Ty = typeSuffix(Rest, Tok->Next->Next, Ty);
+            return arrayOf(Ty, -1);
+        }
+        // 有数组维数的情况
+        else{
+            int64_t Sz = getNumber(Tok->Next);  // array size
+            // skip num and ]
+            Tok = skip(Tok->Next->Next, "]");
+            Ty = typeSuffix(Rest, Tok, Ty);
+            return arrayOf(Ty, Sz);         // recursion 
+        }
     }
 
     // nothing special here, just return the original type
@@ -656,6 +664,8 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
         // declarator
         // 声明获取到变量类型，包括变量名
         Type *Ty = declarator(&Tok, Tok, BaseTy);
+        if (Ty->Size < 0)
+            errorTok(Tok, "variable has incomplete type");
 
         if(Ty->Kind == TY_VOID)
             errorTok(Tok, "variable declared void");
