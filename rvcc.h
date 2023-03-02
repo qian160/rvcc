@@ -114,6 +114,10 @@ typedef enum {
     ND_NOT,         // !，非
     ND_BITNOT,      // ~，按位取非
     ND_MOD,         // %，取余
+    ND_BITAND,      // &，按位与
+    ND_BITOR,       // |，按位或
+    ND_BITXOR,      // ^，按位异或
+
 
 
 } NodeKind;

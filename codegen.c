@@ -260,7 +260,6 @@ static void genExpr(Node *Nd) {
     // 生成各个根节点
     switch (Nd->Kind) {
     // bitwise op
-        // 按位取非运算
         case ND_BITNOT:
             genExpr(Nd->LHS);
             // 这里的 not a0, a0 为 xori a0, a0, -1 的伪码
@@ -398,6 +397,15 @@ static void genExpr(Node *Nd) {
             return;
         case ND_LT: // a0 < a1
             println("  slt a0, a0, a1");
+            return;
+        case ND_BITAND: // & a0=a0&a1
+            println("  and a0, a0, a1");
+            return;
+        case ND_BITOR: // | a0=a0|a1
+            println("  or a0, a0, a1");
+            return;
+        case ND_BITXOR: // ^ a0=a0^a1
+            println("  xor a0, a0, a1");
             return;
         default:
             break;
