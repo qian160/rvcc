@@ -11,6 +11,7 @@
 #include<errno.h>
 #include<string.h>
 #include<stdint.h>
+#include<strings.h>
 /*
 // 使用POSIX.1标准
 // 使用了strndup函数:
