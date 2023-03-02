@@ -131,7 +131,7 @@
 // add = mul ("+" mul | "-" mul)*
 // mul = cast ("*" cast | "/" cast)*
 // cast = "(" typeName ")" cast | unary
-// unary = ("+" | "-" | "*" | "&") cast | postfix | ("++" | "--") unary
+// unary = ("+" | "-" | "*" | "&" | "!") cast | postfix | ("++" | "--") unary
 // postfix = primary ("[" expr "]" | "." ident)* | | "->" ident | "++" | "--")*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
@@ -631,10 +631,6 @@ static Type *enumSpecifier(Token **Rest, Token *Tok) {
 //      declarator = "*"* ident typeSuffix
 // add a variable to current scope, then create a node with kind ND_ASSIGN if possible
 static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
-    // declspec
-    // 声明的 基础类型
-    //Type *Basety = declspec(&Tok, Tok, BaseTy);
-
     Node Head = {};
     Node *Cur = &Head;
     // 对变量声明次数计数
@@ -1042,7 +1038,7 @@ static Node *cast(Token **Rest, Token *Tok) {
 
 
 // 解析一元运算
-// unary = ("+" | "-" | "*" | "&") cast | postfix | ("++" | "--") unary
+// unary = ("+" | "-" | "*" | "&" | "!") cast | postfix | ("++" | "--") unary
 static Node *unary(Token **Rest, Token *Tok) {
     // "+" cast
     if (equal(Tok, "+"))
@@ -1058,6 +1054,8 @@ static Node *unary(Token **Rest, Token *Tok) {
     if (equal(Tok, "&")) {
         return newUnary(ND_ADDR, cast(Rest, Tok->Next), Tok);
     }
+    if (equal(Tok, "!"))
+        return newUnary(ND_NOT, cast(Rest, Tok->Next), Tok);
     // 转换 ++i 为 i+=1;
     if (equal(Tok, "++"))
         return toAssign(

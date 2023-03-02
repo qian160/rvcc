@@ -111,6 +111,7 @@ typedef enum {
     ND_COMMA,       // , 逗号
     ND_MEMBER,      // . 结构体成员访问
     ND_CAST,        // 类型转换
+    ND_NOT,         // !，非
 
 } NodeKind;
 

@@ -191,6 +191,9 @@ void addType(Node *Nd) {
         case ND_MEMBER:
             Nd->Ty = Nd->Mem->Ty;
             return;
+        case ND_NOT:
+            Nd->Ty = TyInt;
+            return;
 
         default:
             break;

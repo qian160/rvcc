@@ -263,6 +263,10 @@ static void genExpr(Node *Nd) {
         case ND_NUM:
             println("  li a0, %ld", Nd->Val);
             return;
+        case ND_NOT:
+            genExpr(Nd->LHS);
+            println("  seqz a0, a0");
+            return;
         // 对寄存器取反
         case ND_NEG:
             genExpr(Nd->LHS);
