@@ -30,6 +30,11 @@ int main() {
   ASSERT(8, sizeof((long)-10 * 5));
   ASSERT(8, sizeof((long)-10 / 5));
 
+  // [78] 支持前置++和--
+  ASSERT(1, ({ char i; sizeof(++i); }));
+  // [79] 支持后置++和--
+  ASSERT(1, ({ char i; sizeof(i++); }));
+
   printf("OK\n");
   return 0;
 }

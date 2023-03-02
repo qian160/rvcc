@@ -132,7 +132,7 @@
 // mul = cast ("*" cast | "/" cast)*
 // cast = "(" typeName ")" cast | unary
 // unary = ("+" | "-" | "*" | "&") cast | postfix | ("++" | "--") unary
-// postfix = primary ("[" expr "]" | "." ident)* | | "->" ident)*
+// postfix = primary ("[" expr "]" | "." ident)* | | "->" ident | "++" | "--")*
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" unary
@@ -842,8 +842,8 @@ static Node *expr(Token **Rest, Token *Tok) {
     return Nd;
 }
 
-// in fact this just lets a op b return a result
 // 转换 A op= B为 TMP = &A, *TMP = *TMP op B
+// let the result be reflected in A
 static Node *toAssign(Node *Binary) {
     // A
     addType(Binary->LHS);
@@ -1073,6 +1073,17 @@ static Node *unary(Token **Rest, Token *Tok) {
     return postfix(Rest, Tok);
 }
 
+// 转换 A++ 为 `(typeof A)((A += 1) - 1)`
+// Increase Decrease
+static Node *newIncDec(Node *Nd, Token *Tok, int Addend) {
+    addType(Nd);
+    return newCast(
+            newAdd(toAssign(newAdd(Nd, newNum(Addend, Tok), Tok)),
+            newNum(-Addend, Tok), Tok),
+    Nd->Ty);
+}
+
+
 /*
 //  essence: convert the [] operator to some pointer dereferrence
 //    input = a[5][10]
@@ -1091,7 +1102,7 @@ static Node *unary(Token **Rest, Token *Tok) {
 //            /   \
 //       primary  expr(idx=5)       */
 
-// postfix = primary ("[" expr "]" | "." ident)* | "->" ident)*
+// postfix = primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
 static Node *postfix(Token **Rest, Token *Tok) {
     // primary
     Node *Nd = primary(&Tok, Tok);
@@ -1120,6 +1131,18 @@ static Node *postfix(Token **Rest, Token *Tok) {
             Nd = newUnary(ND_DEREF, Nd, Tok);
             Nd = structRef(Nd, Tok->Next);
             Tok = Tok->Next->Next;
+            continue;
+        }
+
+        if (equal(Tok, "++")) {
+            Nd = newIncDec(Nd, Tok, 1);
+            Tok = Tok->Next;
+            continue;
+        }
+
+        if (equal(Tok, "--")) {
+            Nd = newIncDec(Nd, Tok, -1);
+            Tok = Tok->Next;
             continue;
         }
 
