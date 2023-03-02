@@ -113,6 +113,8 @@ typedef enum {
     ND_CAST,        // 类型转换
     ND_NOT,         // !，非
     ND_BITNOT,      // ~，按位取非
+    ND_MOD,         // %，取余
+
 
 } NodeKind;
 

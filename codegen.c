@@ -259,26 +259,31 @@ static void genExpr(Node *Nd) {
 
     // 生成各个根节点
     switch (Nd->Kind) {
-        // 加载数字到a0, leaf node
-        case ND_NUM:
-            println("  li a0, %ld", Nd->Val);
-            return;
-        case ND_NOT:
-            genExpr(Nd->LHS);
-            println("  seqz a0, a0");
-            return;
+    // bitwise op
         // 按位取非运算
         case ND_BITNOT:
             genExpr(Nd->LHS);
             // 这里的 not a0, a0 为 xori a0, a0, -1 的伪码
             println("  not a0, a0");
             return;
+    // logical op
+        case ND_NOT:
+            genExpr(Nd->LHS);
+            println("  seqz a0, a0");
+            return;
+
         // 对寄存器取反
         case ND_NEG:
             genExpr(Nd->LHS);
             // neg a0, a0是sub a0, x0, a0的别名, 即a0=0-a0
             println("  neg%s a0, a0", Nd->Ty->Size <= 4? "w": "");
             return;
+    // others. general op
+        // 加载数字到a0, leaf node
+        case ND_NUM:
+            println("  li a0, %ld", Nd->Val);
+            return;
+
         // 变量. note: array also has VAR type
         case ND_VAR:
         case ND_MEMBER:
@@ -370,6 +375,9 @@ static void genExpr(Node *Nd) {
             return;
         case ND_DIV: // / a0=a0/a1
             println("  div%s a0, a0, a1", Suffix);
+            return;
+        case ND_MOD: // % a0=a0%a1
+            println("  rem%s a0, a0, a1", Suffix);
             return;
         case ND_EQ:
             // if a0 == a1, then a0 ^ a1 should be 0
