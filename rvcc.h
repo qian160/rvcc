@@ -151,9 +151,11 @@ struct Node {
     // 结构体成员访问
     Member *Mem;
     // goto和标签语句
-    char *Label;
-    char *UniqueLabel;
-    Node *GotoNext;
+    char *Label;        // for match
+    char *UniqueLabel;  // final target
+    Node *GotoNext;     // for match
+    // "break" 标签
+    char *BrkLabel;
 
 };
 

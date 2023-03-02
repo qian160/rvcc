@@ -528,7 +528,7 @@ static void genStmt(Node *Nd) {
                 // 生成条件循环语句
                 genExpr(Nd->Cond);
                 // 判断结果是否为0，为0则跳转到结束部分
-                println("  beqz a0, .L.end.%d", C);
+                println("  beqz a0, %s", Nd->BrkLabel);
             }
             // 生成循环体语句
             genStmt(Nd->Then);
@@ -541,7 +541,7 @@ static void genStmt(Node *Nd) {
             // 跳转到循环头部
             println("  j .L.begin.%d", C);
             // 输出循环尾部标签
-            println(".L.end.%d:", C);
+            println("%s:", Nd->BrkLabel);
             return;
         }
         // goto语句

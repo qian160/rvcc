@@ -123,6 +123,7 @@
 //        | "while" "(" expr ")" stmt
 //        | "goto" ident ";"
 //        | ident ":" stmt
+//        | break ";"
 
 // exprStmt = expr? ";"
 
@@ -205,6 +206,8 @@ static Obj *CurrentFn;
 Node *Gotos;
 Node *Labels;
 
+// 当前goto跳转的目标
+static char *BrkLabel;
 
 //
 // 生成AST（抽象语法树），语法解析
@@ -812,6 +815,11 @@ static Node *stmt(Token **Rest, Token *Tok) {
         // "("
         // 进入for循环域
         enterScope();
+        // 存储此前break标签的名称
+        char *Brk = BrkLabel;
+        // 设置break标签的名称
+        BrkLabel = Nd->BrkLabel = newUniqueName();
+
         Tok = skip(Tok->Next, "(");
 
         if (isTypename(Tok)) {
@@ -837,6 +845,9 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
         // stmt
         Nd->Then = stmt(Rest, Tok);
+        // 恢复此前的break标签
+        BrkLabel = Brk;
+
         leaveScope();
         return Nd;
     }
@@ -851,8 +862,14 @@ static Node *stmt(Token **Rest, Token *Tok) {
         Nd->Cond = expr(&Tok, Tok);
         // ")"
         Tok = skip(Tok, ")");
+        // 存储此前break标签的名称
+        char *Brk = BrkLabel;
+        // 设置break标签的名称
+        BrkLabel = Nd->BrkLabel = newUniqueName();
         // stmt
         Nd->Then = stmt(Rest, Tok);
+        // 恢复此前的break标签
+        BrkLabel = Brk;
         return Nd;
     }
 
@@ -864,6 +881,17 @@ static Node *stmt(Token **Rest, Token *Tok) {
         Nd->GotoNext = Gotos;
         Gotos = Nd;
         *Rest = skip(Tok->Next->Next, ";");
+        return Nd;
+    }
+
+    // "break" ";"
+    if (equal(Tok, "break")) {
+        if (!BrkLabel)
+            errorTok(Tok, "stray break");
+        // 跳转到break标签的位置
+        Node *Nd = newNode(ND_GOTO, Tok);
+        Nd->UniqueLabel = BrkLabel;
+        *Rest = skip(Tok->Next, ";");
         return Nd;
     }
 
