@@ -232,7 +232,6 @@ bool equal(Token *Tok, char *Str);
 Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);
-int64_t getNumber(Token *Tok);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
@@ -271,6 +270,9 @@ char *format(char *Fmt, ...);
 
 void errorTok(Token *Tok, char *Fmt, ...);
 void errorAt(char *Loc, char *Fmt, ...);
+
+/* ---------- parse-util.c ---------- */
+int64_t constExpr(Token **Rest, Token *Tok);
 
 //
 // macros

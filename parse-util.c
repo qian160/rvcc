@@ -328,3 +328,81 @@ void resolveGotoLabels(void) {
     Gotos = NULL;
     Labels = NULL;
 }
+
+// 计算给定节点的常量表达式计算
+static int64_t eval(Node *Nd) {
+    addType(Nd);
+
+    switch (Nd->Kind) {
+        case ND_ADD:
+            return eval(Nd->LHS) + eval(Nd->RHS);
+        case ND_SUB:
+            return eval(Nd->LHS) - eval(Nd->RHS);
+        case ND_MUL:
+            return eval(Nd->LHS) * eval(Nd->RHS);
+        case ND_DIV:
+            return eval(Nd->LHS) / eval(Nd->RHS);
+        case ND_NEG:
+            return -eval(Nd->LHS);
+        case ND_MOD:
+            return eval(Nd->LHS) % eval(Nd->RHS);
+        case ND_BITAND:
+            return eval(Nd->LHS) & eval(Nd->RHS);
+        case ND_BITOR:
+            return eval(Nd->LHS) | eval(Nd->RHS);
+        case ND_BITXOR:
+            return eval(Nd->LHS) ^ eval(Nd->RHS);
+        case ND_SHL:
+            return eval(Nd->LHS) << eval(Nd->RHS);
+        case ND_SHR:
+            return eval(Nd->LHS) >> eval(Nd->RHS);
+        case ND_EQ:
+            return eval(Nd->LHS) == eval(Nd->RHS);
+        case ND_NE:
+            return eval(Nd->LHS) != eval(Nd->RHS);
+        case ND_LT:
+            return eval(Nd->LHS) < eval(Nd->RHS);
+        case ND_LE:
+            return eval(Nd->LHS) <= eval(Nd->RHS);
+        case ND_COND:
+            return eval(Nd->Cond) ? eval(Nd->Then) : eval(Nd->Els);
+        case ND_COMMA:
+            return eval(Nd->RHS);
+        case ND_NOT:
+            return !eval(Nd->LHS);
+        case ND_BITNOT:
+            return ~eval(Nd->LHS);
+        case ND_LOGAND:
+            return eval(Nd->LHS) && eval(Nd->RHS);
+        case ND_LOGOR:
+            return eval(Nd->LHS) || eval(Nd->RHS);
+        case ND_CAST:
+            if (isInteger(Nd->Ty)) {
+                switch (Nd->Ty->Size) {
+                    case 1:
+                        return (uint8_t)eval(Nd->LHS);
+                    case 2:
+                        return (uint16_t)eval(Nd->LHS);
+                    case 4:
+                        return (uint32_t)eval(Nd->LHS);
+                }
+            }
+            return eval(Nd->LHS);
+        case ND_NUM:
+            return Nd->Val;
+        default:
+            break;
+    }
+
+    errorTok(Nd->Tok, "not a compile-time constant");
+    return -1;
+}
+
+extern Node *conditional(Token **Rest, Token *Tok);
+// 解析常量表达式
+int64_t constExpr(Token **Rest, Token *Tok) {
+    // 进行常量表达式的构造
+    Node *Nd = conditional(Rest, Tok);
+    // 进行常量表达式的计算
+    return eval(Nd);
+}

@@ -120,10 +120,10 @@
 
 // enumSpecifier = ident? "{" enumList? "}"
 //                 | ident ("{" enumList? "}")?
-// enumList = ident ("=" num)? ("," ident ("=" num)?)*
+// enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)*
 
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
-// typeSuffix = ( funcParams  | "[" arrayDimensions? "]"  typeSuffix)?
+// typeSuffix = ( funcParams  | "[" constExpr? "]"  typeSuffix)?
 // funcParams =  "(" (param ("," param)*)? ")"
 //      param = declspec declarator
 
@@ -147,7 +147,7 @@
 //        | ident ":" stmt
 //        | "break" ";" | "continue" ";"
 //        | "switch" "(" expr ")" stmt
-//        | "case" num ":" stmt
+//        | "case" constExpr ":" stmt
 //        | "default" ":" stmt
 
 // exprStmt = expr? ";"
@@ -197,7 +197,7 @@ static Node *stmt(Token **Rest, Token *Tok);
 static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
 static Node *assign(Token **Rest, Token *Tok);
-static Node *conditional(Token **Rest, Token *Tok);
+/*  */ Node *conditional(Token **Rest, Token *Tok);
 static Node *logOr(Token **Rest, Token *Tok);
 static Node *logAnd(Token **Rest, Token *Tok);
 static Node *bitOr(Token **Rest, Token *Tok);
@@ -486,26 +486,26 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
         return Ty;
 }
 
-// typeSuffix = ( funcParams?  | "[" arrayDimensions? "] typeSuffix")?
+// typeSuffix = ( funcParams?  | "[" constExpr? "] typeSuffix")?
 // if function, construct its formal parms. otherwise do nothing
 // since we want to recursively construct its type, we need to pass the former type as an argument
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
     // ("(" funcParams? ")")?
     if (equal(Tok, "("))
         return funcParams(Rest, Tok, Ty);
-    // "[" arrayDimensions? "] typeSuffix"
+    // "[" constExpr? "] typeSuffix"
     if (equal(Tok, "[")) {
-        // "]" 无数组维数的 "[]"
+        Tok = skip(Tok, "[");
+        // 无数组维数的 "[]"
         // sizeof(int(*)[][10])
-        if(equal(Tok->Next, "]")){
-            Ty = typeSuffix(Rest, Tok->Next->Next, Ty);
+        if(equal(Tok, "]")){
+            Ty = typeSuffix(Rest, Tok->Next, Ty);
             return arrayOf(Ty, -1);
         }
         // 有数组维数的情况
         else{
-            int64_t Sz = getNumber(Tok->Next);  // array size
-            // skip num and ]
-            Tok = skip(Tok->Next->Next, "]");
+            int64_t Sz = constExpr(&Tok, Tok);  // array size
+            Tok = skip(Tok, "]");
             Ty = typeSuffix(Rest, Tok, Ty);
             return arrayOf(Ty, Sz);         // recursion 
         }
@@ -663,7 +663,7 @@ static Node *structRef(Node *LHS, Token *Tok) {
 // 获取枚举类型信息
 // enumSpecifier = ident? "{" enumList? "}"
 //               | ident ("{" enumList? "}")?
-// enumList      = ident ("=" num)? ("," ident ("=" num)?)*
+// enumList      = ident ("=" constExpr)? ("," ident ("=" num)?)*
 static Type *enumSpecifier(Token **Rest, Token *Tok) {
     Type *Ty = enumType();
     // 读取标签
@@ -700,10 +700,8 @@ static Type *enumSpecifier(Token **Rest, Token *Tok) {
         Tok = Tok->Next;
 
         // 判断是否存在赋值
-        if (equal(Tok, "=")) {
-            Val = getNumber(Tok->Next);
-            Tok = Tok->Next->Next;
-        }
+        if (equal(Tok, "="))
+            Val = constExpr(&Tok, Tok->Next);
         // 存入枚举常量
         VarScope *S = pushScope(Name);
         S->EnumTy = Ty;
@@ -985,11 +983,11 @@ static Node *stmt(Token **Rest, Token *Tok) {
         if (!CurrentSwitch)
             errorTok(Tok, "stray case");
         // case后面的数值
-        int Val = getNumber(Tok->Next);
+        int Val = constExpr(&Tok, Tok->Next);
 
         Node *Nd = newNode(ND_CASE, Tok);
 
-        Tok = skip(Tok->Next->Next, ":");
+        Tok = skip(Tok, ":");
         Nd->Label = newUniqueName();
         // case中的语句
         Nd->LHS = stmt(Rest, Tok);
@@ -1157,7 +1155,7 @@ static Node *assign(Token **Rest, Token *Tok) {
 
 // 解析条件运算符
 // conditional = logOr ("?" expr ":" conditional)?
-static Node *conditional(Token **Rest, Token *Tok) {
+Node *conditional(Token **Rest, Token *Tok) {
     // logOr
     Node *Cond = logOr(&Tok, Tok);
 
@@ -1705,7 +1703,7 @@ Obj *parse(Token *Tok) {
     Globals = NULL;
 
     // fn or gv?
-    // int *** fn(){}, or int**** a;
+    // int *** fn(){},  int**** a;
     while (Tok->Kind != TK_EOF) {
         VarAttr Attr = {};
         // at first I just use "VarAttr Attr;"
@@ -1716,11 +1714,11 @@ Obj *parse(Token *Tok) {
             Tok = parseTypedef(Tok, BaseTy);
             continue;
         }
-        // judge fn or gv. straight-forward approach
+        // straightforward approach
         Token *Start = Tok;
         while(!equal(Start, ";") && !equal(Start, "("))
             Start = Start->Next;
-        bool isFn = equal(Start, "(")? true: false;
+        bool isFn = equal(Start, "(");
 
         if (isFn)
             Tok = function(Tok, BaseTy, &Attr);
