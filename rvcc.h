@@ -123,6 +123,8 @@ typedef enum {
     ND_LABEL,       // 标签语句
     ND_SWITCH,      // "switch"，分支语句
     ND_CASE,        // "case"
+    ND_SHL,         // <<，左移
+    ND_SHR,         // >>，右移
 
 } NodeKind;
 

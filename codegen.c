@@ -409,6 +409,12 @@ static void genExpr(Node *Nd) {
         case ND_MOD: // % a0=a0%a1
             println("  rem%s a0, a0, a1", Suffix);
             return;
+        case ND_SHL:
+            println("  sll%s a0, a0, a1", Suffix);
+            return;
+        case ND_SHR:
+            println("  sra%s a0, a0, a1", Suffix);
+            return;
         case ND_EQ:
             // if a0 == a1, then a0 ^ a1 should be 0
             println("  xor a0, a0, a1");
@@ -550,7 +556,7 @@ static void genStmt(Node *Nd) {
         case ND_GOTO:
             println("  j %s", Nd->UniqueLabel);
             return;
-        // 标签语句
+        // 标签语句, print the label
         case ND_LABEL:
             println("%s:", Nd->UniqueLabel);
             genStmt(Nd->LHS);

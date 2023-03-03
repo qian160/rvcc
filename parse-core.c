@@ -85,6 +85,28 @@
 //                ↓ Next        4
 //           ND_EXPR_STMT -> 2
 
+/*
+//         input = 
+//         switch (val) {
+//           case 1:
+//             ...
+//           case 2:
+//             ...
+//           default:
+//             ...
+//         }
+//
+//                          Then
+//          CurrentSwitch    ->     ND_BLOCK
+//           /   |  \                   |
+//         val   | BrkLabel             ↓ Body      CaseNext
+//               ↓                    ND_CASE       ->      ND_CASE ->  NULL
+//          DefaultCase             /    |    \            /   |   \
+//            /      \        LHS=STMT val=2  label      LHS  val=1  label
+//      LHS=STMT     label
+//
+*/
+
 // ↓↑
 
 // note: a single number can match almost all the cases.
@@ -136,9 +158,10 @@
 //      bitOr = bitXor ("|" bitXor)*
 //      bitXor = bitAnd ("^" bitAnd)*
 //      bitAnd = equality ("&" equality)*
-//      assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
+//      assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>="
 // equality = relational ("==" relational | "!=" relational)*
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+// relational = shift ("<" shift | "<=" shift | ">" shift | ">=" shift)*
+// shift = add ("<<" add | ">>" add)*
 // add = mul ("+" mul | "-" mul)*
 // mul = cast ("*" cast | "/" cast | "%" cast)*
 // cast = "(" typeName ")" cast | unary
@@ -180,6 +203,7 @@ static Node *bitXor(Token **Rest, Token *Tok);
 static Node *bitAnd(Token **Rest, Token *Tok);
 static Node *equality(Token **Rest, Token *Tok);
 static Node *relational(Token **Rest, Token *Tok);
+static Node *shift(Token **Rest, Token *Tok);
 static Node *add(Token **Rest, Token *Tok);
 /*  */ Node *newAdd(Node *LHS, Node *RHS, Token *Tok);
 /*  */ Node *newSub(Node *LHS, Node *RHS, Token *Tok);
@@ -212,10 +236,9 @@ Node *Labels;
 static char *BrkLabel;
 // 当前continue跳转的目标
 static char *ContLabel;
-
-// 如果我们正在解析switch语句，则指向表示switch的节点。
-// 否则为空。
+// 如果我们正在解析switch语句，则指向表示switch的节点。 否则为空。
 static Node *CurrentSwitch;
+// 记录这些标签名、节点是为了在后续递归解析相关语句的时候能拿来给节点赋值。同时也可以防止stray现象
 
 
 //
@@ -824,16 +847,17 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
     // "for" "(" exprStmt expr? ";" expr? ")" stmt
     if (equal(Tok, "for")) {
-        Node *Nd = newNode(ND_FOR, Tok);
-        // "("
-        // 进入for循环域
-        enterScope();
         // 存储此前break和continue标签的名称
         char *Brk = BrkLabel;
         char *Cont = ContLabel;
+        Node *Nd = newNode(ND_FOR, Tok);
         // 设置break标签的名称
         BrkLabel = Nd->BrkLabel = newUniqueName();
         ContLabel = Nd->ContLabel = newUniqueName();
+
+        // 进入for循环域
+        enterScope();
+        // "("
         Tok = skip(Tok->Next, "(");
 
         if (isTypename(Tok)) {
@@ -869,20 +893,22 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
     // "while" "(" expr ")" stmt
     // while(cond){then...}
+    // note: while is implemented by for
     if (equal(Tok, "while")) {
+        // 存储此前break和continue标签的名称
+        char *Brk = BrkLabel;
+        char *Cont = ContLabel;
         Node *Nd = newNode(ND_FOR, Tok);
+        // 设置break标签的名称
+        BrkLabel = Nd->BrkLabel = newUniqueName();
+        ContLabel = Nd->ContLabel = newUniqueName();
         // "("
         Tok = skip(Tok->Next, "(");
         // expr
         Nd->Cond = expr(&Tok, Tok);
         // ")"
         Tok = skip(Tok, ")");
-        // 存储此前break和continue标签的名称
-        char *Brk = BrkLabel;
-        char *Cont = ContLabel;
-        // 设置break标签的名称
-        BrkLabel = Nd->BrkLabel = newUniqueName();
-        ContLabel = Nd->ContLabel = newUniqueName();
+
         // stmt
         Nd->Then = stmt(Rest, Tok);
         // 恢复此前的break和continue标签
@@ -923,16 +949,16 @@ static Node *stmt(Token **Rest, Token *Tok) {
         *Rest = skip(Tok->Next, ";");
         return Nd;
     }
-
     // "switch" "(" expr ")" stmt
         if (equal(Tok, "switch")) {
+        // 记录此前的CurrentSwitch
+        Node *Sw = CurrentSwitch;
+
         Node *Nd = newNode(ND_SWITCH, Tok);
         Tok = skip(Tok->Next, "(");
         Nd->Cond = expr(&Tok, Tok);
         Tok = skip(Tok, ")");
 
-        // 记录此前的CurrentSwitch
-        Node *Sw = CurrentSwitch;
         // 设置当前的CurrentSwitch
         CurrentSwitch = Nd;
 
@@ -960,6 +986,7 @@ static Node *stmt(Token **Rest, Token *Tok) {
         int Val = getNumber(Tok->Next);
 
         Node *Nd = newNode(ND_CASE, Tok);
+
         Tok = skip(Tok->Next->Next, ":");
         Nd->Label = newUniqueName();
         // case中的语句
@@ -967,6 +994,7 @@ static Node *stmt(Token **Rest, Token *Tok) {
         // case对应的数值
         Nd->Val = Val;
         // 将旧的CurrentSwitch链表的头部存入Nd的CaseNext
+        // insert from head
         Nd->CaseNext = CurrentSwitch->CaseNext;
         // 将Nd存入CurrentSwitch的CaseNext
         CurrentSwitch->CaseNext = Nd;
@@ -1078,7 +1106,7 @@ static Node *toAssign(Node *Binary) {
 // ND_COMMA, which could be unnecessary sometimes and causes bugs. use assign instead
 // 解析赋值
 // assign = logOr (assignOp assign)?
-// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
+// assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>="
 static Node *assign(Token **Rest, Token *Tok) {
     // equality
     Node *Nd = logOr(&Tok, Tok);
@@ -1112,6 +1140,14 @@ static Node *assign(Token **Rest, Token *Tok) {
     // ("^=" assign)?
     if (equal(Tok, "^="))
         return toAssign(newBinary(ND_BITXOR, Nd, assign(Rest, Tok->Next), Tok));
+
+    // ("<<=" assign)?
+    if (equal(Tok, "<<="))
+        return toAssign(newBinary(ND_SHL, Nd, assign(Rest, Tok->Next), Tok));
+    // (">>=" assign)?
+    if (equal(Tok, ">>="))
+        return toAssign(newBinary(ND_SHR, Nd, assign(Rest, Tok->Next), Tok));
+
 
     *Rest = Tok;
     return Nd;
@@ -1205,40 +1241,63 @@ static Node *equality(Token **Rest, Token *Tok) {
 }
 
 // 解析比较关系
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+// relational = shift ("<" shift | "<=" shift | ">" shift | ">=" shift)*
 static Node *relational(Token **Rest, Token *Tok) {
     // add
-    Node *Nd = add(&Tok, Tok);
+    Node *Nd = shift(&Tok, Tok);
 
     // ("<" add | "<=" add | ">" add | ">=" add)*
     while (true) {
         Token *start = Tok;
-        // "<" add
+        // "<" shift
         if (equal(Tok, "<")) {
-            Nd = newBinary(ND_LT, Nd, add(&Tok, Tok->Next), start);
+            Nd = newBinary(ND_LT, Nd, shift(&Tok, Tok->Next), start);
             continue;
         }
 
-        // "<=" add
+        // "<=" shift
         if (equal(Tok, "<=")) {
-            Nd = newBinary(ND_LE, Nd, add(&Tok, Tok->Next), start);
+            Nd = newBinary(ND_LE, Nd, shift(&Tok, Tok->Next), start);
             continue;
         }
 
-        // ">" add
+        // ">" shift
         // X>Y等价于Y<X
         if (equal(Tok, ">")) {
-            Nd = newBinary(ND_LT, add(&Tok, Tok->Next), Nd, start);
+            Nd = newBinary(ND_LT, shift(&Tok, Tok->Next), Nd, start);
             continue;
         }
 
-        // ">=" add
+        // ">=" shift
         // X>=Y等价于Y<=X
         if (equal(Tok, ">=")) {
-            Nd = newBinary(ND_LE, add(&Tok, Tok->Next), Nd, start);
+            Nd = newBinary(ND_LE, shift(&Tok, Tok->Next), Nd, start);
             continue;
         }
 
+        *Rest = Tok;
+        return Nd;
+    }
+}
+
+// 解析位移
+// shift = add ("<<" add | ">>" add)*
+static Node *shift(Token **Rest, Token *Tok) {
+    // add
+    Node *Nd = add(&Tok, Tok);
+
+    while (true) {
+        Token *Start = Tok;
+        // "<<" add
+        if (equal(Tok, "<<")) {
+            Nd = newBinary(ND_SHL, Nd, add(&Tok, Tok->Next), Start);
+            continue;
+        }
+        // ">>" add
+        if (equal(Tok, ">>")) {
+            Nd = newBinary(ND_SHR, Nd, add(&Tok, Tok->Next), Start);
+            continue;
+        }
         *Rest = Tok;
         return Nd;
     }

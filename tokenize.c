@@ -245,11 +245,12 @@ static bool isIdent2(char C) {
 
 // 读取操作符, return the length
 static int readPunct(char *Ptr) {
-    // 判断多字节的操作符
+    // 判断多字节的操作符. note: "<<=" need to be checked before <<
     static char *Kw[] = {
+        "<<=", ">>=",
         "==", "!=", "<=", ">=", "->", 
         "+=", "-=", "*=", "/=", "++", "--", 
-        "%=", "^=", "|=", "&=", "&&", "||"
+        "%=", "^=", "|=", "&=", "&&", "||", "<<", ">>"
     };
 
     // 遍历列表匹配Ptr字符串
