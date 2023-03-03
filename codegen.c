@@ -386,6 +386,9 @@ static void genExpr(Node *Nd) {
             println(".L.end.%d:", C);
             return;
         }
+        // 空表达式
+        case ND_NULL_EXPR:
+            return;
 
         default:
             break;

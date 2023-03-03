@@ -1,3 +1,4 @@
+//! 语法分析阶段用到的各种东西，包括数据结构，和一些公共函数
 #include"rvcc.h"
 
 //
@@ -15,6 +16,7 @@ struct VarScope {
     int EnumVal;    // 枚举的值
 };
 
+__attribute__((unused))
 enum {
     STRUCT_TAG,
     UNION_TAG,
@@ -44,6 +46,38 @@ typedef struct {
     bool IsTypedef; // 是否为类型别名
     bool IsStatic;  // 是否为文件域内
 } VarAttr;
+
+//
+// initializer list
+//
+
+// 可变的初始化器。此处为树状结构。
+// 因为初始化器可以是嵌套的，
+// 类似于 int x[2][2] = {{1, 2}, {3, 4}} ，
+typedef struct Initializer Initializer;
+struct Initializer {
+    Initializer *Next; // 下一个
+    Type *Ty;          // 原始类型
+//    Token *Tok;        // 终结符
+
+    // 如果不是聚合类型，并且有一个初始化器，Expr 有对应的初始化表达式。
+    Node *Expr;
+
+    // 如果是聚合类型（如数组或结构体），Children有子节点的初始化器
+    // array of pointers
+    Initializer **Children;
+};
+
+// 指派初始化，用于局部变量的初始化器
+typedef struct InitDesig InitDesig;
+struct InitDesig {
+    InitDesig *Next; // 下一个
+    int Idx;         // 数组中的索引
+    // note: the var is actually virtual. just an address(number, base + offset)
+    // we manage it using deref
+    Obj *Var;        // 对应的变量
+};
+
 
 //
 // helper functions
@@ -83,6 +117,10 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok);
 Node *newVarNode(Obj* Var, Token *Tok);
 Node *newCast(Node *Expr, Type *Ty);
 Node *newLong(int64_t Val, Token *Tok);
+
+// ---------- initializer-list ----------
+
+Node *LVarInitializer(Token **Rest, Token *Tok, Obj *Var);
 
 // ---------- others ----------
 void resolveGotoLabels(void);

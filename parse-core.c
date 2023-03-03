@@ -1,6 +1,6 @@
+//! 语法分析的核心部分，负责创建AST
 #include"rvcc.h"
 #include"parse.h"
-
 
 //    input = "1+2; 3-4;"
 //    add a field 'next' to ast-tree node (下一语句, expr_stmt). see parse()
@@ -134,8 +134,9 @@
 
 // compoundStmt = "{" ( typedef | stmt | declaration)* "}"
 
-// declaration =
-//    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+// declaration = declspec (declarator ("=" initializer)?
+//                         ("," declarator ("=" initializer)?)*)? ";"
+// initializer = "{" initializer ("," initializer)* "}" | assign
 
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
@@ -196,7 +197,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
 static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
-static Node *assign(Token **Rest, Token *Tok);
+/*  */ Node *assign(Token **Rest, Token *Tok);
 /*  */ Node *conditional(Token **Rest, Token *Tok);
 static Node *logOr(Token **Rest, Token *Tok);
 static Node *logAnd(Token **Rest, Token *Tok);
@@ -715,9 +716,10 @@ static Type *enumSpecifier(Token **Rest, Token *Tok) {
     return Ty;
 }
 
-// declaration =
-//    declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
-//      declarator = "*"* ident typeSuffix
+
+// declaration = declspec (declarator ("=" initializer)?
+//                         ("," declarator ("=" initializer)?)*)? ";"
+// initializer = "{" initializer ("," initializer)* "}" | assign
 // add a variable to current scope, then create a node with kind ND_ASSIGN if possible
 static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
     Node Head = {};
@@ -740,24 +742,16 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
             errorTok(Tok, "variable declared void");
 
         Obj *Var = newLVar(getIdent(Ty->Name), Ty);
+        trace("%s, %d", Var->Name, Var->Ty->Kind);
         // trace(" new local var: %s, type = %d", tokenName(Ty->Name), Ty->Kind)
-
-        // 如果不存在"="则为变量声明，不需要生成节点，已经存储在Locals中了
-        if (!equal(Tok, "="))
-            continue;
-
-        // 解析“=”后面的Token
-        Node *LHS = newVarNode(Var, Ty->Name);
-        // 解析递归赋值语句
-        // we use assign instead of expr here to avoid expr's 
-        // further parsing in ND_COMMA, which is not what we want
-        Node *RHS = assign(&Tok, Tok->Next);
-        Node *Node = newBinary(ND_ASSIGN, LHS, RHS, Tok);
-        // 存放在表达式语句中
-        Cur->Next = newUnary(ND_EXPR_STMT, Node, Tok);
-        Cur = Cur->Next;
+        if (equal(Tok, "=")) {
+            // 解析变量的初始化器
+            Node *Expr = LVarInitializer(&Tok, Tok->Next, Var);
+            // 存放在表达式语句中
+            Cur->Next = newUnary(ND_EXPR_STMT, Expr, Tok);
+            Cur = Cur->Next;
+        }
     }
-
     // 将所有表达式语句，存放在代码块中
     Node *Nd = newNode(ND_BLOCK, Tok);
     Nd->Body = Head.Next;
@@ -1107,7 +1101,7 @@ static Node *toAssign(Node *Binary) {
 // 解析赋值
 // assign = conditional (assignOp assign)?
 // assignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>="
-static Node *assign(Token **Rest, Token *Tok) {
+Node *assign(Token **Rest, Token *Tok) {
     // equality
     Node *Nd = conditional(&Tok, Tok);
 

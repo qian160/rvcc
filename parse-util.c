@@ -1,3 +1,4 @@
+//! 语法分析过程中的辅助函数
 #include"rvcc.h"
 #include"parse.h"
 
@@ -330,6 +331,8 @@ void resolveGotoLabels(void) {
 }
 
 // 计算给定节点的常量表达式计算
+// note: the value must can be known at compile time.
+// so variables are not allowed here
 static int64_t eval(Node *Nd) {
     addType(Nd);
 
