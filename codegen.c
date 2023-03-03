@@ -374,6 +374,18 @@ static void genExpr(Node *Nd) {
             genExpr(Nd->LHS);
             cast(Nd->LHS->Ty, Nd->Ty);
             return;
+        // 条件运算符
+        case ND_COND: {
+            int C = count();
+            genExpr(Nd->Cond);
+            println("  beqz a0, .L.else.%d", C);
+            genExpr(Nd->Then);
+            println("  j .L.end.%d", C);
+            println(".L.else.%d:", C);
+            genExpr(Nd->Els);
+            println(".L.end.%d:", C);
+            return;
+        }
 
         default:
             break;

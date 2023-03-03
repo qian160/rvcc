@@ -125,7 +125,7 @@ typedef enum {
     ND_CASE,        // "case"
     ND_SHL,         // <<，左移
     ND_SHR,         // >>，右移
-
+    ND_COND,        // ?:，条件运算符
 } NodeKind;
 
 // AST中二叉树节点
