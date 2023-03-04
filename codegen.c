@@ -386,6 +386,14 @@ static void genExpr(Node *Nd) {
             println(".L.end.%d:", C);
             return;
         }
+        // 内存清零
+        case ND_MEMZERO: {
+            println("  # 对%s的内存%d(fp)清零%d位", Nd->Var->Name, Nd->Var->Offset, Nd->Var->Ty->Size);
+            // 对栈内变量所占用的每个字节都进行清零
+            for (int I = 0; I < Nd->Var->Ty->Size; I++)
+                println("  sb zero, %d(fp)", Nd->Var->Offset + I);
+            return;
+        }
         // 空表达式
         case ND_NULL_EXPR:
             return;

@@ -73,9 +73,10 @@ typedef struct InitDesig InitDesig;
 struct InitDesig {
     InitDesig *Next; // 下一个
     int Idx;         // 数组中的索引
-    // note: the var is actually virtual. just an address(number, base + offset)
-    // we manage it using deref
     Obj *Var;        // 对应的变量
+    // note: the field "Next" is used to represent the times of deref.
+    // see InitDesigVar(), only the outmost desig has var, and each
+    // recursion we add a ND_DEREF to AST if var is not found
 };
 
 

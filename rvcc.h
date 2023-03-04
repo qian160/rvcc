@@ -127,6 +127,7 @@ typedef enum {
     ND_SHR,         // >>，右移
     ND_COND,        // ?:，条件运算符
     ND_NULL_EXPR,   // 空表达式
+    ND_MEMZERO,     // 栈中变量清零
 } NodeKind;
 
 // AST中二叉树节点

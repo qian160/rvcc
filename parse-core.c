@@ -742,7 +742,6 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
             errorTok(Tok, "variable declared void");
 
         Obj *Var = newLVar(getIdent(Ty->Name), Ty);
-        trace("%s, %d", Var->Name, Var->Ty->Kind);
         // trace(" new local var: %s, type = %d", tokenName(Ty->Name), Ty->Kind)
         if (equal(Tok, "=")) {
             // 解析变量的初始化器
