@@ -58,6 +58,7 @@ typedef struct Initializer Initializer;
 struct Initializer {
     Initializer *Next; // 下一个
     Type *Ty;          // 原始类型
+    bool IsFlexible;   // 可调整的，表示需要重新构造
 //    Token *Tok;        // 终结符
 
     // 如果不是聚合类型，并且有一个初始化器，Expr 有对应的初始化表达式。

@@ -735,8 +735,6 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
         // declarator
         // 声明获取到变量类型，包括变量名
         Type *Ty = declarator(&Tok, Tok, BaseTy);
-        if (Ty->Size < 0)
-            errorTok(Tok, "variable has incomplete type");
 
         if(Ty->Kind == TY_VOID)
             errorTok(Tok, "variable declared void");
@@ -750,6 +748,11 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy) {
             Cur->Next = newUnary(ND_EXPR_STMT, Expr, Tok);
             Cur = Cur->Next;
         }
+        if (Var->Ty->Size < 0)
+            errorTok(Ty->Name, "variable has incomplete type");
+        if (Var->Ty->Kind == TY_VOID)
+            errorTok(Ty->Name, "variable declared void");
+
     }
     // 将所有表达式语句，存放在代码块中
     Node *Nd = newNode(ND_BLOCK, Tok);
