@@ -96,7 +96,7 @@ static Initializer *newInitializer(Type *Ty, bool IsFlexible) {
     }
 
     // 处理结构体
-    if (Ty->Kind == TY_STRUCT) {
+    if (Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION) {
         // 计算结构体成员的数量
         int Len = 0;
         for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
@@ -189,11 +189,22 @@ static void structInitializer(Token **Rest, Token *Tok, Initializer *Init) {
     }
 }
 
+// unionInitializer = "{" initializer "}"
+static void unionInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+    // 联合体只接受第一个成员用来初始化
+    Tok = skip(Tok, "{");
+    _initializer(&Tok, Tok, Init->Children[0]);
+    *Rest = skip(Tok, "}");
+}
+
+
 // initializer = stringInitializer | arrayInitializer | structInitializer
-//             | assign
+//             | unionInitializer |assign
 // stringInitializer = stringLiteral
 // arrayInitializer = "{" initializer ("," initializer)* "}"
 // structInitializer = "{" initializer ("," initializer)* "}"
+// unionInitializer = "{" initializer "}"
+
 // 这里往框架结构上面添加了叶子节点(assign语句)
 static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
     // 字符串字面量的初始化
@@ -219,8 +230,13 @@ static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
                 return;
             }
         }
-
         structInitializer(Rest, Tok, Init);
+        return;
+    }
+
+    // 联合体的初始化
+    if (Init->Ty->Kind == TY_UNION) {
+        unionInitializer(Rest, Tok, Init);
         return;
     }
 
@@ -296,6 +312,12 @@ static Node *createLVarInit(Initializer *Init, Type *Ty, InitDesig *Desig, Token
         return Nd;
     }
 
+    if (Ty->Kind == TY_UNION) {
+        // Desig2存储了成员变量
+        InitDesig Desig2 = {Desig, .Mem = Ty->Mems};
+        // 只处理第一个成员变量
+        return createLVarInit(Init->Children[0], Ty->Mems->Ty, &Desig2, Tok);
+    }
 
     // 如果需要作为右值的表达式为空，则设为空表达式
     if (!Init->Expr)
