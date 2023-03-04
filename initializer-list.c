@@ -47,6 +47,18 @@
 
 extern Node *assign(Token **Rest, Token *Tok);
 
+// 跳过多余的元素
+static Token *skipExcessElement(Token *Tok) {
+    if (equal(Tok, "{")) {
+        Tok = skipExcessElement(Tok->Next);
+        return skip(Tok, "}");
+    }
+
+    // 解析并舍弃多余的元素
+    assign(&Tok, Tok);
+    return Tok;
+}
+
 // 新建初始化器. 这里只创建了初始化器的框架结构
 static Initializer *newInitializer(Type *Ty) {
     Initializer *Init = calloc(1, sizeof(Initializer));
@@ -74,10 +86,15 @@ static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
         Tok = skip(Tok, "{");
 
         // 遍历数组
-        for (int I = 0; I < Init->Ty->ArrayLen && !equal(Tok, "}"); I++) {
+        for (int I = 0; !consume(Rest, Tok, "}"); I++) {
             if (I > 0)
                 Tok = skip(Tok, ",");
-            _initializer(&Tok, Tok, Init->Children[I]);
+            // 正常解析元素
+            if (I < Init->Ty->ArrayLen)
+                _initializer(&Tok, Tok, Init->Children[I]);
+            // 跳过多余的元素
+            else
+                Tok = skipExcessElement(Tok);
         }
         *Rest = skip(Tok, "}");
         return;
