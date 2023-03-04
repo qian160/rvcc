@@ -124,6 +124,7 @@ Node *newLong(int64_t Val, Token *Tok);
 // ---------- initializer-list ----------
 
 Node *LVarInitializer(Token **Rest, Token *Tok, Obj *Var);
+void GVarInitializer(Token **Rest, Token *Tok, Obj *Var);
 
 // ---------- others ----------
 void resolveGotoLabels(void);

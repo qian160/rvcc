@@ -275,6 +275,7 @@ void errorTok(Token *Tok, char *Fmt, ...);
 void errorAt(char *Loc, char *Fmt, ...);
 
 /* ---------- parse-util.c ---------- */
+int64_t eval(Node *Nd);
 int64_t constExpr(Token **Rest, Token *Tok);
 
 //

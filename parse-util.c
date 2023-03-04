@@ -288,7 +288,10 @@ Token *globalVariable(Token *Tok, Type *BaseTy) {
         First = false;
 
         Type *Ty = declarator(&Tok, Tok, BaseTy);
-        newGVar(getIdent(Ty->Name), Ty);
+        // 全局变量初始化
+        Obj *Var = newGVar(getIdent(Ty->Name), Ty);
+        if (equal(Tok, "="))
+            GVarInitializer(&Tok, Tok->Next, Var);
     }
     return Tok;
 }
@@ -333,7 +336,7 @@ void resolveGotoLabels(void) {
 // 计算给定节点的常量表达式计算
 // note: the value must can be known at compile time.
 // so variables are not allowed here
-static int64_t eval(Node *Nd) {
+int64_t eval(Node *Nd) {
     addType(Nd);
 
     switch (Nd->Kind) {
