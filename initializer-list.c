@@ -95,6 +95,22 @@ static Initializer *newInitializer(Type *Ty, bool IsFlexible) {
             Init->Children[I] = newInitializer(Ty->Base, false);
     }
 
+    // 处理结构体
+    if (Ty->Kind == TY_STRUCT) {
+        // 计算结构体成员的数量
+        int Len = 0;
+        for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
+            ++Len;
+
+        // 初始化器的子项
+        Init->Children = calloc(Len, sizeof(Initializer *));
+
+        // 遍历子项进行赋值
+        for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
+            Init->Children[Mem->Idx] = newInitializer(Mem->Ty, false);
+        return Init;
+    }
+
     return Init;
 }
 
@@ -117,7 +133,7 @@ static int countArrayInitElements(Token *Tok, Type *Ty) {
 static void stringInitializer(Token **Rest, Token *Tok, Initializer *Init) {
     // 如果是可调整的，就构造一个包含数组的初始化器
     // 字符串字面量在词法解析部分已经增加了'\0'
-    if (Init->IsFlexible)
+    if (Init->IsFlexible)           // TyChar?
         *Init = *newInitializer(arrayOf(Init->Ty->Base, Tok->strLen), false);
     // 取数组和字符串的最短长度
     int Len = MIN(Init->Ty->ArrayLen, Tok->strLen);
@@ -150,10 +166,34 @@ static void arrayInitializer(Token **Rest, Token *Tok, Initializer *Init) {
     }
 }
 
-/*  a[2][3] = {{1,2,3}, {4,5,6}};    */
-// initializer = stringInitializer | arrayInitializer | assign
+// structInitializer = "{" initializer ("," initializer)* "}"
+static void structInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+    Tok = skip(Tok, "{");
+
+    // 成员变量的链表
+    Member *Mem = Init->Ty->Mems;
+
+    while (!consume(Rest, Tok, "}")) {
+        // Mem未指向Init->Ty->Mems，则说明Mem进行过Next的操作，就不是第一个
+        if (Mem != Init->Ty->Mems)
+            Tok = skip(Tok, ",");
+
+        if (Mem) {
+            // 处理成员
+            _initializer(&Tok, Tok, Init->Children[Mem->Idx]);
+            Mem = Mem->Next;
+        } else {
+            // 处理多余的成员
+            Tok = skipExcessElement(Tok);
+        }
+    }
+}
+
+// initializer = stringInitializer | arrayInitializer | structInitializer
+//             | assign
 // stringInitializer = stringLiteral
 // arrayInitializer = "{" initializer ("," initializer)* "}"
+// structInitializer = "{" initializer ("," initializer)* "}"
 // 这里往框架结构上面添加了叶子节点(assign语句)
 static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
     // 字符串字面量的初始化
@@ -168,12 +208,18 @@ static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
         return;
     }
 
+    // 结构体的初始化
+    if (Init->Ty->Kind == TY_STRUCT) {
+        structInitializer(Rest, Tok, Init);
+        return;
+    }
+
     // assign
     // 为节点存储对应的表达式
     Init->Expr = assign(Rest, Tok);
 }
 
-// CREATE 初始化器
+// 初始化器
 static Initializer *initializer(Token **Rest, Token *Tok, Type *Ty, Type **NewTy) {
     // 新建一个解析了类型的初始化器
     Initializer *Init = newInitializer(Ty, true);
@@ -181,6 +227,7 @@ static Initializer *initializer(Token **Rest, Token *Tok, Type *Ty, Type **NewTy
     _initializer(Rest, Tok, Init);
     // 将新类型传回变量
     *NewTy = Init->Ty;
+    // trace("%d, %d", Ty->Size, (*NewTy)->Size);       // Ty->Size could be -1, but NewTy->size is known
     return Init;
 }
 
@@ -192,8 +239,15 @@ static Node *initDesigExpr(InitDesig *Desig, Token *Tok) {
     if (Desig->Var)
         return newVarNode(Desig->Var, Tok);
 
+    // 返回Desig中的成员变量
+    if (Desig->Mem) {
+        Node *Nd = newUnary(ND_MEMBER, initDesigExpr(Desig->Next, Tok), Tok);
+        Nd->Mem = Desig->Mem;
+        return Nd;
+    }
+
     // 需要赋值的变量名
-    // 递归到次外层Desig，有此时最外层有Desig->Var
+    // 递归到次外层Desig，有此时最外层有Desig->Var或者Desig->Mem
     // 然后逐层计算偏移量
     Node *LHS = initDesigExpr(Desig->Next, Tok);
     // 偏移量
@@ -219,6 +273,20 @@ static Node *createLVarInit(Initializer *Init, Type *Ty, InitDesig *Desig, Token
         return Nd;
     }
 
+    if (Ty->Kind == TY_STRUCT) {
+        // 构造结构体的初始化器结构
+        Node *Nd = newNode(ND_NULL_EXPR, Tok);
+
+        for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
+            // Desig2存储了成员变量
+            InitDesig Desig2 = {Desig, .Mem = Mem};
+            Node *RHS = createLVarInit(Init->Children[Mem->Idx], Mem->Ty, &Desig2, Tok);
+            Nd = newBinary(ND_COMMA, Nd, RHS, Tok);
+        }
+        return Nd;
+    }
+
+
     // 如果需要作为右值的表达式为空，则设为空表达式
     if (!Init->Expr)
         return newNode(ND_NULL_EXPR, Tok);
@@ -234,7 +302,7 @@ Node *LVarInitializer(Token **Rest, Token *Tok, Obj *Var) {
     // 这里的Tok指向的是 "=" 后面的那个token
     Initializer *Init = initializer(Rest, Tok, Var->Ty, &Var->Ty);
     // 指派初始化
-    InitDesig Desig = {NULL, 0, Var};   // next, idx, var
+    InitDesig Desig = {.Var = Var};
 
     // 我们首先为所有元素赋0，然后有指定值的再进行赋值
     Node *LHS = newNode(ND_MEMZERO, Tok);

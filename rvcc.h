@@ -215,6 +215,7 @@ struct Member {
     Type *Ty;     // 类型
     Token *Name;  // 名称
     int Offset;   // 偏移量
+    int Idx;      // 索引值
 };
 
 // 声明一个全局变量，定义在type.c中。

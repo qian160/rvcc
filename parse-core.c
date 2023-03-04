@@ -521,6 +521,8 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
 static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
     Member Head = {};
     Member *Cur = &Head;
+    // 记录成员变量的索引值
+    int Idx = 0;
     // struct {int a; int b;} x
     while (!equal(Tok, "}")) {
         // declspec
@@ -536,6 +538,9 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
             // declarator
             Mem->Ty = declarator(&Tok, Tok, BaseTy);
             Mem->Name = Mem->Ty->Name;
+            // 成员变量对应的索引值
+            Mem->Idx = Idx++;
+
             Cur = Cur->Next = Mem;
         }
     }
