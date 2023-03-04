@@ -41,11 +41,25 @@
 //                    (A[0][0]=1)                             +--------+--------+ 
 //                                                            ↓                 ↓
 //                                                        1(Idx)        12(sizeof(A[3]))
+//
+//  input = char x[2][3]={"ab","cd"};
 
+//  initializer-list:
+//
+//                                    Init(TY_ARRAY,len=2)
+//                     +---------------+----------------+
+//                     ↓                                ↓
+//                 children(TY_ARRAY,len=3)          children(TY_ARRAY,len=3)
+//          +----------+----------+           +---------+---------+ 
+//          ↓          ↓          ↓           ↓         ↓         ↓
+//      children   children   children    children   children   children      ->  ALL TY_CHAR
+//         ↓           ↓          ↓           ↓         ↓         ↓
+//      EXPR='a'    EXPR='b'   EXPR=0      EXPR='c'  EXPR='d'    EXPR=0  
 */
 
 
 extern Node *assign(Token **Rest, Token *Tok);
+static void _initializer(Token **Rest, Token *Tok, Initializer *Init);
 
 // 跳过多余的元素
 static Token *skipExcessElement(Token *Tok) {
@@ -77,28 +91,53 @@ static Initializer *newInitializer(Type *Ty) {
     return Init;
 }
 
+// stringInitializer = stringLiteral
+static void stringInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+    // 取数组和字符串的最短长度
+    int Len = MIN(Init->Ty->ArrayLen, Tok->strLen);
+    // 遍历赋值
+    for (int I = 0; I < Len; I++)
+        Init->Children[I]->Expr = newNum(Tok->Str[I], Tok);
+    *Rest = Tok->Next;
+}
+
+// arrayInitializer = "{" initializer ("," initializer)* "}"
+static void arrayInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+    Tok = skip(Tok, "{");
+
+    // 遍历数组
+    for (int I = 0; !consume(Rest, Tok, "}"); I++) {
+        if (I > 0)
+            Tok = skip(Tok, ",");
+
+        // 正常解析元素
+        if (I < Init->Ty->ArrayLen)
+            _initializer(&Tok, Tok, Init->Children[I]);
+        // 跳过多余的元素
+        else
+            Tok = skipExcessElement(Tok);
+    }
+}
+
 /*  a[2][3] = {{1,2,3}, {4,5,6}};    */
-// initializer = "{" initializer ("," initializer)* "}" | assign
+// initializer = stringInitializer | arrayInitializer | assign
+// stringInitializer = stringLiteral
+// arrayInitializer = "{" initializer ("," initializer)* "}"
 // 这里往框架结构上面添加了叶子节点(assign语句)
 static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
-    // "{" initializer ("," initializer)* "}"
-    if (Init->Ty->Kind == TY_ARRAY) {
-        Tok = skip(Tok, "{");
-
-        // 遍历数组
-        for (int I = 0; !consume(Rest, Tok, "}"); I++) {
-            if (I > 0)
-                Tok = skip(Tok, ",");
-            // 正常解析元素
-            if (I < Init->Ty->ArrayLen)
-                _initializer(&Tok, Tok, Init->Children[I]);
-            // 跳过多余的元素
-            else
-                Tok = skipExcessElement(Tok);
-        }
-        *Rest = skip(Tok, "}");
+    // 字符串字面量的初始化
+    if (Init->Ty->Kind == TY_ARRAY && Tok->Kind == TK_STR) {
+        stringInitializer(Rest, Tok, Init);
         return;
     }
+
+    // 数组的初始化
+    if (Init->Ty->Kind == TY_ARRAY) {
+        arrayInitializer(Rest, Tok, Init);
+        return;
+    }
+
+    // assign
     // 为节点存储对应的表达式
     Init->Expr = assign(Rest, Tok);
 }

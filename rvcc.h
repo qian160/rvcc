@@ -309,6 +309,9 @@ int64_t constExpr(Token **Rest, Token *Tok);
 
 #define todo() Assert(0, "todo")
 
+#define MAX(x, y) ((x) < (y) ? (y) : (x))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
+
 #define __TKNAME__  tokenName(Tok)
 
 #define __test__    trace("%s", tokenName(Tok));

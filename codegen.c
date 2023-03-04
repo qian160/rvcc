@@ -89,9 +89,26 @@ static void store(Type *Ty) {
     pop("a1");
     // copy all the bytes from one struct to another
     if (Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION) {
-        for (int I = 0; I < Ty->Size; ++I) {
+        int I = 0;
+        while (I + 8 <= Ty->Size) {
+            println("  ld t1, %d(a0)", I);
+            println("  sd t1, %d(a1)", I);
+            I += 8;
+        }
+        while (I + 4 <= Ty->Size) {
+            println("  lw t1, %d(a0)", I);
+            println("  sw t1, %d(a1)", I);
+            I += 4;
+        }
+        while (I + 2 <= Ty->Size) {
+            println("  lh t1, %d(a0)", I);
+            println("  sh t1, %d(a1)", I);
+            I += 2;
+        }
+        while (I + 1 <= Ty->Size) {
             println("  lb t1, %d(a0)", I);
             println("  sb t1, %d(a1)", I);
+            I += 1;
         }
         return;
     }
@@ -390,9 +407,23 @@ static void genExpr(Node *Nd) {
         case ND_MEMZERO: {
             println("  # 对%s的内存%d(fp)清零%d位", Nd->Var->Name, Nd->Var->Offset, Nd->Var->Ty->Size);
             // 对栈内变量所占用的每个字节都进行清零
-            for (int I = 0; I < Nd->Var->Ty->Size; I++)
-                println("  sb zero, %d(fp)", Nd->Var->Offset + I);
-            return;
+            int I = 0;
+            while( I + 8 <= Nd->Var->Ty->Size){
+                println("  sd zero, %d(fp)", Nd->Var->Offset+I);
+                I += 8;
+            }
+            while( I + 4 <= Nd->Var->Ty->Size){
+                println("  sw zero, %d(fp)", Nd->Var->Offset+I);
+                I += 4;
+            }
+            while( I + 2 <= Nd->Var->Ty->Size){
+                println("  sh zero, %d(fp)", Nd->Var->Offset+I);
+                I += 2;
+            }
+            while( I + 1 <= Nd->Var->Ty->Size){
+                println("  sb zero, %d(fp)", Nd->Var->Offset+I);
+                I += 1;
+            }
         }
         // 空表达式
         case ND_NULL_EXPR:
