@@ -42,12 +42,13 @@ bool consume(Token **Rest, Token *Tok, char *Str) {
 // 判断是否为关键字
 static bool isKeyword(Token *Tok) {
     // 关键字列表
-    static char *Kw[] = {"return", "if", "else", "for", 
+    static char *Kw[] = 
+        {   "return", "if", "else", "for", "do",
             "while", "int", "sizeof", "char", "struct", "union", 
             "long", "short, void", "typedef", "_Bool", "enum", "static",
             "goto", "break", "continue", "switch", "case", "default", "extern",
             "_Alignof", "_Alignas",
-            };
+        };
 
     return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);
 }

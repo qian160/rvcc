@@ -611,6 +611,25 @@ static void genStmt(Node *Nd) {
         case ND_GOTO:
             println("  j %s", Nd->UniqueLabel);
             return;
+        // 和while语句的区别：do先执行语句，while先判断cond
+        case ND_DO: {
+            int C = count();
+            println("\n# =====do while语句%d============", C);
+            println(".L.begin.%d:", C);
+
+            println("\n# Then语句%d", C);
+            genStmt(Nd->Then);
+
+            println("\n# Cond语句%d", C);
+            println("%s:", Nd->ContLabel);
+            genExpr(Nd->Cond);
+
+            println("  bnez a0, .L.begin.%d", C);
+
+            println("%s:", Nd->BrkLabel);
+            return;
+        }
+
         // 标签语句, print the label
         case ND_LABEL:
             println("%s:", Nd->UniqueLabel);

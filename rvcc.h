@@ -110,6 +110,7 @@ typedef enum {
     ND_BLOCK,       // { ... }，代码块
     ND_IF,          // "if"，条件判断
     ND_FOR,         // "for" 或 "while" 循环
+    ND_DO,          // "do"，用于do while语句
     ND_ADDR,        // 取地址 &
     ND_DEREF,       // 解引用 *
     ND_FUNCALL,     // 函数调用
@@ -154,7 +155,7 @@ struct Node {
     Type *FuncType; // 函数类型
     // "if"语句
     Node *Cond;     // 条件内的表达式
-    Node *Then;     // 符合条件后的语句
+    Node *Then;     // 符合条件后的语句(do/while/if代码块内的语句)
     Node *Els;      // 不符合条件后的语句
     // "for"语句. 循环体存储在Then里
     Node *Init;     // 初始化语句
