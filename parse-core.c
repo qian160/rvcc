@@ -457,7 +457,7 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
             *Rest = Tok->Next->Next;
             return funcType(Ty);
         }
-
+        
         // 存储形参的链表
         Type Head = {};
         Type *Cur = &Head;

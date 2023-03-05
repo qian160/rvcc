@@ -492,3 +492,13 @@ int64_t constExpr(Token **Rest, Token *Tok) {
     // 进行常量表达式的计算
     return eval(Nd);
 }
+
+uint32_t simpleLog2(uint32_t v){ 
+    Assert((v & (v-1)) == 0, "wrong value: %d", v);
+    static const uint32_t b[] = {0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0, 0xFF00FF00, 0xFFFF0000}; 
+    register uint32_t r = (v & b[0]) != 0;  
+    for (uint32_t i = 4; i > 0; i--) 
+    // unroll for speed... 
+            r |= ((v & b[i]) != 0) << i;
+    return r;
+}

@@ -294,6 +294,7 @@ void errorAt(char *Loc, char *Fmt, ...);
 int64_t eval(Node *Nd);
 int64_t eval2(Node *Nd, char **Label);
 int64_t constExpr(Token **Rest, Token *Tok);
+uint32_t simpleLog2(uint32_t v);
 
 //
 // macros

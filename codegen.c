@@ -664,6 +664,11 @@ static void emitData(Obj *Prog) {
         if (Var->Ty->Kind == TY_FUNC)
             continue;
 
+        println("  .globl %s", Var->Name);
+        if (!Var->Ty->Align)
+            error("Align can not be 0!");
+        println("  .align %d", simpleLog2(Var->Ty->Align));
+
         if (Var -> InitData){
             println("  .data");
             println("%s:", Var->Name);
