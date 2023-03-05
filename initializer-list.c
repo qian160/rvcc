@@ -129,7 +129,7 @@ static int countArrayInitElements(Token *Tok, Type *Ty) {
     int I = 0;
 
     // 遍历所有匹配的项
-    for (; !equal(Tok, "}"); I++) {
+    for (; !consumeEnd(&Tok, Tok); I++) {
         if (I > 0)
             Tok = skip(Tok, ",");
         _initializer(&Tok, Tok, Dummy);
@@ -137,7 +137,7 @@ static int countArrayInitElements(Token *Tok, Type *Ty) {
     return I;
 }
 
-// arrayInitializer1 = "{" initializer ("," initializer)* "}"
+// arrayInitializer1 = "{" initializer ("," initializer)* ","? "}"
 static void arrayInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
     Tok = skip(Tok, "{");
 
@@ -149,7 +149,7 @@ static void arrayInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
     }
 
     // 遍历数组
-    for (int I = 0; !consume(Rest, Tok, "}"); I++) {
+    for (int I = 0; !consumeEnd(Rest, Tok); I++) {
         if (I > 0)
             Tok = skip(Tok, ",");
 
@@ -162,7 +162,7 @@ static void arrayInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
     }
 }
 
-// arrayIntializer2 = initializer ("," initializer)*
+// arrayIntializer2 = initializer ("," initializer)* ","?
 static void arrayInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
     // 如果数组是可调整的，那么就计算数组的元素数，然后进行初始化器的构造
     if (Init->IsFlexible) {
@@ -171,7 +171,7 @@ static void arrayInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
     }
 
     // 遍历数组
-    for (int I = 0; I < Init->Ty->ArrayLen && !equal(Tok, "}"); I++) {
+    for (int I = 0; I < Init->Ty->ArrayLen && !isEnd(Tok); I++) {
         if (I > 0)
             Tok = skip(Tok, ",");
         _initializer(&Tok, Tok, Init->Children[I]);
@@ -179,14 +179,14 @@ static void arrayInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
     *Rest = Tok;
 }
 
-// structInitializer1 = "{" initializer ("," initializer)* "}"
+// structInitializer1 = "{" initializer ("," initializer)* ","? }"
 static void structInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
     Tok = skip(Tok, "{");
 
     // 成员变量的链表
     Member *Mem = Init->Ty->Mems;
 
-    while (!consume(Rest, Tok, "}")) {
+    while (!consumeEnd(Rest, Tok)) {
         // Mem未指向Init->Ty->Mems，则说明Mem进行过Next的操作，就不是第一个
         if (Mem != Init->Ty->Mems)
             Tok = skip(Tok, ",");
@@ -202,12 +202,12 @@ static void structInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
     }
 }
 
-// structIntializer2 = initializer ("," initializer)*
+// structIntializer2 = initializer ("," initializer)* ","?
 static void structInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
     bool First = true;
 
     // 遍历所有成员变量
-    for (Member *Mem = Init->Ty->Mems; Mem && !equal(Tok, "}"); Mem = Mem->Next) {
+    for (Member *Mem = Init->Ty->Mems; Mem && !isEnd(Tok); Mem = Mem->Next) {
         if (!First)
             Tok = skip(Tok, ",");
         First = false;
@@ -222,6 +222,8 @@ static void unionInitializer(Token **Rest, Token *Tok, Initializer *Init) {
     if (equal(Tok, "{")) {
         // 存在括号的情况
         _initializer(&Tok, Tok->Next, Init->Children[0]);
+        // ","?
+        consume(&Tok, Tok, ",");
         *Rest = skip(Tok, "}");
     } else {
         // 不存在括号的情况
@@ -263,12 +265,12 @@ static void writeBuf(char *Buf, uint64_t Val, int Sz) {
 // stringInitializer = stringLiteral
 
 // arrayInitializer = arrayInitializer1 | arrayInitializer2
-// arrayInitializer1 = "{" initializer ("," initializer)* "}"
-// arrayIntializer2 = initializer ("," initializer)*
+// arrayInitializer1 = "{" initializer ("," initializer)* ","? "}"
+// arrayIntializer2 = initializer ("," initializer)* ","?
 
 // structInitializer = structInitializer1 | structInitializer2
-// structInitializer1 = "{" initializer ("," initializer)* "}"
-// structIntializer2 = initializer ("," initializer)*
+// structInitializer1 = "{" initializer ("," initializer)* ","? "}"
+// structInitializer2 = initializer ("," initializer)* ","?
 
 // unionInitializer = "{" initializer "}"
 

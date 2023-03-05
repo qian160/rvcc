@@ -333,6 +333,31 @@ void resolveGotoLabels(void) {
     Labels = NULL;
 }
 
+// 判断是否终结符匹配到了结尾
+bool isEnd(Token *Tok) {
+    // "}" | ",}"
+    return equal(Tok, "}") || (equal(Tok, ",") && equal(Tok->Next, "}"));
+}
+
+// 消耗掉结尾的终结符
+// "}" | ",}"
+bool consumeEnd(Token **Rest, Token *Tok) {
+    // "}"
+    if (equal(Tok, "}")) {
+        *Rest = Tok->Next;
+        return true;
+    }
+
+    // ",}"
+    if (equal(Tok, ",") && equal(Tok->Next, "}")) {
+        *Rest = Tok->Next->Next;
+        return true;
+    }
+
+    // 没有消耗到指定字符
+    return false;
+}
+
 static int64_t evalRVal(Node *Nd, char **Label);
 
 int64_t eval2(Node *Nd, char **Label);

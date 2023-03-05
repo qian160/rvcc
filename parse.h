@@ -128,3 +128,5 @@ void GVarInitializer(Token **Rest, Token *Tok, Obj *Var);
 
 // ---------- others ----------
 void resolveGotoLabels(void);
+bool isEnd(Token *Tok);
+bool consumeEnd(Token **Rest, Token *Tok);

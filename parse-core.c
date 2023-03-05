@@ -120,7 +120,7 @@
 
 // enumSpecifier = ident? "{" enumList? "}"
 //                 | ident ("{" enumList? "}")?
-// enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)*
+// enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)* ","?
 
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = ( funcParams  | "[" constExpr? "]"  typeSuffix)?
@@ -669,7 +669,7 @@ static Node *structRef(Node *LHS, Token *Tok) {
 // 获取枚举类型信息
 // enumSpecifier = ident? "{" enumList? "}"
 //               | ident ("{" enumList? "}")?
-// enumList      = ident ("=" constExpr)? ("," ident ("=" num)?)*
+// enumList      = ident ("=" constExpr)? ("," ident ("=" constExpr)?)* ","?
 static Type *enumSpecifier(Token **Rest, Token *Tok) {
     Type *Ty = enumType();
     // 读取标签
@@ -698,7 +698,7 @@ static Type *enumSpecifier(Token **Rest, Token *Tok) {
     // 读取枚举列表
     int I = 0;   // 第几个枚举常量
     int Val = 0; // 枚举常量的值
-    while (!equal(Tok, "}")) {
+    while (!consumeEnd(Rest, Tok)) {
         if (I++ > 0)
             Tok = skip(Tok, ",");
 
@@ -713,8 +713,6 @@ static Type *enumSpecifier(Token **Rest, Token *Tok) {
         S->EnumTy = Ty;
         S->EnumVal = Val++;
     }
-
-    *Rest = Tok->Next;
 
     if (Tag)
         pushTagScope(Tag, Ty);
