@@ -243,7 +243,7 @@ static bool isIdent2(char C) {
 static int readPunct(char *Ptr) {
     // 判断多字节的操作符. note: "<<=" need to be checked before <<
     static char *Kw[] = {
-        "<<=", ">>=",
+        "<<=", ">>=", "...",    // ... is not true punct in fact. just let it to be read
         "==", "!=", "<=", ">=", "->", 
         "+=", "-=", "*=", "/=", "++", "--", 
         "%=", "^=", "|=", "&=", "&&", "||", "<<", ">>"

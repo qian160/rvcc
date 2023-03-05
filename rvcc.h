@@ -208,6 +208,7 @@ struct Type {
     Type *Params;   // 存储形参的链表. head.
     Type *Next;     // 下一类型
     int ArrayLen;   // 数组长度, 元素总个数
+    bool IsVariadic; // 是否为可变参数
     // 结构体
     Member *Mems;
     bool IsFlexible; // 是否为灵活的
