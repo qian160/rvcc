@@ -79,6 +79,7 @@ Obj *newLVar(char *Name, Type *Ty) {
     Var->IsLocal = true;
     // 将变量插入头部
     Var->Next = Locals;
+    Var->IsDefinition = true;
     Locals = Var;
     return Var;
 }
@@ -87,6 +88,7 @@ Obj *newLVar(char *Name, Type *Ty) {
 Obj *newGVar(char *Name, Type *Ty) {
     Obj *Var = newVar(Name, Ty);
     Var->Next = Globals;
+    Var->IsDefinition = true;
     Globals = Var;
     return Var;
 }
@@ -153,14 +155,10 @@ bool isTypename(Token *Tok)
     static char *types[] = 
         {"typedef", "char", "int", "struct", "union", 
             "long", "short", "void", "_Bool", "enum",
-            "static"
+            "static", "extern"
         };
 
-    for(int i = 0; i < sizeof(types) / sizeof(*types); i++){
-        if(equal(Tok, types[i]))
-            return true;
-    }
-    return findTypedef(Tok);
+    return equal2(Tok, sizeof(types) / sizeof(*types), types) || findTypedef(Tok);
 }
 
 
@@ -279,7 +277,7 @@ Node *newVarNode(Obj* Var, Token *Tok) {
 
 extern Type *declarator(Token **Rest, Token *Tok, Type *Ty);
 // 构造全局变量
-Token *globalVariable(Token *Tok, Type *BaseTy) {
+Token *globalVariable(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     bool First = true;
     // keep searching until we meet a ";"
     while (!consume(&Tok, Tok, ";")) {
@@ -290,6 +288,8 @@ Token *globalVariable(Token *Tok, Type *BaseTy) {
         Type *Ty = declarator(&Tok, Tok, BaseTy);
         // 全局变量初始化
         Obj *Var = newGVar(getIdent(Ty->Name), Ty);
+        // 是否具有定义
+        Var->IsDefinition = !Attr->IsExtern;
         if (equal(Tok, "="))
             GVarInitializer(&Tok, Tok->Next, Var);
     }

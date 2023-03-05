@@ -77,6 +77,7 @@ struct Obj {
     Type *Ty;       // 变量类型
     bool IsLocal;   // 是局部变量
     bool IsStatic;  // 是否为文件域内的
+    bool IsDefinition; // 是否为函数定义
     // 函数
     Obj *Params;    // 形参
     Node *Body;     // 函数体
@@ -246,6 +247,7 @@ extern Type *TyBool;
 // 词法分析
 Token* tokenizeFile(char* Path);
 bool equal(Token *Tok, char *Str);
+bool equal2(Token *Tok, int n, char *kw[]);
 Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);

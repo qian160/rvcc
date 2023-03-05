@@ -661,7 +661,7 @@ static void genStmt(Node *Nd) {
 
 static void emitData(Obj *Prog) {
     for (Obj *Var = Prog; Var; Var = Var->Next) {
-        if (Var->Ty->Kind == TY_FUNC)
+        if (Var->Ty->Kind == TY_FUNC || !Var->IsDefinition)
             continue;
 
         println("  .globl %s", Var->Name);

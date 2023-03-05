@@ -271,10 +271,10 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
     Fn->IsStatic = Attr->IsStatic;
-
+    Fn->IsDefinition = !consume(&Tok, Tok, ";");
     // no function body, just a defination
-    if(equal(Tok, ";"))
-        return Tok->Next;
+    if(!Fn->IsDefinition)
+        return Tok;
     
     CurrentFn = Fn;
     // 清空全局变量Locals
@@ -295,7 +295,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 
 
 // declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
-//              | "typedef" | "static"
+//              | "typedef" | "static" | "extern"
 //              | structDecl | unionDecl | typedefName | enumSpecifier)+
 // 声明的 基础类型. declaration specifiers
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
@@ -316,18 +316,20 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // typedef int intt
     // 遍历所有类型名的Tok
     while (isTypename(Tok)) {
-        // 处理typedef关键字
-        if (equal(Tok, "typedef") || equal(Tok, "static")) {
+        // 处理typedef等关键字
+        if (equal2(Tok, 3, (char*[]){"static", "typedef", "extern"})) {
             if (!Attr)
                 errorTok(Tok, "storage class specifier is not allowed in this context");
             if (equal(Tok, "typedef"))
                 Attr->IsTypedef = true;
-            else
+            else if(equal(Tok, "static"))
                 Attr->IsStatic = true;
+            else
+                Attr->IsExtern = true;
 
-            // typedef不应与static一起使用
-            if (Attr->IsTypedef && Attr->IsStatic)
-                errorTok(Tok, "typedef and static may not be used together");
+            // typedef不应与static/extern一起使用
+            if (Attr->IsTypedef && (Attr->IsStatic || Attr->IsExtern))
+                errorTok(Tok, "typedef and static/extern may not be used together");
 
             Tok = Tok->Next;
             continue;
@@ -335,7 +337,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
 
         // 处理用户定义的类型
         Type *Ty2 = findTypedef(Tok);
-        if (equal(Tok, "struct") || equal(Tok, "union") || equal(Tok, "enum") || Ty2) {
+        if (equal2(Tok, 3, (char*[]){"struct", "union", "enum"}) || Ty2) {
             if (Counter)
                 break;
 
@@ -1740,7 +1742,7 @@ Obj *parse(Token *Tok) {
         if (isFunction(Tok))
             Tok = function(Tok, BaseTy, &Attr);
         else
-            Tok = globalVariable(Tok, BaseTy);
+            Tok = globalVariable(Tok, BaseTy, &Attr);
     }
 
     return Globals;

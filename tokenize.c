@@ -1,11 +1,16 @@
 #include"rvcc.h"
 
-// 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
+// 判断Tok的值是否等于指定值
 bool equal(Token *Tok, char *Str) {
-    // 比较字符串LHS（左部），RHS（右部）的前N位，S2的长度应大于等于N.
-    // 比较按照字典序，LHS<RHS回负值，LHS=RHS返回0，LHS>RHS返回正值
-    // 同时确保，此处的Op位数=N
     return memcmp(Tok->Loc, Str, Tok->Len) == 0 && Str[Tok->Len] == '\0';
+}
+
+// 当要比较的关键字较多时可以用这个。第二个参数可以在外面通过(sizeof(Kw) / sizeof(*Kw))获得.(pointer size, 8)
+bool equal2(Token *Tok, int n, char*kw[]){
+    for(int i = 0; i < n; i++)
+        if(equal(Tok, kw[i]))
+            return true;
+    return false;
 }
 
 char * CurrentInput;
@@ -40,15 +45,10 @@ static bool isKeyword(Token *Tok) {
     static char *Kw[] = {"return", "if", "else", "for", 
             "while", "int", "sizeof", "char", "struct", "union", 
             "long", "short, void", "typedef", "_Bool", "enum", "static",
-            "goto", "break", "continue", "switch", "case", "default"
+            "goto", "break", "continue", "switch", "case", "default", "extern"
             };
 
-    // 遍历关键字列表匹配
-    for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); ++I) {
-        if (equal(Tok, Kw[I]))
-            return true;
-    }
-    return false;
+    return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);
 }
 
 // 生成新的Token

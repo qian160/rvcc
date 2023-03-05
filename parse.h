@@ -45,6 +45,7 @@ struct Scope {
 typedef struct {
     bool IsTypedef; // 是否为类型别名
     bool IsStatic;  // 是否为文件域内
+    bool IsExtern;  // 是否为外部变量
 } VarAttr;
 
 //
@@ -107,7 +108,7 @@ Obj *newAnonGVar(Type *Ty);
 Obj *newStringLiteral(char *Str, Type *Ty);
 Type *findTypedef(Token *Tok);
 bool isTypename(Token *Tok);
-Token *globalVariable(Token *Tok, Type *BaseTy);
+Token *globalVariable(Token *Tok, Type *BaseTy, VarAttr *Attr);
 
 // ---------- creating AST nodes ----------
 
