@@ -137,29 +137,17 @@ static int countArrayInitElements(Token *Tok, Type *Ty) {
     return I;
 }
 
-// stringInitializer = stringLiteral
-static void stringInitializer(Token **Rest, Token *Tok, Initializer *Init) {
-    // 如果是可调整的，就构造一个包含数组的初始化器
-    // 字符串字面量在词法解析部分已经增加了'\0'
-    if (Init->IsFlexible)           // TyChar?
-        *Init = *newInitializer(arrayOf(Init->Ty->Base, Tok->strLen), false);
-    // 取数组和字符串的最短长度
-    int Len = MIN(Init->Ty->ArrayLen, Tok->strLen);
-    // 遍历赋值
-    for (int I = 0; I < Len; I++)
-        Init->Children[I]->Expr = newNum(Tok->Str[I], Tok);
-    *Rest = Tok->Next;
-}
-
-// arrayInitializer = "{" initializer ("," initializer)* "}"
-static void arrayInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+// arrayInitializer1 = "{" initializer ("," initializer)* "}"
+static void arrayInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
     Tok = skip(Tok, "{");
+
     // 如果数组是可调整的，那么就计算数组的元素数，然后进行初始化器的构造
     if (Init->IsFlexible) {
         int Len = countArrayInitElements(Tok, Init->Ty);
         // 在这里Ty也被重新构造为了数组
         *Init = *newInitializer(arrayOf(Init->Ty->Base, Len), false);
     }
+
     // 遍历数组
     for (int I = 0; !consume(Rest, Tok, "}"); I++) {
         if (I > 0)
@@ -174,8 +162,25 @@ static void arrayInitializer(Token **Rest, Token *Tok, Initializer *Init) {
     }
 }
 
-// structInitializer = "{" initializer ("," initializer)* "}"
-static void structInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+// arrayIntializer2 = initializer ("," initializer)*
+static void arrayInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
+    // 如果数组是可调整的，那么就计算数组的元素数，然后进行初始化器的构造
+    if (Init->IsFlexible) {
+        int Len = countArrayInitElements(Tok, Init->Ty);
+        *Init = *newInitializer(arrayOf(Init->Ty->Base, Len), false);
+    }
+
+    // 遍历数组
+    for (int I = 0; I < Init->Ty->ArrayLen && !equal(Tok, "}"); I++) {
+        if (I > 0)
+            Tok = skip(Tok, ",");
+        _initializer(&Tok, Tok, Init->Children[I]);
+    }
+    *Rest = Tok;
+}
+
+// structInitializer1 = "{" initializer ("," initializer)* "}"
+static void structInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
     Tok = skip(Tok, "{");
 
     // 成员变量的链表
@@ -191,18 +196,52 @@ static void structInitializer(Token **Rest, Token *Tok, Initializer *Init) {
             _initializer(&Tok, Tok, Init->Children[Mem->Idx]);
             Mem = Mem->Next;
         } else {
-            // 处理多余的成员
+        // 处理多余的成员
             Tok = skipExcessElement(Tok);
         }
     }
 }
 
+// structIntializer2 = initializer ("," initializer)*
+static void structInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
+    bool First = true;
+
+    // 遍历所有成员变量
+    for (Member *Mem = Init->Ty->Mems; Mem && !equal(Tok, "}"); Mem = Mem->Next) {
+        if (!First)
+            Tok = skip(Tok, ",");
+        First = false;
+        _initializer(&Tok, Tok, Init->Children[Mem->Idx]);
+    }
+    *Rest = Tok;
+}
+
+
 // unionInitializer = "{" initializer "}"
 static void unionInitializer(Token **Rest, Token *Tok, Initializer *Init) {
-    // 联合体只接受第一个成员用来初始化
-    Tok = skip(Tok, "{");
-    _initializer(&Tok, Tok, Init->Children[0]);
-    *Rest = skip(Tok, "}");
+    if (equal(Tok, "{")) {
+        // 存在括号的情况
+        _initializer(&Tok, Tok->Next, Init->Children[0]);
+        *Rest = skip(Tok, "}");
+    } else {
+        // 不存在括号的情况
+        _initializer(Rest, Tok, Init->Children[0]);
+    }
+}
+
+// stringInitializer = stringLiteral
+static void stringInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+    // 如果是可调整的，就构造一个包含数组的初始化器
+    // 字符串字面量在词法解析部分已经增加了'\0'
+    if (Init->IsFlexible)
+        *Init = *newInitializer(arrayOf(Init->Ty->Base, Tok->strLen), false);
+
+    // 取数组和字符串的最短长度
+    int Len = MIN(Init->Ty->ArrayLen, Tok->strLen);
+    // 遍历赋值
+    for (int I = 0; I < Len; I++)
+        Init->Children[I]->Expr = newNum(Tok->Str[I], Tok);
+    *Rest = Tok->Next;
 }
 
 // 临时转换Buf类型对Val进行存储
@@ -222,8 +261,15 @@ static void writeBuf(char *Buf, uint64_t Val, int Sz) {
 // initializer = stringInitializer | arrayInitializer | structInitializer
 //             | unionInitializer |assign
 // stringInitializer = stringLiteral
-// arrayInitializer = "{" initializer ("," initializer)* "}"
-// structInitializer = "{" initializer ("," initializer)* "}"
+
+// arrayInitializer = arrayInitializer1 | arrayInitializer2
+// arrayInitializer1 = "{" initializer ("," initializer)* "}"
+// arrayIntializer2 = initializer ("," initializer)*
+
+// structInitializer = structInitializer1 | structInitializer2
+// structInitializer1 = "{" initializer ("," initializer)* "}"
+// structIntializer2 = initializer ("," initializer)*
+
 // unionInitializer = "{" initializer "}"
 
 // 这里往框架结构上面添加了叶子节点(assign语句)
@@ -236,22 +282,30 @@ static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
 
     // 数组的初始化
     if (Init->Ty->Kind == TY_ARRAY) {
-        arrayInitializer(Rest, Tok, Init);
+        if (equal(Tok, "{"))
+            // 存在括号的情况
+            arrayInitializer1(Rest, Tok, Init);
+        else
+            // 不存在括号的情况
+            arrayInitializer2(Rest, Tok, Init);
         return;
     }
 
     // 结构体的初始化
     if (Init->Ty->Kind == TY_STRUCT) {
-        // 匹配使用其他结构体来赋值，其他结构体需要先被解析过
-        if (!equal(Tok, "{")) {
-            Node *Expr = assign(Rest, Tok);
-            addType(Expr);
-            if (Expr->Ty->Kind == TY_STRUCT) {
-                Init->Expr = Expr;
-                return;
-            }
+        // 存在括号的情况
+        if (equal(Tok, "{")) {
+            structInitializer1(Rest, Tok, Init);
+            return;
         }
-        structInitializer(Rest, Tok, Init);
+        // 不存在括号的情况
+        Node *Expr = assign(Rest, Tok);
+        addType(Expr);
+        if (Expr->Ty->Kind == TY_STRUCT) {
+            Init->Expr = Expr;
+            return;
+        }
+        structInitializer2(Rest, Tok, Init);
         return;
     }
 
@@ -276,56 +330,6 @@ static Initializer *initializer(Token **Rest, Token *Tok, Type *Ty, Type **NewTy
     *NewTy = Init->Ty;
     // trace("%d, %d", Ty->Size, (*NewTy)->Size);       // Ty->Size could be -1, but NewTy->size is known
     return Init;
-}
-
-// 对全局变量的初始化器写入数据. buf is then filled to var -> initdata
-static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
-                                char *Buf, int Offset) {
-    // 处理数组
-    if (Ty->Kind == TY_ARRAY) {
-        int Sz = Ty->Base->Size;
-        for (int I = 0; I < Ty->ArrayLen; I++)
-            Cur = writeGVarData(Cur, Init->Children[I], Ty->Base, Buf, Offset + Sz * I);
-        return Cur;
-    }
-
-    // 处理结构体
-    if (Ty->Kind == TY_STRUCT) {
-        for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
-            Cur = writeGVarData(Cur, Init->Children[Mem->Idx], Mem->Ty, Buf,
-                            Offset + Mem->Offset);
-        return Cur;
-    }
-
-    // 处理联合体
-    if (Ty->Kind == TY_UNION) {
-        return writeGVarData(Cur, Init->Children[0], Ty->Mems->Ty, Buf, Offset);
-    }
-
-    // 这里返回，则会使Buf值为0
-    if (!Init->Expr)
-        return Cur;
-
-    // 预设使用到的 其他全局变量的名称
-    // note: we cant deref *label, but in eval2 we convert the arg to be **
-    // and then it becomes assinable(although label points to NULL, but &label not)
-    char *Label = NULL;
-    uint64_t Val = eval2(Init->Expr, &Label);
-
-    // 如果不存在Label，说明可以直接计算常量表达式的值
-    if (!Label) {
-        writeBuf(Buf + Offset, Val, Ty->Size);
-        return Cur;
-    }
-
-    // 存在Label，则表示使用了其他全局变量
-    Relocation *Rel = calloc(1, sizeof(Relocation));
-    Rel->Offset = Offset;
-    Rel->Label = Label;
-    Rel->Addend = Val;
-    // 压入链表顶部
-    Cur->Next = Rel;
-    return Cur->Next;
 }
 
 // 指派初始化表达式
@@ -397,6 +401,56 @@ static Node *createLVarInit(Initializer *Init, Type *Ty, InitDesig *Desig, Token
     // 变量等可以直接赋值的左值
     Node *LHS = initDesigExpr(Desig, Tok);
     return newBinary(ND_ASSIGN, LHS, Init->Expr, Tok);
+}
+
+// 对全局变量的初始化器写入数据. buf is then filled to var -> initdata
+static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
+                                char *Buf, int Offset) {
+    // 处理数组
+    if (Ty->Kind == TY_ARRAY) {
+        int Sz = Ty->Base->Size;
+        for (int I = 0; I < Ty->ArrayLen; I++)
+            Cur = writeGVarData(Cur, Init->Children[I], Ty->Base, Buf, Offset + Sz * I);
+        return Cur;
+    }
+
+    // 处理结构体
+    if (Ty->Kind == TY_STRUCT) {
+        for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
+            Cur = writeGVarData(Cur, Init->Children[Mem->Idx], Mem->Ty, Buf,
+                            Offset + Mem->Offset);
+        return Cur;
+    }
+
+    // 处理联合体
+    if (Ty->Kind == TY_UNION) {
+        return writeGVarData(Cur, Init->Children[0], Ty->Mems->Ty, Buf, Offset);
+    }
+
+    // 这里返回，则会使Buf值为0
+    if (!Init->Expr)
+        return Cur;
+
+    // 预设使用到的 其他全局变量的名称
+    // note: we cant deref *label, but in eval2 we convert the arg to be **
+    // and then it becomes assinable(although label points to NULL, but &label not)
+    char *Label = NULL;
+    uint64_t Val = eval2(Init->Expr, &Label);
+
+    // 如果不存在Label，说明可以直接计算常量表达式的值
+    if (!Label) {
+        writeBuf(Buf + Offset, Val, Ty->Size);
+        return Cur;
+    }
+
+    // 存在Label，则表示使用了其他全局变量
+    Relocation *Rel = calloc(1, sizeof(Relocation));
+    Rel->Offset = Offset;
+    Rel->Label = Label;
+    Rel->Addend = Val;
+    // 压入链表顶部
+    Cur->Next = Rel;
+    return Cur->Next;
 }
 
 // 全局变量在编译时需计算出初始化的值，然后写入.data段。

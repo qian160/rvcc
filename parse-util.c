@@ -337,8 +337,9 @@ static int64_t evalRVal(Node *Nd, char **Label);
 
 int64_t eval2(Node *Nd, char **Label);
 
-// 计算给定节点的常量表达式计算
-// 
+// 计算给定节点的常量表达式计算(a constant known at compile-time)
+// eval不使用label，所以功能较eval2弱一些，不能计算带有其他变量的常量表达式
+// 其实常量表达式本身就是不能带变量的。不过当变量是全局的时候比较特殊，因为我们可以找到他的标签完成间接赋值
 int64_t eval(Node *Nd) { return eval2(Nd, NULL); }
 
 // 计算给定节点的常量表达式计算
