@@ -271,6 +271,7 @@ static void genStmt(Node *Nd);
 //      and how to deal with these two values depends on current root node
 // 生成表达式. after expr is generated its value will be put to a0
 static void genExpr(Node *Nd) {
+    if(!Nd) return;
     // .loc 文件编号 行号. debug use
     println("  .loc 1 %d", Nd->Tok->LineNo);
 

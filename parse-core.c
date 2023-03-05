@@ -138,7 +138,7 @@
 //                         ("," declarator ("=" initializer)?)*)? ";"
 // initializer = "{" initializer ("," initializer)* "}" | assign
 
-// stmt = "return" expr ";"
+// stmt = "return" expr? ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | compoundStmt
 //        | exprStmt
@@ -868,7 +868,7 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 }
 
 // 解析语句
-// stmt = "return" expr ";"
+// stmt = "return" expr? ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | compoundStmt
 //        | exprStmt
@@ -885,6 +885,10 @@ static Node *stmt(Token **Rest, Token *Tok) {
     
     if (equal(Tok, "return")) {
         Node *Nd = newNode(ND_RETURN, Tok);
+        // 空返回语句
+        if (consume(Rest, Tok->Next, ";"))
+            return Nd;
+
         Node *Exp = expr(&Tok, Tok->Next);
         addType(Exp);
         *Rest = skip(Tok, ";");
