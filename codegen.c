@@ -665,7 +665,9 @@ static void emitData(Obj *Prog) {
         if (Var->Ty->Kind == TY_FUNC || !Var->IsDefinition)
             continue;
 
-        println("  .globl %s", Var->Name);
+        char *visibility = Var->IsStatic? ".local": ".global";
+        println("  %s %s", visibility, Var->Name);
+
         if (!Var->Align)
             error("Align can not be 0!");
         println("  .align %d", simpleLog2(Var->Align));

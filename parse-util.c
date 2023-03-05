@@ -291,6 +291,7 @@ Token *globalVariable(Token *Tok, Type *BaseTy, VarAttr *Attr) {
         Obj *Var = newGVar(getIdent(Ty->Name), Ty);
         // 是否具有定义
         Var->IsDefinition = !Attr->IsExtern;
+        Var->IsStatic = Attr->IsStatic;
         // 若有设置，则覆盖全局变量的对齐值
         if (Attr->Align)
             Var->Align = Attr->Align;
