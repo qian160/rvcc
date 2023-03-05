@@ -1691,7 +1691,7 @@ static Node *funCall(Token **Rest, Token *Tok) {
     }
 
     *Rest = skip(Tok, ")");
-
+    // return type's cast is done at codegen
     Node *Nd = newNode(ND_FUNCALL, Start);
     // ident
     Nd->FuncName = tokenName(Start);
