@@ -208,7 +208,7 @@ struct Type {
     int ArrayLen;   // 数组长度, 元素总个数
     // 结构体
     Member *Mems;
-
+    bool IsFlexible; // 是否为灵活的
     Token *Tok;     // 用于报错信息
 };
 
@@ -271,6 +271,8 @@ Type *pointerTo(Type *Base);
 Type *funcType(Type *ReturnTy);
 // 复制类型
 Type *copyType(Type *Ty);
+// 复制结构体的类型
+Type *copyStructType(Type *Ty);
 // 构造数组类型, 传入 数组基类, 元素个数
 Type *arrayOf(Type *Base, int Len);
 

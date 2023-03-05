@@ -37,6 +37,27 @@ Type *copyType(Type *Ty) {
     return Ret;
 }
 
+// 复制结构体的类型
+Type *copyStructType(Type *Ty) {
+    // 复制结构体的类型
+    Ty = copyType(Ty);
+
+    // 复制结构体成员的类型
+    Member Head = {};
+    Member *Cur = &Head;
+    // 遍历成员
+    for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
+        Member *M = calloc(1, sizeof(Member));
+        *M = *Mem;
+        Cur->Next = M;
+        Cur = Cur->Next;
+    }
+
+    Ty->Mems = Head.Next;
+    return Ty;
+}
+
+
 // 指针类型，并且指向基类
 Type *pointerTo(Type *Base) {
     Type *Ty = newType(TY_PTR, 8, 8);

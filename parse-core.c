@@ -546,12 +546,12 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
     }
 
     // 解析灵活数组成员，数组大小设为0
-    // must be the last and not first member of struct 
-    // C99 variable length array support
-    // typedef struct {int size, a[]} arr;
-    // arr* array = (arr* )malloc(size);
-    if (Cur != &Head && Cur->Ty->Kind == TY_ARRAY && Cur->Ty->ArrayLen < 0)
+    // C99 variable length array(flexible array)
+    // see https://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html
+    if (Cur != &Head && Cur->Ty->Kind == TY_ARRAY && Cur->Ty->ArrayLen < 0){
         Cur->Ty = arrayOf(Cur->Ty->Base, 0);
+        Ty -> IsFlexible = true;
+    }
 
     *Rest = Tok;
     Ty->Mems = Head.Next;

@@ -114,8 +114,20 @@ static Initializer *newInitializer(Type *Ty, bool IsFlexible) {
         Init->Children = calloc(Len, sizeof(Initializer *));
 
         // 遍历子项进行赋值
-        for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
-            Init->Children[Mem->Idx] = newInitializer(Mem->Ty, false);
+        for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
+            // 判断结构体是否是灵活的，同时成员也是灵活的并且是最后一个
+            // 在这里直接构造，避免对于灵活数组的解析
+            if (IsFlexible && Ty->IsFlexible && !Mem->Next) {
+                Initializer *Child = calloc(1, sizeof(Initializer));
+                Child->Ty = Mem->Ty;
+                Child->IsFlexible = true;
+                Init->Children[Mem->Idx] = Child;
+            } else {
+                // 对非灵活子项进行赋值
+                Init->Children[Mem->Idx] = newInitializer(Mem->Ty, false);
+            }
+        }
+
         return Init;
     }
 
@@ -335,6 +347,26 @@ static Initializer *initializer(Token **Rest, Token *Tok, Type *Ty, Type **NewTy
     Initializer *Init = newInitializer(Ty, true);
     // 解析需要赋值到Init中
     _initializer(Rest, Tok, Init);
+
+    // struct {char a, b[];} T;
+    if ((Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION) && Ty->IsFlexible) {
+        // 复制结构体类型
+        Ty = copyStructType(Ty);
+
+        Member *Mem = Ty->Mems;
+        // 遍历到最后一个成员
+        while (Mem->Next)
+            Mem = Mem->Next;
+        // 灵活数组类型替换为实际的数组类型
+        Mem->Ty = Init->Children[Mem->Idx]->Ty;
+        // 增加结构体的类型大小
+        Ty->Size += Mem->Ty->Size;
+
+        // 将新类型传回变量
+        *NewTy = Ty;
+        return Init;
+    }
+
     // 将新类型传回变量
     *NewTy = Init->Ty;
     // trace("%d, %d", Ty->Size, (*NewTy)->Size);       // Ty->Size could be -1, but NewTy->size is known
