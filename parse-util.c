@@ -103,7 +103,7 @@ Type *findTag(Token *Tok) {
 // 获取标识符
 char *getIdent(Token *Tok) {
     if (Tok->Kind != TK_IDENT)
-        error("%s: expected an identifier", tokenName(Tok));
+        errorTok(Tok, "expected an identifier");
     return tokenName(Tok);
 }
 
@@ -333,76 +333,130 @@ void resolveGotoLabels(void) {
     Labels = NULL;
 }
 
+static int64_t evalRVal(Node *Nd, char **Label);
+
+int64_t eval2(Node *Nd, char **Label);
+
 // 计算给定节点的常量表达式计算
-// note: the value must can be known at compile time.
-// so variables are not allowed here
-int64_t eval(Node *Nd) {
+// 
+int64_t eval(Node *Nd) { return eval2(Nd, NULL); }
+
+// 计算给定节点的常量表达式计算
+// 常量表达式可以是数字或者是 ptr±n，ptr是指向全局变量的指针，n是偏移量。
+int64_t eval2(Node *Nd, char **Label) {
     addType(Nd);
 
     switch (Nd->Kind) {
-        case ND_ADD:
-            return eval(Nd->LHS) + eval(Nd->RHS);
-        case ND_SUB:
-            return eval(Nd->LHS) - eval(Nd->RHS);
-        case ND_MUL:
-            return eval(Nd->LHS) * eval(Nd->RHS);
-        case ND_DIV:
-            return eval(Nd->LHS) / eval(Nd->RHS);
-        case ND_NEG:
-            return -eval(Nd->LHS);
-        case ND_MOD:
-            return eval(Nd->LHS) % eval(Nd->RHS);
-        case ND_BITAND:
-            return eval(Nd->LHS) & eval(Nd->RHS);
-        case ND_BITOR:
-            return eval(Nd->LHS) | eval(Nd->RHS);
-        case ND_BITXOR:
-            return eval(Nd->LHS) ^ eval(Nd->RHS);
-        case ND_SHL:
-            return eval(Nd->LHS) << eval(Nd->RHS);
-        case ND_SHR:
-            return eval(Nd->LHS) >> eval(Nd->RHS);
-        case ND_EQ:
-            return eval(Nd->LHS) == eval(Nd->RHS);
-        case ND_NE:
-            return eval(Nd->LHS) != eval(Nd->RHS);
-        case ND_LT:
-            return eval(Nd->LHS) < eval(Nd->RHS);
-        case ND_LE:
-            return eval(Nd->LHS) <= eval(Nd->RHS);
-        case ND_COND:
-            return eval(Nd->Cond) ? eval(Nd->Then) : eval(Nd->Els);
-        case ND_COMMA:
-            return eval(Nd->RHS);
-        case ND_NOT:
-            return !eval(Nd->LHS);
-        case ND_BITNOT:
-            return ~eval(Nd->LHS);
-        case ND_LOGAND:
-            return eval(Nd->LHS) && eval(Nd->RHS);
-        case ND_LOGOR:
-            return eval(Nd->LHS) || eval(Nd->RHS);
-        case ND_CAST:
-            if (isInteger(Nd->Ty)) {
-                switch (Nd->Ty->Size) {
-                    case 1:
-                        return (uint8_t)eval(Nd->LHS);
-                    case 2:
-                        return (uint16_t)eval(Nd->LHS);
-                    case 4:
-                        return (uint32_t)eval(Nd->LHS);
-                }
+    case ND_ADD:
+        return eval2(Nd->LHS, Label) + eval(Nd->RHS);
+    case ND_SUB:
+        return eval2(Nd->LHS, Label) - eval(Nd->RHS);
+    case ND_MUL:
+        return eval(Nd->LHS) * eval(Nd->RHS);
+    case ND_DIV:
+        return eval(Nd->LHS) / eval(Nd->RHS);
+    case ND_NEG:
+        return -eval(Nd->LHS);
+    case ND_MOD:
+        return eval(Nd->LHS) % eval(Nd->RHS);
+    case ND_BITAND:
+        return eval(Nd->LHS) & eval(Nd->RHS);
+    case ND_BITOR:
+        return eval(Nd->LHS) | eval(Nd->RHS);
+    case ND_BITXOR:
+        return eval(Nd->LHS) ^ eval(Nd->RHS);
+    case ND_SHL:
+        return eval(Nd->LHS) << eval(Nd->RHS);
+    case ND_SHR:
+        return eval(Nd->LHS) >> eval(Nd->RHS);
+    case ND_EQ:
+        return eval(Nd->LHS) == eval(Nd->RHS);
+    case ND_NE:
+        return eval(Nd->LHS) != eval(Nd->RHS);
+    case ND_LT:
+        return eval(Nd->LHS) < eval(Nd->RHS);
+    case ND_LE:
+        return eval(Nd->LHS) <= eval(Nd->RHS);
+    case ND_COND:
+        return eval(Nd->Cond) ? eval2(Nd->Then, Label) : eval2(Nd->Els, Label);
+    case ND_COMMA:
+        return eval2(Nd->RHS, Label);
+    case ND_NOT:
+        return !eval(Nd->LHS);
+    case ND_BITNOT:
+        return ~eval(Nd->LHS);
+    case ND_LOGAND:
+        return eval(Nd->LHS) && eval(Nd->RHS);
+    case ND_LOGOR:
+        return eval(Nd->LHS) || eval(Nd->RHS);
+    case ND_CAST: {
+        int64_t Val = eval2(Nd->LHS, Label);
+        if (isInteger(Nd->Ty)) {
+            switch (Nd->Ty->Size) {
+            case 1:
+                return (uint8_t)Val;
+            case 2:
+                return (uint16_t)Val;
+            case 4:
+                return (uint32_t)Val;
             }
-            return eval(Nd->LHS);
-        case ND_NUM:
-            return Nd->Val;
-        default:
-            break;
+        }
+        return Val;
+    }
+    case ND_ADDR:
+        // find the label's address
+        return evalRVal(Nd->LHS, Label);
+    case ND_MEMBER:
+        // 未开辟Label的地址，则表明不是表达式常量
+        if (!Label)
+            errorTok(Nd->Tok, "not a compile-time constant");
+        // 不能为数组
+        if (Nd->Ty->Kind != TY_ARRAY)
+            errorTok(Nd->Tok, "invalid initializer");
+        // 返回左部的值（并解析Label），加上成员变量的偏移量
+        return evalRVal(Nd->LHS, Label) + Nd->Mem->Offset;
+    case ND_VAR:
+        // 未开辟Label的地址，则表明不是表达式常量
+        if (!Label)
+            errorTok(Nd->Tok, "not a compile-time constant");
+        // 不能为数组或者函数
+        if (Nd->Var->Ty->Kind != TY_ARRAY && Nd->Var->Ty->Kind != TY_FUNC)
+            errorTok(Nd->Tok, "invalid initializer");
+        *Label = Nd->Var->Name;
+        return 0;
+    case ND_NUM:
+        return Nd->Val;
+    default:
+        break;
     }
 
     errorTok(Nd->Tok, "not a compile-time constant");
     return -1;
 }
+
+// 计算重定位变量
+static int64_t evalRVal(Node *Nd, char **Label) {
+    switch (Nd->Kind) {
+        case ND_VAR:
+            // 局部变量不能参与全局变量的初始化
+            if (Nd->Var->IsLocal)
+                errorTok(Nd->Tok, "not a compile-time constant");
+            *Label = Nd->Var->Name;
+            return 0;
+        case ND_DEREF:
+            // 直接进入到解引用的地址
+            return eval2(Nd->LHS, Label);
+        case ND_MEMBER:
+            // 加上成员变量的偏移量
+            return evalRVal(Nd->LHS, Label) + Nd->Mem->Offset;
+        default:
+            break;
+    }
+
+    errorTok(Nd->Tok, "invalid initializer");
+    return -1;
+}
+
 
 extern Node *conditional(Token **Rest, Token *Tok);
 // 解析常量表达式

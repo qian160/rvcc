@@ -54,13 +54,20 @@ endif
 count:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
 	@rm *.d
+
+# use system cc to help to link our program to libc
+tmp: rvcc
+	$(CROSS-CC) -o- -E -P -C -xc a | ./rvcc -o a.s -
+	$(CROSS-CC) -static -o tmp a.s -xc test/common
+	-$(QEMU) tmp
+
 # 清理标签，清理所有非源代码文件
 clean:
 	-rm -rf rvcc tmp* *.d $(TESTS) test/*.s test/*.exe stage2/ thirdparty/
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
-.PHONY: test clean count
+.PHONY: test clean count temp
 
 -include $(DEPS)
 %.d: %.c

@@ -1698,6 +1698,16 @@ static Node *primary(Token **Rest, Token *Tok) {
     return NULL;
 }
 
+// 区分 函数还是全局变量
+static bool isFunction(Token *Tok) {
+    if (equal(Tok, ";"))
+        return false;
+
+    // 虚设变量，用于调用declarator
+    Type Dummy = {};
+    Type *Ty = declarator(&Tok, Tok, &Dummy);
+    return Ty->Kind == TY_FUNC;
+}
 // 语法解析入口函数
 // program = ( typedef | functionDefinition* | global-variable)*
 Obj *parse(Token *Tok) {
@@ -1715,13 +1725,7 @@ Obj *parse(Token *Tok) {
             Tok = parseTypedef(Tok, BaseTy);
             continue;
         }
-        // straightforward approach
-        Token *Start = Tok;
-        while(!equal(Start, ";") && !equal(Start, "("))
-            Start = Start->Next;
-        bool isFn = equal(Start, "(");
-
-        if (isFn)
+        if (isFunction(Tok))
             Tok = function(Tok, BaseTy, &Attr);
         else
             Tok = globalVariable(Tok, BaseTy);

@@ -667,12 +667,27 @@ static void emitData(Obj *Prog) {
         println("  .data");
         if (Var -> InitData){
             println("%s:", Var->Name);
-            for(int i = 0; i < Var->Ty->Size; i++){
-                char C = Var->InitData[i];
-                if (isprint(C))
-                    println("  .byte %d\t# ：%c", C, C);
-                else
+            Relocation *Rel = Var->Rel;
+            int Pos = 0;
+            while (Pos < Var->Ty->Size) {
+                // char g1[] = "123456";
+                // char g2[] = "aaaaaa";
+                // char *g3[] = {g1+0, g1+1, g1+2}; // {123456, 23456, 3456}
+                // rel->addend = 1, 2, 3(newAdd). offset is for struct members
+                if (Rel && Rel->Offset == Pos) {
+                    // 使用其他变量进行初始化
+                    println("  # %s全局变量", Var->Name);
+                    println("  .quad %s%+ld", Rel->Label, Rel->Addend);
+                    Rel = Rel->Next;
+                    Pos += 8;
+                } else {
+                    // 打印出字符串的内容，包括转义字符
+                    char C = Var->InitData[Pos++];
+                    if (isprint(C))
+                        println("  .byte %d\t# 字符：%c", C, C);
+                    else
                     println("  .byte %d", C);
+                }
             }
         }
         else{

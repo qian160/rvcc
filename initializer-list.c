@@ -46,6 +46,14 @@
 
 //  initializer-list:
 //
+//                                    Init(TY_INT)
+//                                         ↓
+//                                      EXPR = 2
+
+
+//  input = int a = 2;
+//  initializer-list:
+//
 //                                    Init(TY_ARRAY,len=2)
 //                     +---------------+----------------+
 //                     ↓                                ↓
@@ -54,7 +62,7 @@
 //          ↓          ↓          ↓           ↓         ↓         ↓
 //      children   children   children    children   children   children      ->  ALL TY_CHAR
 //         ↓           ↓          ↓           ↓         ↓         ↓
-//      EXPR='a'    EXPR='b'   EXPR=0      EXPR='c'  EXPR='d'    EXPR=0  
+//      EXPR='a'    EXPR='b'   EXPR=0      EXPR='c'  EXPR='d'    EXPR=0
 */
 
 
@@ -270,37 +278,54 @@ static Initializer *initializer(Token **Rest, Token *Tok, Type *Ty, Type **NewTy
     return Init;
 }
 
-// 对全局变量的初始化器写入数据. buf is then assigned to var -> initdata
-static void writeGVarData(Initializer *Init, Type *Ty, char *Buf, int Offset) {
+// 对全局变量的初始化器写入数据. buf is then filled to var -> initdata
+static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
+                                char *Buf, int Offset) {
     // 处理数组
     if (Ty->Kind == TY_ARRAY) {
         int Sz = Ty->Base->Size;
         for (int I = 0; I < Ty->ArrayLen; I++)
-            writeGVarData(Init->Children[I], Ty->Base, Buf, Offset + Sz * I);
-        return;
+            Cur = writeGVarData(Cur, Init->Children[I], Ty->Base, Buf, Offset + Sz * I);
+        return Cur;
     }
 
     // 处理结构体
     if (Ty->Kind == TY_STRUCT) {
         for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
-            writeGVarData(Init->Children[Mem->Idx], Mem->Ty, Buf, Offset + Mem->Offset);
-        return;
+            Cur = writeGVarData(Cur, Init->Children[Mem->Idx], Mem->Ty, Buf,
+                            Offset + Mem->Offset);
+        return Cur;
     }
 
-    // 计算常量表达式
-    if (Init->Expr)
-        writeBuf(Buf + Offset, eval(Init->Expr), Ty->Size);
-}
+    // 处理联合体
+    if (Ty->Kind == TY_UNION) {
+        return writeGVarData(Cur, Init->Children[0], Ty->Mems->Ty, Buf, Offset);
+    }
 
-// 全局变量在编译时需计算出初始化的值，然后写入.data段。
-void GVarInitializer(Token **Rest, Token *Tok, Obj *Var) {
-    // 获取到初始化器
-    Initializer *Init = initializer(Rest, Tok, Var->Ty, &Var->Ty);
+    // 这里返回，则会使Buf值为0
+    if (!Init->Expr)
+        return Cur;
 
-    // 写入计算过后的数据
-    char *Buf = calloc(1, Var->Ty->Size);
-    writeGVarData(Init, Var->Ty, Buf, 0);
-    Var->InitData = Buf;
+    // 预设使用到的 其他全局变量的名称
+    // note: we cant deref *label, but in eval2 we convert the arg to be **
+    // and then it becomes assinable(although label points to NULL, but &label not)
+    char *Label = NULL;
+    uint64_t Val = eval2(Init->Expr, &Label);
+
+    // 如果不存在Label，说明可以直接计算常量表达式的值
+    if (!Label) {
+        writeBuf(Buf + Offset, Val, Ty->Size);
+        return Cur;
+    }
+
+    // 存在Label，则表示使用了其他全局变量
+    Relocation *Rel = calloc(1, sizeof(Relocation));
+    Rel->Offset = Offset;
+    Rel->Label = Label;
+    Rel->Addend = Val;
+    // 压入链表顶部
+    Cur->Next = Rel;
+    return Cur->Next;
 }
 
 // 指派初始化表达式
@@ -372,6 +397,21 @@ static Node *createLVarInit(Initializer *Init, Type *Ty, InitDesig *Desig, Token
     // 变量等可以直接赋值的左值
     Node *LHS = initDesigExpr(Desig, Tok);
     return newBinary(ND_ASSIGN, LHS, Init->Expr, Tok);
+}
+
+// 全局变量在编译时需计算出初始化的值，然后写入.data段。
+void GVarInitializer(Token **Rest, Token *Tok, Obj *Var) {
+    // 获取到初始化器
+    Initializer *Init = initializer(Rest, Tok, Var->Ty, &Var->Ty);
+    // 新建一个重定向的链表
+    Relocation Head = {};
+
+    // 写入计算过后的数据
+    char *Buf = calloc(1, Var->Ty->Size);
+    writeGVarData(&Head, Init, Var->Ty, Buf, 0);
+    // 全局变量的数据
+    Var->InitData = Buf;
+    Var->Rel = Head.Next;
 }
 
 // 局部变量初始化器
