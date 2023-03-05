@@ -45,7 +45,8 @@ static bool isKeyword(Token *Tok) {
     static char *Kw[] = {"return", "if", "else", "for", 
             "while", "int", "sizeof", "char", "struct", "union", 
             "long", "short, void", "typedef", "_Bool", "enum", "static",
-            "goto", "break", "continue", "switch", "case", "default", "extern"
+            "goto", "break", "continue", "switch", "case", "default", "extern",
+            "_Alignof", "_Alignas",
             };
 
     return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);

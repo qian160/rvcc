@@ -69,6 +69,7 @@ Obj *newVar(char *Name, Type *Ty) {
     Obj *Var = calloc(1, sizeof(Obj));
     Var->Name = Name;
     Var->Ty = Ty;
+    Var->Align = Ty->Align;
     pushScope(Name)->Var = Var;
     return Var;
 }
@@ -155,7 +156,7 @@ bool isTypename(Token *Tok)
     static char *types[] = 
         {"typedef", "char", "int", "struct", "union", 
             "long", "short", "void", "_Bool", "enum",
-            "static", "extern"
+            "static", "extern", "_Alignas"
         };
 
     return equal2(Tok, sizeof(types) / sizeof(*types), types) || findTypedef(Tok);
@@ -290,6 +291,10 @@ Token *globalVariable(Token *Tok, Type *BaseTy, VarAttr *Attr) {
         Obj *Var = newGVar(getIdent(Ty->Name), Ty);
         // 是否具有定义
         Var->IsDefinition = !Attr->IsExtern;
+        // 若有设置，则覆盖全局变量的对齐值
+        if (Attr->Align)
+            Var->Align = Attr->Align;
+
         if (equal(Tok, "="))
             GVarInitializer(&Tok, Tok->Next, Var);
     }

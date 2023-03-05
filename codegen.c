@@ -248,7 +248,7 @@ static void assignLVarOffsets(Obj *Prog) {
             // the offset here is relevent to fp, which is at top of stack
             // 每个变量分配空间
             Offset += Var->Ty->Size;
-            Offset = alignTo(Offset, Var->Ty->Align);
+            Offset = alignTo(Offset, Var->Align);
             // 为每个变量赋一个偏移量，或者说是栈中地址
             Var->Offset = -Offset;
 //            println(" # %s, offset = %d", Var->Name, Var->Offset);
@@ -665,9 +665,9 @@ static void emitData(Obj *Prog) {
             continue;
 
         println("  .globl %s", Var->Name);
-        if (!Var->Ty->Align)
+        if (!Var->Align)
             error("Align can not be 0!");
-        println("  .align %d", simpleLog2(Var->Ty->Align));
+        println("  .align %d", simpleLog2(Var->Align));
 
         if (Var -> InitData){
             println("  .data");

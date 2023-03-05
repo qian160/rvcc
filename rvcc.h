@@ -78,6 +78,7 @@ struct Obj {
     bool IsLocal;   // 是局部变量
     bool IsStatic;  // 是否为文件域内的
     bool IsDefinition; // 是否为函数定义
+    int Align;      // 对齐量
     // 函数
     Obj *Params;    // 形参
     Node *Body;     // 函数体
@@ -172,7 +173,6 @@ struct Node {
     Node *CaseNext;
     Node *DefaultCase;
 
-
 };
 
 
@@ -220,6 +220,7 @@ struct Member {
     Token *Name;  // 名称
     int Offset;   // 偏移量
     int Idx;      // 索引值
+    int Align;    // 对齐量
 };
 
 // 全局变量可被 常量表达式 或者 指向其他全局变量的指针 初始化。
