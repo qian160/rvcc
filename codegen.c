@@ -664,8 +664,8 @@ static void emitData(Obj *Prog) {
         if (Var->Ty->Kind == TY_FUNC)
             continue;
 
-        println("  .data");
         if (Var -> InitData){
+            println("  .data");
             println("%s:", Var->Name);
             Relocation *Rel = Var->Rel;
             int Pos = 0;
@@ -691,12 +691,15 @@ static void emitData(Obj *Prog) {
             }
         }
         else{
-            println("  .globl %s", Var->Name);
+            // bss段未给数据分配空间，只记录数据所需空间的大小
+            println("  # 未初始化的全局变量");
+            println("  .bss");
             println("%s:", Var->Name);
             println("  # 全局变量零填充%d位", Var->Ty->Size);
             println("  .zero %d", Var->Ty->Size);
         }
     }
+
 }
 
 
