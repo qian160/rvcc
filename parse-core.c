@@ -124,7 +124,7 @@
 
 // declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // typeSuffix = ( funcParams  | "[" constExpr? "]"  typeSuffix)?
-// funcParams =  "(" (param ("," param)*)? ")"
+// funcParams =  "(" "void" | (param ("," param)*)? ")"
 //      param = declspec declarator
 
 // structDecl = structUnionDecl
@@ -447,11 +447,17 @@ Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
     return Ty;
 }
 
-// funcParams =  "(" (param ("," param)*)? ")"
+// funcParams =  "(" "void" | (param ("," param)*)? ")"
 // param = declspec declarator
 static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
         // skip "(" at the begining of fn
         Tok = skip(Tok, "(");
+        // "void"
+        if (equal(Tok, "void") && equal(Tok->Next, ")")) {
+            *Rest = Tok->Next->Next;
+            return funcType(Ty);
+        }
+
         // 存储形参的链表
         Type Head = {};
         Type *Cur = &Head;

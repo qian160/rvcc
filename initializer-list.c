@@ -109,7 +109,6 @@ static Initializer *newInitializer(Type *Ty, bool IsFlexible) {
         int Len = 0;
         for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
             ++Len;
-
         // 初始化器的子项
         Init->Children = calloc(Len, sizeof(Initializer *));
 
