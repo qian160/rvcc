@@ -218,6 +218,8 @@ static Node *postfix(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
 
 static Token *parseTypedef(Token *Tok, Type *BaseTy);
+
+static bool isFunction(Token *Tok);
 // 在解析时，全部的变量实例都被累加到这个列表里。
 
 Obj *Locals;    // 局部变量
@@ -798,6 +800,19 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
                 Tok = parseTypedef(Tok, BaseTy);
                 continue;
             }
+
+            // 处理块中的函数声明
+            if (isFunction(Tok)) {
+                Tok = function(Tok, BaseTy, &Attr);
+                continue;
+            }
+
+            // 解析外部全局变量
+            if (Attr.IsExtern) {
+                Tok = globalVariable(Tok, BaseTy, &Attr);
+                continue;
+            }
+
 
             // 解析变量声明语句
             Cur->Next = declaration(&Tok, Tok, BaseTy);
