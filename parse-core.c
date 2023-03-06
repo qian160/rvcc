@@ -117,13 +117,18 @@
 // declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
 //              | "typedef" | "static"
 //              | "signed" | "unsigned"
-//              | structDecl | unionDecl | typedefName | enumSpecifier)+
+//              | structDecl | unionDecl | typedefName
+//              | enumSpecifier
+//              | "const" | "volatile" | "auto" | "register" | "restrict"
+//              | "__restrict" | "__restrict__" | "_Noreturn")+
+
 
 // enumSpecifier = ident? "{" enumList? "}"
 //                 | ident ("{" enumList? "}")?
 // enumList = ident ("=" constExpr)? ("," ident ("=" constExpr)?)* ","?
 
-// declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// declarator = pointers ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// pointers = ("*" ("const" | "volatile" | "restrict")*)*
 // typeSuffix = ( funcParams  | "[" constExpr? "]"  typeSuffix)?
 // funcParams =  "(" "void" | (param ("," param)* "," "..." ? )? ")"
 //      param = declspec declarator
@@ -310,7 +315,10 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 //              | "typedef" | "static" | "extern"
 //              | "signed" | "unsigned"
 //              | "_Alignas" ("(" typeName | constExpr ")")
-//              | structDecl | unionDecl | typedefName | enumSpecifier)+
+//              | structDecl | unionDecl | typedefName
+//              | enumSpecifier
+//              | "const" | "volatile" | "auto" | "register" | "restrict"
+//              | "__restrict" | "__restrict__" | "_Noreturn")+
 // 声明的 基础类型. declaration specifiers
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 类型的组合，被表示为例如：LONG+LONG=1<<9
@@ -347,6 +355,15 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             if (Attr->IsTypedef && (Attr->IsStatic || Attr->IsExtern))
                 errorTok(Tok, "typedef and static/extern may not be used together");
 
+            Tok = Tok->Next;
+            continue;
+        }
+
+        char * dontcare[] = 
+            {"const", "volatile", "auto", "register", "restrict",
+                "__restrict", "__restrict__", "_Noreturn"
+            };
+        if(equal2(Tok, sizeof(dontcare) / sizeof(*dontcare), dontcare)){
             Tok = Tok->Next;
             continue;
         }
@@ -474,19 +491,33 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     return Ty;
 }
 
+// pointers = ("*" ("const" | "volatile" | "restrict")*)*
+static Type *pointers(Token **Rest, Token *Tok, Type *Ty) {
+    // "*"*
+    // 构建所有的（多重）指针
+    while (consume(&Tok, Tok, "*")) {
+        Ty = pointerTo(Ty);
+        char *dontcare[] = {"const", "volatile", "restrict", "__restrict", "__restrict__"};
+        // 识别这些关键字并忽略
+        while(equal2(Tok, sizeof(dontcare)/ sizeof(*dontcare), dontcare))
+            Tok = Tok->Next;
+    }
+    *Rest = Tok;
+    return Ty;
+}
+
 /*declarator：
     声明符，其实是介于declspec（声明的基础类型）与一直到声明结束这之间的所有东西("{" for fn and ";" for var)。
     与前面的declspec搭配就完整地定义了一个函数的签名。也可以用来定义变量*/
-// declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// declarator = pointers ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
+// pointers = ("*" ("const" | "volatile" | "restrict")*)*
 // int *** (a)[6] | int **(*(*(**a[6])))[6] | int **a[6]
 // the 2nd case is a little difficult to handle with... and that's also where the recursion begins
 // examples: ***var, fn(int x), a
 // a further step on type parsing. also help to assign Ty->Name
 Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
-    // "*"*
     // 构建所有的（多重）指针
-    while (consume(&Tok, Tok, "*"))
-        Ty = pointerTo(Ty);
+    Ty = pointers(&Tok, Tok, Ty);
     // "(" declarator ")", 嵌套类型声明符
     if (equal(Tok, "(")) {
         // 记录"("的位置
@@ -1755,15 +1786,10 @@ static Node *funCall(Token **Rest, Token *Tok) {
     return newCast(Nd, Ty->ReturnTy);
 }
 
-// abstractDeclarator = "*"* ("(" abstractDeclarator ")")? typeSuffix
+// abstractDeclarator = pointers ("(" abstractDeclarator ")")? typeSuffix
 // note: the ident is not needed, which is difference from declarator
 static Type *abstractDeclarator(Token **Rest, Token *Tok, Type *Ty) {
-    // "*"*
-    while (equal(Tok, "*")) {
-        Ty = pointerTo(Ty);
-        Tok = Tok->Next;
-    }
-
+    Ty = pointers(&Tok, Tok, Ty);
     // ("(" abstractDeclarator ")")?
     if (equal(Tok, "(")) {
         Token *Start = Tok;

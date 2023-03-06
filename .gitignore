@@ -32,7 +32,7 @@ a.out
 
 # CMake生成的文件目录
 build/
-target/*
+/target/*
 
 # stage2相关文件夹
 /stage2
