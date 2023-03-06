@@ -116,6 +116,7 @@
 // functionDefinition = declspec declarator compoundStmt*
 // declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
 //              | "typedef" | "static"
+//              | "signed"
 //              | structDecl | unionDecl | typedefName | enumSpecifier)+
 
 // enumSpecifier = ident? "{" enumList? "}"
@@ -307,6 +308,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 
 // declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
 //              | "typedef" | "static" | "extern"
+//              | "signed"
 //              | "_Alignas" ("(" typeName | constExpr ")")
 //              | structDecl | unionDecl | typedefName | enumSpecifier)+
 // 声明的 基础类型. declaration specifiers
@@ -314,13 +316,14 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 类型的组合，被表示为例如：LONG+LONG=1<<9
     // 可知long int和int long是等价的。
     enum {
-        VOID  = 1 << 0,
-        BOOL  = 1 << 2,
-        CHAR  = 1 << 4,
-        SHORT = 1 << 6,
-        INT   = 1 << 8,
-        LONG  = 1 << 10,
-        OTHER = 1 << 12,
+        VOID   = 1 << 0,
+        BOOL   = 1 << 2,
+        CHAR   = 1 << 4,
+        SHORT  = 1 << 6,
+        INT    = 1 << 8,
+        LONG   = 1 << 10,
+        OTHER  = 1 << 12,
+        SIGNED = 1 << 13,
     };
 
     Type *Ty = TyInt;
@@ -402,6 +405,8 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             Counter += INT;
         else if (equal(Tok, "long"))
             Counter += LONG;
+        else if (equal(Tok, "signed"))
+            Counter |= SIGNED;
         else
             error("unreachable");
 
@@ -414,19 +419,28 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
                 Ty = TyBool;
                 break;;
             case CHAR:
+            case SIGNED + CHAR:
                 Ty = TyChar;
                 break;
             case SHORT:
             case SHORT + INT:
+            case SIGNED + SHORT:
+            case SIGNED + SHORT + INT:
                 Ty = TyShort;
                 break;
             case INT:
+            case SIGNED:
+            case SIGNED + INT:
                 Ty = TyInt;
                 break;
             case LONG:
             case LONG + INT:
             case LONG + LONG:
             case LONG + LONG + INT:
+            case SIGNED + LONG:
+            case SIGNED + LONG + INT:
+            case SIGNED + LONG + LONG:
+            case SIGNED + LONG + LONG + INT:
                 Ty = TyLong;
                 break;
             default:

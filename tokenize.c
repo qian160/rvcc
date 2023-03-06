@@ -43,8 +43,8 @@ bool consume(Token **Rest, Token *Tok, char *Str) {
 static bool isKeyword(Token *Tok) {
     // 关键字列表
     static char *Kw[] = 
-        {   "return", "if", "else", "for", "do",
-            "while", "int", "sizeof", "char", "struct", "union", 
+        {   "return", "if", "else", "for", "do","while",
+            "int", "sizeof", "char", "struct", "union", "signed",
             "long", "short, void", "typedef", "_Bool", "enum", "static",
             "goto", "break", "continue", "switch", "case", "default", "extern",
             "_Alignof", "_Alignas",

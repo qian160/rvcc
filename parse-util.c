@@ -156,7 +156,7 @@ bool isTypename(Token *Tok)
     static char *types[] = 
         {"typedef", "char", "int", "struct", "union", 
             "long", "short", "void", "_Bool", "enum",
-            "static", "extern", "_Alignas"
+            "static", "extern", "_Alignas", "signed"
         };
 
     return equal2(Tok, sizeof(types) / sizeof(*types), types) || findTypedef(Tok);
