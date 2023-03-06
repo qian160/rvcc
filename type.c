@@ -68,6 +68,7 @@ Type *copyStructType(Type *Ty) {
 Type *pointerTo(Type *Base) {
     Type *Ty = newType(TY_PTR, 8, 8);
     Ty->Base = Base;
+    Ty->IsUnsigned = true;
     return Ty;
 }
 

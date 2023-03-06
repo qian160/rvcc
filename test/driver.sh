@@ -23,7 +23,7 @@ check() {
 # 清理掉$tmp中的out文件
 rm -f $tmp/out
 # 编译生成out文件
-./rvcc -o $tmp/out $tmp/empty.c
+./target/rvcc -o $tmp/out $tmp/empty.c
 # 条件判断，是否存在out文件
 [ -f $tmp/out ]
 # 将-o传入check函数
