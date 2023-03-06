@@ -116,7 +116,7 @@
 // functionDefinition = declspec declarator compoundStmt*
 // declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
 //              | "typedef" | "static"
-//              | "signed"
+//              | "signed" | "unsigned"
 //              | structDecl | unionDecl | typedefName | enumSpecifier)+
 
 // enumSpecifier = ident? "{" enumList? "}"
@@ -308,7 +308,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 
 // declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
 //              | "typedef" | "static" | "extern"
-//              | "signed"
+//              | "signed" | "unsigned"
 //              | "_Alignas" ("(" typeName | constExpr ")")
 //              | structDecl | unionDecl | typedefName | enumSpecifier)+
 // 声明的 基础类型. declaration specifiers
@@ -324,6 +324,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
         LONG   = 1 << 10,
         OTHER  = 1 << 12,
         SIGNED = 1 << 13,
+        UNSIGNED = 1 << 14,
     };
 
     Type *Ty = TyInt;
@@ -407,6 +408,8 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             Counter += LONG;
         else if (equal(Tok, "signed"))
             Counter |= SIGNED;
+        else if (equal(Tok, "unsigned"))
+            Counter |= UNSIGNED;
         else
             error("unreachable");
 
@@ -417,10 +420,18 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
                 break;
             case BOOL:
                 Ty = TyBool;
-                break;;
+                break;
+            // RISCV当中char是无符号类型的
             case CHAR:
+            case UNSIGNED + CHAR:
+                Ty = TyUChar;
+                break;
             case SIGNED + CHAR:
                 Ty = TyChar;
+                break;
+            case UNSIGNED + SHORT:
+            case UNSIGNED + SHORT + INT:
+                Ty = TyUShort;
                 break;
             case SHORT:
             case SHORT + INT:
@@ -428,10 +439,20 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             case SIGNED + SHORT + INT:
                 Ty = TyShort;
                 break;
+            case UNSIGNED:
+            case UNSIGNED + INT:
+                Ty = TyUInt;
+                break;
             case INT:
             case SIGNED:
             case SIGNED + INT:
                 Ty = TyInt;
+                break;
+            case UNSIGNED + LONG:
+            case UNSIGNED + LONG + INT:
+            case UNSIGNED + LONG + LONG:
+            case UNSIGNED + LONG + LONG + INT:
+                Ty = TyULong;
                 break;
             case LONG:
             case LONG + INT:

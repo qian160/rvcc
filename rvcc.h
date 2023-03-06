@@ -202,6 +202,7 @@ struct Type {
     TypeKind Kind; // 种类
     int Size;      // 大小, sizeof返回的值
     int Align;     // 对齐
+    bool IsUnsigned; // 是否为无符号的
     Type *Base;    // 基类, 指向的类型(only in effect for pointer)
     Token *Name;   // 类型对应名称，如：变量名、函数名
     // 函数类型
@@ -244,6 +245,11 @@ extern Type *TyLong;
 extern Type *TyShort;
 extern Type *TyVoid;
 extern Type *TyBool;
+
+extern Type *TyUChar;
+extern Type *TyUShort;
+extern Type *TyUInt;
+extern Type *TyULong;
 
 // functions
 

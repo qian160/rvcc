@@ -4,12 +4,18 @@
 // TyInt这个全局变量的作用主要是方便了其他变量的初始化。直接设置为指向他就好。
 // 而且似乎也节省了空间，创建一次就能被用很多次
 // type, size, align
-Type *TyInt = &(Type){.Kind = TY_INT, .Size = 4, .Align = 4};
 Type *TyChar = &(Type){TY_CHAR, 1, 1};
-Type *TyLong = &(Type){TY_LONG, 8, 8};
 Type *TyShort = &(Type){TY_SHORT, 2, 2};
+Type *TyInt = &(Type){TY_INT, 4, 4};
+Type *TyLong = &(Type){TY_LONG, 8, 8};
+
 Type *TyVoid = &(Type){TY_VOID, 1, 1};
 Type *TyBool = &(Type){TY_BOOL, 1, 1};
+
+Type *TyUChar = &(Type){TY_CHAR, 1, 1, true};
+Type *TyUShort = &(Type){TY_SHORT, 2, 2, true};
+Type *TyUInt = &(Type){TY_INT, 4, 4, true};
+Type *TyULong = &(Type){TY_LONG, 8, 8, true};
 
 static Type *newType(TypeKind Kind, int Size, int Align) {
     Type *Ty = calloc(1, sizeof(Type));
@@ -97,9 +103,20 @@ Type *structType(void) {
 Type *getCommonType(Type *Ty1, Type *Ty2) {
     if (Ty1->Base)
         return pointerTo(Ty1->Base);
-    if (Ty1->Size == 8 || Ty2->Size == 8)
-        return TyLong;
-    return TyInt;
+    // 小于四字节则为int
+    if (Ty1->Size < 4)
+        Ty1 = TyInt;
+    if (Ty2->Size < 4)
+        Ty2 = TyInt;
+
+    // 选择二者中更大的类型
+    if (Ty1->Size != Ty2->Size)
+        return (Ty1->Size < Ty2->Size) ? Ty2 : Ty1;
+
+    // 优先返回无符号类型（更大）
+    if (Ty2->IsUnsigned)
+        return Ty2;
+    return Ty1;
 }
 
 extern Node *newCast(Node *Expr, Type *Ty);

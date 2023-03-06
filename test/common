@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define bool _Bool
+
 void assert(int expected, int actual, char *code) {
   if (expected == actual) {
     printf("%s => %d\n", code, actual);
@@ -24,10 +26,17 @@ int ext_fn1(int x) { return x; }
 int ext_fn2(int x) { return x; }
 
 // [126] 支持函数返回短整数
-_Bool false_fn() { return 0; }
-_Bool true_fn() { return (_Bool)114514; }
+bool false_fn() { return 0; }
+bool true_fn() { return (bool)114514; }
 char char_fn() { return (char)((2<<8)+3); }
 short short_fn() { return (short)((2<<16)+5); }
+
+// [131] 支持无符号整型
+unsigned char uchar_fn() { return (unsigned char)((2<<10)-1-4); }
+unsigned short ushort_fn() { return (unsigned short)((2<<20)-1-7); }
+
+signed char schar_fn() { return (signed char)((2<<10)-1-4); }
+signed short sshort_fn() { return (signed short)((2<<20)-1-7); }
 
 // [127] 允许调用可变参数函数
 int add_all(int n, ...) {
