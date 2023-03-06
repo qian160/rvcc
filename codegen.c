@@ -8,7 +8,7 @@
 static int Depth;
 
 // 用于函数参数的寄存器们
-static char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
+static char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 
 static Obj *CurrentFn;
 
@@ -382,23 +382,6 @@ static void genExpr(Node *Nd) {
                 println("  addi sp, sp, -8");
                 println("  call %s", Nd->FuncName);
                 println("  addi sp, sp, 8");
-            }
-            // 清除寄存器中高位无关的数据
-            switch (Nd->Ty->Kind) {
-            case TY_BOOL:
-                println("  slli a0, a0, 63");
-                println("  srli a0, a0, 63");
-                return;
-            case TY_CHAR:
-                println("  slli a0, a0, 56");
-                println("  srai a0, a0, 56");
-                return;
-            case TY_SHORT:
-                println("  slli a0, a0, 48");
-                println("  srai a0, a0, 48");
-                return;
-                default:
-                break;
             }
 
             return;
@@ -786,12 +769,28 @@ void emitText(Obj *Prog) {
         // 偏移量为实际变量所用的栈大小
         println("  addi sp, sp, -%d", Fn->StackSize);
 
-        // map the actual params to formal params
+        // map (actual params) -> (formal params)
         // this needs to be done before entering the fn body
-        // then in the fn body we can use the formal params in stack
+        // then in the fn body we can use its formal params
+        // in stack as if they were passed from outside
+
+        // 正常传递的形参
         int I = 0;
         for (Obj *Var = Fn->Params; Var; Var = Var->Next)
             storeGeneral(I++, Var->Offset, Var->Ty->Size);
+
+        // 可变参数
+        if (Fn->VaArea) {
+            // 可变参数存入__va_area__，注意最多为7个
+            int Offset = Fn->VaArea->Offset;
+            while (I < 8) {
+                println("  # 可变参数，相对%s的偏移量为%d", Fn->VaArea->Name,
+                        Offset - Fn->VaArea->Offset);
+                storeGeneral(I++, Offset, 8);
+                Offset += 8;
+            }
+        }
+
         // 生成语句链表的代码
         println("# =====%s段主体===============", Fn->Name);
         genStmt(Fn->Body);

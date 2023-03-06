@@ -87,6 +87,7 @@ struct Obj {
     // 全局变量
     char *InitData;  // 用于初始化的数据
     Relocation *Rel; // 指向其他全局变量的指针
+    Obj *VaArea;     // 可变参数区域
 
 };
 

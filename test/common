@@ -24,10 +24,10 @@ int ext_fn1(int x) { return x; }
 int ext_fn2(int x) { return x; }
 
 // [126] 支持函数返回短整数
-int false_fn() { return 512; }
-int true_fn() { return 513; }
-int char_fn() { return (2<<8)+3; }
-int short_fn() { return (2<<16)+5; }
+_Bool false_fn() { return 0; }
+_Bool true_fn() { return (_Bool)114514; }
+char char_fn() { return (char)((2<<8)+3); }
+short short_fn() { return (short)((2<<16)+5); }
 
 // [127] 允许调用可变参数函数
 int add_all(int n, ...) {
