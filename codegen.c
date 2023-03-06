@@ -821,8 +821,6 @@ void emitText(Obj *Prog) {
             // 可变参数存入__va_area__，注意最多为7个
             int Offset = Fn->VaArea->Offset;
             while (I < 8) {
-                println("  # 可变参数，相对%s的偏移量为%d", Fn->VaArea->Name,
-                        Offset - Fn->VaArea->Offset);
                 storeGeneral(I++, Offset, 8);
                 Offset += 8;
             }

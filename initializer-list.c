@@ -247,10 +247,10 @@ static void stringInitializer(Token **Rest, Token *Tok, Initializer *Init) {
     // 如果是可调整的，就构造一个包含数组的初始化器
     // 字符串字面量在词法解析部分已经增加了'\0'
     if (Init->IsFlexible)
-        *Init = *newInitializer(arrayOf(Init->Ty->Base, Tok->strLen), false);
+        *Init = *newInitializer(arrayOf(Init->Ty->Base, Tok->Ty->ArrayLen), false);
 
     // 取数组和字符串的最短长度
-    int Len = MIN(Init->Ty->ArrayLen, Tok->strLen);
+    int Len = MIN(Init->Ty->ArrayLen, Tok->Ty->ArrayLen);
     // 遍历赋值
     for (int I = 0; I < Len; I++)
         Init->Children[I]->Expr = newNum(Tok->Str[I], Tok);

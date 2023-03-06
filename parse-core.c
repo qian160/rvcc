@@ -1840,6 +1840,7 @@ static Node *primary(Token **Rest, Token *Tok) {
     if (Tok->Kind == TK_NUM) {
         Node *Nd = newNum(Tok->Val, Tok);
         *Rest = Tok->Next;
+        Nd -> Ty = Tok->Ty;
         return Nd;
     }
 
@@ -1888,7 +1889,7 @@ static Node *primary(Token **Rest, Token *Tok) {
 
     // str, recognized in tokenize
     if (Tok->Kind == TK_STR) {
-        Obj *Var = newStringLiteral(Tok->Str, arrayOf(TyChar, Tok->strLen));
+        Obj *Var = newStringLiteral(Tok->Str, arrayOf(TyChar, Tok->Ty->ArrayLen));
         *Rest = Tok->Next;
         return newVarNode(Var, Tok);
     }

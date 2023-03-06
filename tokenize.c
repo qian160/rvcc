@@ -63,6 +63,12 @@ Token *newToken(TokenKind Kind, char *Start, char *End) {
     return Tok;
 }
 
+// 判断Str是否以SubStr开头
+static bool startsWith(char *Str, char *SubStr) {
+    // 比较LHS和RHS的N个字符是否相等
+    return strncmp(Str, SubStr, strlen(SubStr)) == 0;
+}
+
 // 返回一位十六进制转十进制
 // hexDigit = [0-9a-fA-F]
 // 16: 0 1 2 3 4 5 6 7 8 9  A  B  C  D  E  F
@@ -177,12 +183,72 @@ static Token *readIntLiteral(char *Start) {
 
     // 将字符串转换为Base进制的数字
     int64_t Val = strtoul(P, &P, Base);
+
+    // 读取U L LL后缀
+    bool L = false;
+    bool U = false;
+
+    // LLU / ULL
+    // just note that the 2 "L"s must be same 
+    if (startsWith(P, "LLU") || startsWith(P, "LLu") || startsWith(P, "llU") ||
+        startsWith(P, "llu") || startsWith(P, "ULL") || startsWith(P, "Ull") ||
+        startsWith(P, "uLL") || startsWith(P, "ull")) {
+        P += 3;
+        L = U = true;
+    } else if (!strncasecmp(P, "lu", 2) || !strncasecmp(P, "ul", 2)) {
+        // LU
+        P += 2;
+        L = U = true;
+    } else if (startsWith(P, "LL") || startsWith(P, "ll")) {
+        // LL
+        P += 2;
+        L = true;
+    } else if (*P == 'L' || *P == 'l') {
+        // L
+        P++;
+        L = true;
+    } else if (*P == 'U' || *P == 'u') {
+        // U
+        P++;
+        U = true;
+    }
+
+    // 匹配完成后不应该还有数字
     if (isalnum(*P))
         errorAt(P, "invalid digit");
-    
+
+    // 推断出类型，采用能存下当前数值的类型
+    Type *Ty;
+    if (Base == 10) {
+        if (L && U)
+            Ty = TyULong;
+        else if (L)
+            Ty = TyLong;
+        else if (U)
+            Ty = (Val >> 32) ? TyULong : TyUInt;
+        else
+            Ty = (Val >> 31) ? TyLong : TyInt;
+    } else {
+        if (L && U)
+            Ty = TyULong;
+        else if (L)
+            Ty = (Val >> 63) ? TyULong : TyLong;
+        else if (U)
+            Ty = (Val >> 32) ? TyULong : TyUInt;
+        else if (Val >> 63)
+        Ty = TyULong;
+        else if (Val >> 32)
+            Ty = TyLong;
+        else if (Val >> 31)
+            Ty = TyUInt;
+        else
+            Ty = TyInt;
+    }
+
     // 构造NUM的终结符
     Token *Tok = newToken(TK_NUM, Start, P);
     Tok->Val = Val;
+    Tok->Ty = Ty;
     return Tok;
 }
 
@@ -214,16 +280,9 @@ static Token *readStringLiteral(char *Start) {
 
     // Token这里需要包含带双引号的字符串字面量
     Token *Tok = newToken(TK_STR, Start, P + 1);
-    // 为\0增加一位
-    Tok->strLen = len;
+    Tok->Ty = arrayOf(TyChar, len);
     Tok->Str = Buf;
     return Tok;
-}
-
-// 判断Str是否以SubStr开头
-static bool startsWith(char *Str, char *SubStr) {
-    // 比较LHS和RHS的N个字符是否相等
-    return strncmp(Str, SubStr, strlen(SubStr)) == 0;
 }
 
 // 判断标记符的首字母规则
