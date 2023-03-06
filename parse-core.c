@@ -272,6 +272,8 @@ static Token *parseTypedef(Token *Tok, Type *BaseTy) {
             Tok = skip(Tok, ",");
         First = false;
         Type *Ty = declarator(&Tok, Tok, BaseTy);
+        if (!Ty->Name)
+            errorTok(Ty->NamePos, "typedef name omitted");
         // 类型别名的变量名存入变量域中，并设置类型
         pushScope(getIdent(Ty->Name))->Typedef = Ty;
     }
@@ -282,7 +284,8 @@ static Token *parseTypedef(Token *Tok, Type *BaseTy) {
 // functionDefinition = declspec declarator compoundStmt*
 static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     Type *Ty = declarator(&Tok, Tok, BaseTy);
-
+    if (!Ty->Name)
+        errorTok(Ty->NamePos, "function name omitted");
     // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
     Fn->IsStatic = Attr->IsStatic;
@@ -533,15 +536,25 @@ Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
         return declarator(&Tok, Start->Next, Ty);
     }
 
-    // not an identifier, can't be declared
-    if (Tok->Kind != TK_IDENT)
-        errorTok(Tok, "%s: expect an identifier name", tokenName(Tok));
+    // 默认名称为空
+    Token *Name = NULL;
+    // 名称位置指向类型后的区域
+    // ideally this should point to the ident name
+    // but also it could be emitted...
+    Token *NamePos = Tok;
+
+    // 存在名字则赋值
+    if (Tok->Kind == TK_IDENT) {
+        Name = Tok;
+        Tok = Tok->Next;
+    }
 
     // typeSuffix
-    Ty = typeSuffix(Rest, Tok->Next, Ty);
+    Ty = typeSuffix(Rest, Tok, Ty);
     // ident
     // 变量名 或 函数名, or typedef name
-    Ty->Name = Tok;
+    Ty->Name = Name;
+    Ty->NamePos = NamePos;
     return Ty;
 }
 
@@ -875,6 +888,9 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy, VarAttr *Attr) 
 
         if(Ty->Kind == TY_VOID)
             errorTok(Tok, "variable declared void");
+
+        if (!Ty->Name)
+            errorTok(Ty->NamePos, "variable name omitted");
 
         if (Attr && Attr->IsStatic) {
             // 静态局部变量

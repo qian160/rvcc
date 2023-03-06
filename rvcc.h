@@ -80,6 +80,7 @@ struct Obj {
     bool IsStatic;  // 是否为文件域内的
     bool IsDefinition; // 是否为函数定义
     int Align;      // 对齐量
+    Token *Tok;     // 对应的终结符
     // 函数
     Obj *Params;    // 形参
     Node *Body;     // 函数体
@@ -206,6 +207,7 @@ struct Type {
     bool IsUnsigned; // 是否为无符号的
     Type *Base;    // 基类, 指向的类型(only in effect for pointer)
     Token *Name;   // 类型对应名称，如：变量名、函数名
+    Token *NamePos; // 名称位置
     // 函数类型
     Type *ReturnTy; // 函数返回的类型
     Type *Params;   // 存储形参的链表. head.

@@ -115,6 +115,8 @@ void createParamLVars(Type *Param) {
     if (Param) {
         // 先将最底部的加入Locals中，之后的都逐个加入到顶部，保持顺序不变
         createParamLVars(Param->Next);
+        if (!Param->Name)
+            errorTok(Param->NamePos, "parameter name omitted");
         // 添加到Locals中
         newLVar(getIdent(Param->Name), Param);
     }
@@ -297,6 +299,9 @@ Token *globalVariable(Token *Tok, Type *BaseTy, VarAttr *Attr) {
         First = false;
 
         Type *Ty = declarator(&Tok, Tok, BaseTy);
+        if (!Ty->Name)
+            errorTok(Ty->NamePos, "variable name omitted");
+
         // 全局变量初始化
         Obj *Var = newGVar(getIdent(Ty->Name), Ty);
         // 是否具有定义
