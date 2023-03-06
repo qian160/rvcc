@@ -129,7 +129,9 @@
 
 // declarator = pointers ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // pointers = ("*" ("const" | "volatile" | "restrict")*)*
-// typeSuffix = ( funcParams  | "[" constExpr? "]"  typeSuffix)?
+// typeSuffix = ( funcParams  | "[" arrayDimensions? "]"  typeSuffix)?
+// arrayDimensions = ("static" | "restrict")* constExpr?  typeSuffix
+
 // funcParams =  "(" "void" | (param ("," param)* "," "..." ? )? ")"
 //      param = declspec declarator
 
@@ -605,16 +607,20 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
         return Ty;
 }
 
-// typeSuffix = ( funcParams?  | "[" constExpr? "] typeSuffix")?
+// typeSuffix = ( funcParams?  | "[" arrayDimensions? "] typeSuffix")?
+// arrayDimensions = ("static" | "restrict")* constExpr? "]" typeSuffix
 // if function, construct its formal parms. otherwise do nothing
 // since we want to recursively construct its type, we need to pass the former type as an argument
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
     // ("(" funcParams? ")")?
     if (equal(Tok, "("))
         return funcParams(Rest, Tok, Ty);
-    // "[" constExpr? "] typeSuffix"
+    // "[" arrayDimensions? "] typeSuffix"
     if (equal(Tok, "[")) {
         Tok = skip(Tok, "[");
+        // ("static" | "restrict")*
+        while (equal(Tok, "static") || equal(Tok, "restrict"))
+            Tok = Tok->Next;
         // 无数组维数的 "[]"
         // sizeof(int(*)[][10])
         if(equal(Tok, "]")){
