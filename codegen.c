@@ -36,22 +36,60 @@ static void pop(char *Reg) {
     Depth--;
 }
 
+// ImmI: 12 bits. [-2048, 2047]
+// addi, load
+static inline bool isLegalImmI(int i){
+    return (i >= -0x800 && i <= 0x7ff);
+    return false;
+}
+
+// ImmS: 12 bits. also [-2048, 2047], just bits' location different
+// store
+static inline bool isLegalImmS(int i){
+    return isLegalImmI(i);
+    return false;
+}
+
 // 将整形寄存器的值存入栈中
 static void storeGeneral(int Reg, int Offset, int Size) {
     // 将%s寄存器的值存入%d(fp)的栈地址
     switch (Size) {
         case 1:
-            println("  sb %s, %d(fp)", ArgReg[Reg], Offset);
+            if(isLegalImmS(Offset))
+                println("  sb %s, %d(fp)", ArgReg[Reg], Offset);
+            else {
+                println("  li t0, %d", Offset);
+                println("  add t0, fp, t0");
+                println("  sb %s, 0(t0)", ArgReg[Reg]);
+            }
             return;
         case 2:
-            println("  sh %s, %d(fp)", ArgReg[Reg], Offset);
+            if(isLegalImmS(Offset))
+                println("  sh %s, %d(fp)", ArgReg[Reg], Offset);
+            else {
+                println("  li t0, %d", Offset);
+                println("  add t0, fp, t0");
+                println("  sh %s, 0(t0)", ArgReg[Reg]);
+            }
             return;
         case 4:
-            println("  sw %s, %d(fp)", ArgReg[Reg], Offset);
+            if(isLegalImmS(Offset))
+                println("  sw %s, %d(fp)", ArgReg[Reg], Offset);
+            else {
+                println("  li t0, %d", Offset);
+                println("  add t0, fp, t0");
+                println("  sw %s, 0(t0)", ArgReg[Reg]);
+            }
             return;
         case 8:
-            println("  sd %s, %d(fp)", ArgReg[Reg], Offset);
-        return;
+            if(isLegalImmS(Offset))
+                println("  sd %s, %d(fp)", ArgReg[Reg], Offset);
+            else {
+                println("  li t0, %d", Offset);
+                println("  add t0, fp, t0");
+                println("  sd %s, 0(t0)", ArgReg[Reg]);
+            }
+            return;
         default:
             error("unreachable");
     }
@@ -227,9 +265,18 @@ static void genAddr(Node *Nd) {
     switch (Nd->Kind){
         // 变量
         case ND_VAR:
+            // 局部变量的偏移量是相对于fp的, 栈内
             if (Nd->Var->IsLocal) {
-                // 局部变量的偏移量是相对于fp的, 栈内
-                println("  addi a0, fp, %d", Nd->Var->Offset);
+                // li is pseudo inst for sequence of lui/addi, which
+                // can represent an arbitrary 32-bit integer
+                // which can present larger range than single addi
+                int Offset = Nd->Var->Offset;
+                if(isLegalImmI(Offset))
+                    println("  addi a0, fp, %d", Offset);
+                else{
+                    println("  li t0, %d", Offset);
+                    println("  add a0, fp, t0");
+                }
             } else {
                 // 获取全局变量的地址
                 println("  la a0, %s", Nd->Var->Name);
@@ -439,25 +486,56 @@ static void genExpr(Node *Nd) {
         }
         // 内存清零
         case ND_MEMZERO: {
-            println("  # 对%s的内存%d(fp)清零%d位", Nd->Var->Name, Nd->Var->Offset, Nd->Var->Ty->Size);
+            int Offset = Nd->Var->Offset;
+            int Size = Nd->Var->Ty->Size;
+            println("  # 对%s的内存%d(fp)清零%d位", Nd->Var->Name, Offset, Size);
             // 对栈内变量所占用的每个字节都进行清零
             int I = 0;
-            while( I + 8 <= Nd->Var->Ty->Size){
-                println("  sd zero, %d(fp)", Nd->Var->Offset+I);
-                I += 8;
+            if(isLegalImmS(Offset)){
+                while( I + 8 <= Size){
+                    println("  sd zero, %d(fp)", Offset+I);
+                    I += 8;
+                }
+                while( I + 4 <= Size){
+                    println("  sw zero, %d(fp)", Offset+I);
+                    I += 4;
+                }
+                while( I + 2 <= Size){
+                    println("  sh zero, %d(fp)", Offset+I);
+                    I += 2;
+                }
+                while( I + 1 <= Size){
+                    println("  sb zero, %d(fp)", Offset+I);
+                    I += 1;
+                }
             }
-            while( I + 4 <= Nd->Var->Ty->Size){
-                println("  sw zero, %d(fp)", Nd->Var->Offset+I);
-                I += 4;
+            else{
+                while( I + 8 <= Size){
+                    println("  li t0, %d", Offset + I);
+                    println("  add t0, fp, t0");
+                    println("  sb zero, 0(t0)");
+                    I += 8;
+                }
+                while( I + 4 <= Size){
+                    println("  li t0, %d", Offset + I);
+                    println("  add t0, fp, t0");
+                    println("  sw zero, 0(t0)");
+                    I += 4;
+                }
+                while( I + 2 <= Size){
+                    println("  li t0, %d", Offset + I);
+                    println("  add t0, fp, t0");
+                    println("  sh zero, 0(t0)");
+                    I += 2;
+                }
+                while( I + 1 <= Size){
+                    println("  li t0, %d", Offset + I);
+                    println("  add t0, fp, t0");
+                    println("  sb zero, 0(t0)");
+                    I += 1;
+                }
             }
-            while( I + 2 <= Nd->Var->Ty->Size){
-                println("  sh zero, %d(fp)", Nd->Var->Offset+I);
-                I += 2;
-            }
-            while( I + 1 <= Nd->Var->Ty->Size){
-                println("  sb zero, %d(fp)", Nd->Var->Offset+I);
-                I += 1;
-            }
+            return;
         }
         // 空表达式
         case ND_NULL_EXPR:
@@ -804,8 +882,12 @@ void emitText(Obj *Prog) {
         println("  mv fp, sp");
 
         // 偏移量为实际变量所用的栈大小
-        println("  addi sp, sp, -%d", Fn->StackSize);
-
+        if(isLegalImmI(Fn->StackSize))
+            println("  addi sp, sp, -%d", Fn->StackSize);
+        else{
+            println("  li t0, -%d", Fn->StackSize);
+            println("  add sp, sp, t0");
+        }
         // map (actual params) -> (formal params)
         // this needs to be done before entering the fn body
         // then in the fn body we can use its formal params

@@ -394,10 +394,14 @@ int64_t eval2(Node *Nd, char **Label) {
     case ND_MUL:
         return eval(Nd->LHS) * eval(Nd->RHS);
     case ND_DIV:
+        if(Nd->Ty->IsUnsigned)
+            return (uint64_t)eval(Nd->LHS) / eval(Nd->RHS);
         return eval(Nd->LHS) / eval(Nd->RHS);
     case ND_NEG:
         return -eval(Nd->LHS);
     case ND_MOD:
+        if(Nd->Ty->IsUnsigned)
+            return (uint64_t)eval(Nd->LHS) % eval(Nd->RHS);
         return eval(Nd->LHS) % eval(Nd->RHS);
     case ND_BITAND:
         return eval(Nd->LHS) & eval(Nd->RHS);
@@ -408,14 +412,20 @@ int64_t eval2(Node *Nd, char **Label) {
     case ND_SHL:
         return eval(Nd->LHS) << eval(Nd->RHS);
     case ND_SHR:
+        if(Nd->Ty->IsUnsigned)
+            return (uint64_t)eval(Nd->LHS) >> eval(Nd->RHS);
         return eval(Nd->LHS) >> eval(Nd->RHS);
     case ND_EQ:
         return eval(Nd->LHS) == eval(Nd->RHS);
     case ND_NE:
         return eval(Nd->LHS) != eval(Nd->RHS);
     case ND_LT:
+        if(Nd->Ty->IsUnsigned)
+            return (uint64_t)eval(Nd->LHS) < eval(Nd->RHS);
         return eval(Nd->LHS) < eval(Nd->RHS);
     case ND_LE:
+        if(Nd->Ty->IsUnsigned)
+            return (uint64_t)eval(Nd->LHS) <= eval(Nd->RHS);
         return eval(Nd->LHS) <= eval(Nd->RHS);
     case ND_COND:
         return eval(Nd->Cond) ? eval2(Nd->Then, Label) : eval2(Nd->Els, Label);
@@ -434,11 +444,11 @@ int64_t eval2(Node *Nd, char **Label) {
         if (isInteger(Nd->Ty)) {
             switch (Nd->Ty->Size) {
             case 1:
-                return (uint8_t)Val;
+                return Nd->Ty->IsUnsigned ? (uint8_t)Val : (int8_t)Val;
             case 2:
-                return (uint16_t)Val;
+                return Nd->Ty->IsUnsigned ? (uint16_t)Val : (int16_t)Val;
             case 4:
-                return (uint32_t)Val;
+                return Nd->Ty->IsUnsigned ? (uint32_t)Val : (int32_t)Val;
             }
         }
         return Val;
