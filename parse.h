@@ -122,6 +122,7 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok);
 Node *newVarNode(Obj* Var, Token *Tok);
 Node *newCast(Node *Expr, Type *Ty);
 Node *newLong(int64_t Val, Token *Tok);
+Node *newULong(long Val, Token *Tok);
 
 // ---------- initializer-list ----------
 

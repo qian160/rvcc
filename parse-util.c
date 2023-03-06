@@ -205,6 +205,14 @@ Node *newLong(int64_t Val, Token *Tok) {
     return Nd;
 }
 
+// 新建一个无符号长整型节点
+Node *newULong(long Val, Token *Tok) {
+    Node *node = newNode(ND_NUM, Tok);
+    node->Val = Val;
+    node->Ty = TyULong;
+    return node;
+}
+
 // 解析各种加法.
 // 其实是newBinary的一种特殊包装。
 // 专门用来处理加法。 会根据左右节点的类型自动对此次加法做出适应
@@ -261,7 +269,7 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
     // ptr - ptr，返回两指针间有多少元素
     if (LHS->Ty->Base && RHS->Ty->Base) {
         Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
-        Nd->Ty = TyInt;
+        Nd->Ty = TyLong;
         return newBinary(ND_DIV, Nd, newNum(LHS->Ty->Base->Size, Tok), Tok);
     }
 

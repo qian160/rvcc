@@ -1825,16 +1825,15 @@ static Node *primary(Token **Rest, Token *Tok) {
         Token *Start = Tok;
         Type *Ty = typename(&Tok, Tok->Next->Next);
         *Rest = skip(Tok, ")");
-        return newNum(Ty->Size, Start);
+        return newULong(Ty->Size, Start);
     }
 
     // "sizeof" unary
     if (equal(Tok, "sizeof")) {
         Node *Nd = unary(Rest, Tok->Next);
         addType(Nd);
-        return newNum(Nd->Ty->Size, Tok);
+        return newULong(Nd->Ty->Size, Tok);
     }
-
 
     // num
     if (Tok->Kind == TK_NUM) {
@@ -1849,7 +1848,7 @@ static Node *primary(Token **Rest, Token *Tok) {
     if (equal(Tok, "_Alignof") && equal(Tok->Next, "(") && isTypename(Tok->Next->Next)) {
         Type *Ty = typename(&Tok, Tok->Next->Next);
         *Rest = skip(Tok, ")");
-        return newNum(Ty->Align, Tok);
+        return newULong(Ty->Align, Tok);
     }
 
     // "_Alignof" unary
@@ -1857,7 +1856,7 @@ static Node *primary(Token **Rest, Token *Tok) {
     if (equal(Tok, "_Alignof")) {
         Node *Nd = unary(Rest, Tok->Next);
         addType(Nd);
-        return newNum(Nd->Ty->Align, Tok);
+        return newULong(Nd->Ty->Align, Tok);
     }
 
     // ident args?
