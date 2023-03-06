@@ -1885,7 +1885,17 @@ static Node *primary(Token **Rest, Token *Tok) {
 
     // num
     if (Tok->Kind == TK_NUM) {
-        Node *Nd = newNum(Tok->Val, Tok);
+        Node *Nd;
+        //trace("%s: %p", __TKNAME__, Tok->Ty);
+        if (isFloNum(Tok->Ty)) {
+            // 浮点数节点
+            Nd = newNode(ND_NUM, Tok);
+            Nd->FVal = Tok->FVal;
+        } else {
+            // 整型节点
+            Nd = newNum(Tok->Val, Tok);
+        }
+        //Node *Nd = newNum(Tok->Val, Tok);
         *Rest = Tok->Next;
         Nd -> Ty = Tok->Ty;
         return Nd;

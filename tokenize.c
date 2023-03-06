@@ -159,6 +159,7 @@ static Token *readCharLiteral(char *Start) {
     // 构造一个NUM的终结符，值为C的数值
     Token *Tok = newToken(TK_NUM, Start, End + 1);
     Tok->Val = C;
+    Tok->Ty = TyChar;
     return Tok;
 }
 
@@ -215,10 +216,6 @@ static Token *readIntLiteral(char *Start) {
         U = true;
     }
 
-    // 匹配完成后不应该还有数字
-    if (isalnum(*P))
-        errorAt(P, "invalid digit");
-
     // 推断出类型，采用能存下当前数值的类型
     Type *Ty;
     if (Base == 10) {
@@ -254,6 +251,34 @@ static Token *readIntLiteral(char *Start) {
     return Tok;
 }
 
+// 读取数字
+static Token *readNumber(char *Start) {
+    // 尝试解析整型常量
+    Token *Tok = readIntLiteral(Start);
+    // 不带e或者f后缀，则为整型
+    if (!strchr(".eEfF", Start[Tok->Len]))
+        return Tok;
+    // 如果不是整型，那么一定是浮点数
+    char *End;
+    double Val = strtod(Start, &End);
+    // 处理浮点数后缀
+    Type *Ty;
+    if (*End == 'f' || *End == 'F') {
+        Ty = TyFloat;
+        End++;
+    } else if (*End == 'l' || *End == 'L') {
+        Ty = TyDouble;
+        End++;
+    } else {
+        Ty = TyDouble;
+    }
+
+    // 构建浮点数终结符
+    Tok = newToken(TK_NUM, Start, End);
+    Tok->FVal = Val;
+    Tok->Ty = Ty;
+    return Tok;
+}
 
 // 读取字符串字面量. *Start = "
 static Token *readStringLiteral(char *Start) {
@@ -376,18 +401,6 @@ static Token *tokenize(char *Filename, char *P) {
             continue;
         }
 
-        // 解析数字
-        if (isdigit(*P)) {
-            // 我们不使用Head来存储信息，仅用来表示链表入口，这样每次都是存储在Cur->Next
-            // 否则下述操作将使第一个Token的地址不在Head中。
-            // 读取数字字面量
-            Cur->Next = readIntLiteral(P);
-            // 指针前进
-            Cur = Cur->Next;
-            P += Cur->Len;
-            continue;
-        }
-
         // 解析字符串字面量
         if (*P == '"') {
             Cur->Next = readStringLiteral(P);
@@ -399,6 +412,18 @@ static Token *tokenize(char *Filename, char *P) {
         // 解析字符字面量
         if (*P == '\'') {
             Cur->Next = readCharLiteral(P);
+            Cur = Cur->Next;
+            P += Cur->Len;
+            continue;
+        }
+
+        // 解析整型和浮点数
+        if (isdigit(*P) || (*P == '.' && isdigit(P[1]))) {
+            Cur->Next = readNumber(P);
+            // 我们不使用Head来存储信息，仅用来表示链表入口，这样每次都是存储在Cur->Next
+            // 否则下述操作将使第一个Token的地址不在Head中。
+            // 读取数字字面量
+            // 指针前进
             Cur = Cur->Next;
             P += Cur->Len;
             continue;

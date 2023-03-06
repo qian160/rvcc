@@ -55,7 +55,8 @@ typedef enum {
 struct Token {
     TokenKind Kind; // 种类
     Token *Next;    // 指向下一终结符
-    int64_t Val;        // 值
+    int64_t Val;    // 值
+    double FVal;    // TK_NUM浮点值
     char *Loc;      // 在解析的字符串内的位置
     int Len;        // 长度
 //    int strLen;     // TK_STR使用. 由于转义字符的存在，strlen可能会小于len
@@ -151,6 +152,7 @@ struct Node {
     Obj * Var;      // 存储ND_VAR种类的变量
     Type *Ty;       // 节点中数据的类型
     int64_t Val;    // 存储ND_NUM种类的值
+    double FVal;    // 存储ND_NUM种类的浮点值
     Token * Tok;    // 节点对应的终结符. debug
     // 函数
     char *FuncName; // 函数名
@@ -198,6 +200,9 @@ typedef enum {
     TY_UNION,      // 联合体
     TY_BOOL,       // boolean
     TY_ENUM,       // 枚举类型
+    TY_FLOAT,      // float类型
+    TY_DOUBLE,     // double类型
+
 } TypeKind;
 
 struct Type {
@@ -254,6 +259,10 @@ extern Type *TyUShort;
 extern Type *TyUInt;
 extern Type *TyULong;
 
+extern Type *TyFloat;
+extern Type *TyDouble;
+
+
 // functions
 
 /* ---------- tokenize.c ---------- */
@@ -278,6 +287,8 @@ void codegen(Obj *Prog, FILE *Out);
 /* ---------- type.c ---------- */
 // 判断是否为整型
 bool isInteger(Type *TY);
+// 判断是否为浮点类型
+bool isFloNum(Type *Ty);
 // 为节点内的所有节点添加类型
 void addType(Node *Nd);
 // 构建一个指针类型，并指向基类

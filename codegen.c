@@ -40,14 +40,12 @@ static void pop(char *Reg) {
 // addi, load
 static inline bool isLegalImmI(int i){
     return (i >= -0x800 && i <= 0x7ff);
-    return false;
 }
 
 // ImmS: 12 bits. also [-2048, 2047], just bits' location different
 // store
 static inline bool isLegalImmS(int i){
     return isLegalImmI(i);
-    return false;
 }
 
 // 将整形寄存器的值存入栈中
@@ -399,10 +397,34 @@ static void genExpr(Node *Nd) {
             println("  neg%s a0, a0", Nd->Ty->Size <= 4? "w": "");
             return;
     // others. general op
-        // 加载数字到a0, leaf node
-        case ND_NUM:
-            println("  li a0, %ld", Nd->Val);
-            return;
+        // float和uint32、double和uint64 共用一份内存空间
+        case ND_NUM: {
+            union {
+                float F32;
+                double F64;
+                uint32_t U32;
+                uint64_t U64;
+            } U;
+
+            switch (Nd->Ty->Kind) {
+                case TY_FLOAT:
+                    U.F32 = Nd->FVal;
+                    println("  # 将a0转换到float类型值为%f的fa0中", Nd->FVal);
+                    println("  li a0, %u  # float %f", U.U32, Nd->FVal);
+                    println("  fmv.w.x fa0, a0");
+                    return;
+                case TY_DOUBLE:
+                    println("  # 将a0转换到double类型值为%f的fa0中", Nd->FVal);
+                    U.F64 = Nd->FVal;
+                    println("  li a0, %lu  # double %f", U.U64, Nd->FVal);
+                    println("  fmv.d.x fa0, a0");
+                    return;
+                default:
+                    println("  # 将%ld加载到a0中", Nd->Val);
+                    println("  li a0, %ld", Nd->Val);
+                    return;
+            }
+        }
 
         // 变量. note: array also has VAR type
         case ND_VAR:
