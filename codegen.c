@@ -36,6 +36,21 @@ static void pop(char *Reg) {
     Depth--;
 }
 
+// 对于浮点类型进行压栈
+static void pushF(void) {
+    println("  addi sp, sp, -8");
+    println("  fsd fa0, 0(sp)");
+    Depth++;
+}
+
+// 对于浮点类型进行弹栈
+static void popF(char *Reg) {
+    println("  fld %s, 0(sp)", Reg);
+    println("  addi sp, sp, 8");
+    Depth--;
+}
+
+
 // ImmI: 12 bits. [-2048, 2047]
 // addi, load
 static inline bool isLegalImmI(int i){
@@ -521,12 +536,17 @@ static void genExpr(Node *Nd) {
     // others. general op
         case ND_NUM: {
             switch (Nd->Ty->Kind) {
-                case TY_FLOAT:
+                case TY_FLOAT:{
                     // 将a0转换到float类型值为%f的fa0中
-                    // can't do the cast directly like (uint32_t)Nd->FVal. we need to reinterpret the bits
-                    println("  li a0, %u  # float %f", *(uint32_t*)&Nd->FVal, Nd->FVal);
+                    // can't do the cast directly like (uint32_t)Nd->FVal.
+                    // if so, something like 0.999 will be truncated to 0.
+                    // and we wish things like (_Bool)0.1l to be "true".
+                    // we need to reinterpret the bits here
+                    float f = Nd->FVal;
+                    println("  li a0, %u  # float %f", *(uint32_t*)&f, Nd->FVal);
                     println("  fmv.w.x fa0, a0");
                     return;
+                }
                 case TY_DOUBLE:
                     // 将a0转换到double类型值为%f的fa0中
                     println("  li a0, %lu  # double %f", *(uint64_t*)&Nd->FVal, Nd->FVal);
@@ -677,6 +697,41 @@ static void genExpr(Node *Nd) {
 
         default:
             break;
+    }
+
+
+    // 处理浮点类型
+    if (isFloNum(Nd->LHS->Ty)) {
+        // 递归到最右节点
+        genExpr(Nd->RHS);
+        // 将结果压入栈
+        pushF();
+        // 递归到左节点
+        genExpr(Nd->LHS);
+        // 将结果弹栈到fa1
+        popF("fa1");
+
+        // 生成各个二叉树节点
+        // float对应s(single)后缀，double对应d(double)后缀
+        char *Suffix = (Nd->LHS->Ty->Kind == TY_FLOAT) ? "s" : "d";
+
+        switch (Nd->Kind) {
+            case ND_EQ:
+                println("  feq.%s a0, fa0, fa1", Suffix);
+                return;
+            case ND_NE:
+                println("  feq.%s a0, fa0, fa1", Suffix);
+                println("  seqz a0, a0");
+                return;
+            case ND_LT:
+                println("  flt.%s a0, fa0, fa1", Suffix);
+                return;
+            case ND_LE:
+                println("  fle.%s a0, fa0, fa1", Suffix);
+                return;
+            default:
+                errorTok(Nd->Tok, "invalid expression");
+        }
     }
     // EXPR_STMT
     // 递归到最右节点
