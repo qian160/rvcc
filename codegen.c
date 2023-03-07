@@ -212,7 +212,27 @@ static void store(Type *Ty) {
         default:
             error("wtf");
     }
-};
+}
+
+// 与0进行比较，不等于0则置1
+// call this before a cond branch to deal with float values
+static void notZero(Type *Ty) {
+    switch (Ty->Kind) {
+        case TY_FLOAT:
+            println("  fmv.s.x fa1, zero");
+            println("  feq.s a0, fa0, fa1");
+            println("  xori a0, a0, 1");
+            return;
+        case TY_DOUBLE:
+            println("  fmv.d.x fa1, zero");
+            println("  feq.d a0, fa0, fa1");
+            println("  xori a0, a0, 1");
+            return;
+        default:
+            return;
+    }
+}
+
 
 // 类型枚举
 // note: don't modify their order. these are used as index in castTable
@@ -379,6 +399,7 @@ static void cast(Type *From, Type *To) {
     if (To->Kind == TY_VOID)
         return;
     if (To->Kind == TY_BOOL) {
+        notZero(From);
         println("  snez a0, a0");
         return;
     }
@@ -492,15 +513,18 @@ static void genExpr(Node *Nd) {
     // logical op
         case ND_NOT:
             genExpr(Nd->LHS);
+            notZero(Nd->LHS->Ty);
             println("  seqz a0, a0");
             return;
         // 逻辑与
         case ND_LOGAND: {
             int C = count();
             genExpr(Nd->LHS);
+            notZero(Nd->LHS->Ty);
             // 左部短路操作判断，为0则跳转
             println("  beqz a0, .L.false.%d", C);
             genExpr(Nd->RHS);
+            notZero(Nd->RHS->Ty);
             // 右部判断，为0则跳转
             println("  beqz a0, .L.false.%d", C);
             println("  li a0, 1");
@@ -514,9 +538,11 @@ static void genExpr(Node *Nd) {
         case ND_LOGOR: {
             int C = count();
             genExpr(Nd->LHS);
+            notZero(Nd->LHS->Ty);
             // 左部短路操作判断，不为0则跳转
             println("  bnez a0, .L.true.%d", C);
             genExpr(Nd->RHS);
+            notZero(Nd->RHS->Ty);
             // 右部判断，不为0则跳转
             println("  bnez a0, .L.true.%d", C);
             println("  li a0, 0");
@@ -638,6 +664,7 @@ static void genExpr(Node *Nd) {
         case ND_COND: {
             int C = count();
             genExpr(Nd->Cond);
+            notZero(Nd->Cond->Ty);
             println("  beqz a0, .L.else.%d", C);
             genExpr(Nd->Then);
             println("  j .L.end.%d", C);
@@ -876,6 +903,7 @@ static void genStmt(Node *Nd) {
             int C = count();
             // 生成条件内语句
             genExpr(Nd->Cond);
+            notZero(Nd->Cond->Ty);
             // 判断结果是否为0，为0(false)则跳转到else标签
             println("  beqz a0, .L.else.%d", C);
             // 生成符合条件后的语句
@@ -921,6 +949,7 @@ static void genStmt(Node *Nd) {
             if (Nd->Cond) {
                 // 生成条件循环语句
                 genExpr(Nd->Cond);
+                notZero(Nd->Cond->Ty);
                 // 判断结果是否为0，为0则跳转到结束部分
                 println("  beqz a0, %s", Nd->BrkLabel);
             }
@@ -956,7 +985,7 @@ static void genStmt(Node *Nd) {
             println("\n# Cond语句%d", C);
             println("%s:", Nd->ContLabel);
             genExpr(Nd->Cond);
-
+            notZero(Nd->Cond->Ty);
             println("  bnez a0, .L.begin.%d", C);
 
             println("%s:", Nd->BrkLabel);
