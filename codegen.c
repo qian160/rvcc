@@ -7,9 +7,6 @@
 // 记录栈深度
 static int Depth;
 
-// 用于函数参数的寄存器们
-static char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
-
 static Obj *CurrentFn;
 
 // 输出文件
@@ -30,8 +27,8 @@ static void push(void) {
 }
 
 // 弹栈，将sp指向的地址的值，弹出到a1
-static void pop(char *Reg) {
-    println("  ld %s, 0(sp)", Reg);
+static void pop(int Reg) {
+    println("  ld a%d, 0(sp)", Reg);
     println("  addi sp, sp, 8");
     Depth--;
 }
@@ -44,14 +41,36 @@ static void pushF(void) {
 }
 
 // 对于浮点类型进行弹栈
-static void popF(char *Reg) {
-    println("  fld %s, 0(sp)", Reg);
+static void popF(int Reg) {
+    println("  fld fa%d, 0(sp)", Reg);
     println("  addi sp, sp, 8");
     Depth--;
 }
 
 static void genExpr(Node *Nd);
 static void genStmt(Node *Nd);
+
+// 将函数实参计算后压入栈中
+static void pushArgs(Node *Args) {
+    // 参数为空直接返回
+    if (!Args)
+        return;
+
+    // 递归到最后一个实参进行
+    pushArgs(Args->Next);
+
+    println("\n  # ↓对%s表达式进行计算，然后压栈↓",
+            isFloNum(Args->Ty) ? "浮点" : "整型");
+    // 计算出表达式
+    genExpr(Args);
+    // 根据表达式结果的类型进行压栈
+    if (isFloNum(Args->Ty)) {
+        pushF();
+    } else {
+        push();
+    }
+    println("  # ↑结束压栈↑");
+}
 
 // ImmI: 12 bits. [-2048, 2047]
 // addi, load
@@ -71,39 +90,69 @@ static void storeGeneral(int Reg, int Offset, int Size) {
     switch (Size) {
         case 1:
             if(isLegalImmS(Offset))
-                println("  sb %s, %d(fp)", ArgReg[Reg], Offset);
+                println("  sb a%d, %d(fp)", Reg, Offset);
             else {
                 println("  li t0, %d", Offset);
                 println("  add t0, fp, t0");
-                println("  sb %s, 0(t0)", ArgReg[Reg]);
+                println("  sb a%d, 0(t0)", Reg);
             }
             return;
         case 2:
             if(isLegalImmS(Offset))
-                println("  sh %s, %d(fp)", ArgReg[Reg], Offset);
+                println("  sh a%d, %d(fp)", Reg, Offset);
             else {
                 println("  li t0, %d", Offset);
                 println("  add t0, fp, t0");
-                println("  sh %s, 0(t0)", ArgReg[Reg]);
+                println("  sh a%d, 0(t0)", Reg);
             }
             return;
         case 4:
             if(isLegalImmS(Offset))
-                println("  sw %s, %d(fp)", ArgReg[Reg], Offset);
+                println("  sw a%d, %d(fp)", Reg, Offset);
             else {
                 println("  li t0, %d", Offset);
                 println("  add t0, fp, t0");
-                println("  sw %s, 0(t0)", ArgReg[Reg]);
+                println("  sw a%d, 0(t0)", Reg);
             }
             return;
         case 8:
             if(isLegalImmS(Offset))
-                println("  sd %s, %d(fp)", ArgReg[Reg], Offset);
+                println("  sd a%d, %d(fp)", Reg, Offset);
             else {
                 println("  li t0, %d", Offset);
                 println("  add t0, fp, t0");
-                println("  sd %s, 0(t0)", ArgReg[Reg]);
+                println("  sd a%d, 0(t0)", Reg);
             }
+            return;
+        default:
+            error("unreachable");
+    }
+}
+
+// 将浮点寄存器的值存入栈中
+static void storeFloat(int Reg, int Offset, int Sz) {
+    if(isLegalImmS(Offset)){
+        switch (Sz) {
+            case 4:
+                println("  fsw fa%d, %d(fp)", Reg, Offset);
+                return;
+            case 8:
+                println("  fsd fa%d, %d(fp)", Reg, Offset);
+                return;
+            default:
+                error("unreachable");
+        }
+    }
+
+    println("  li t0, %d", Offset);
+    println("  add t0, fp, t0");
+
+    switch (Sz) {
+        case 4:
+            println("  fsw fa%d, 0(t0)", Reg);
+            return;
+        case 8:
+            println("  fsd fa%d, 0(t0)", Reg);
             return;
         default:
             error("unreachable");
@@ -155,7 +204,7 @@ static void load(Type *Ty) {
 
 // 将a0存入栈顶值(为一个地址). used in assign, and lhs value's address was pushed to stack already
 static void store(Type *Ty) {
-    pop("a1");
+    pop(1);
     switch(Ty->Kind){
         case TY_STRUCT:
         case TY_UNION:{
@@ -621,17 +670,40 @@ static void genExpr(Node *Nd) {
             return;
         // 函数调用
         case ND_FUNCALL:{
-            // 记录参数个数
-            int NArgs = 0;
             // 计算所有参数的值，正向压栈
-            for (Node *Arg = Nd->Args; Arg; Arg = Arg->Next) {
-                genExpr(Arg);
-                push();
-                NArgs++;
-            }
+            pushArgs(Nd->Args);
             // 反向弹栈，a0->参数1，a1->参数2...
-            for (int i = NArgs - 1; i >= 0; i--)
-                pop(ArgReg[i]);
+            int GP = 0, FP = 0;
+            // 读取函数形参中的参数类型
+            Type *CurArg = Nd->FuncType->Params;
+            for (Node *Arg = Nd->Args; Arg; Arg = Arg->Next) {
+                // 如果是可变参数函数
+                // 匹配到空参数（最后一个）的时候，将剩余的整型寄存器弹栈
+                if (Nd->FuncType->IsVariadic && CurArg == NULL) {
+                    if (GP < 8) {
+                        println("  # a%d传递可变实参", GP);
+                        pop(GP++);
+                    }
+                    continue;
+                }
+
+                CurArg = CurArg->Next;
+                if (isFloNum(Arg->Ty)) {
+                    if (FP < 8) {
+                        println("  # fa%d传递浮点参数", FP);
+                        popF(FP++);
+                    } else if (GP < 8) {
+                        println("  # a%d传递浮点参数", GP);
+                        pop(GP++);
+                    }
+                } else {
+                    if (GP < 8) {
+                        println("  # a%d传递整型参数", GP);
+                        pop(GP++);
+                    }
+                }
+            }
+
             // 调用函数
             // the contents of the function is generated by test.sh, not by rvccl
             if (Depth % 2 == 0) {
@@ -744,7 +816,7 @@ static void genExpr(Node *Nd) {
         // 递归到左节点
         genExpr(Nd->LHS);
         // 将结果弹栈到fa1
-        popF("fa1");
+        popF(1);
 
         // 生成各个二叉树节点
         // float对应s(single)后缀，double对应d(double)后缀
@@ -789,7 +861,7 @@ static void genExpr(Node *Nd) {
     // 递归到左节点
     genExpr(Nd->LHS);
     // 将结果弹栈到a1
-    pop("a1");
+    pop(1);
 
     // a0: lhs value. a1: rhs value
     // 生成各个二叉树节点
