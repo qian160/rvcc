@@ -335,9 +335,11 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
         SHORT  = 1 << 6,
         INT    = 1 << 8,
         LONG   = 1 << 10,
-        OTHER  = 1 << 12,
-        SIGNED = 1 << 13,
-        UNSIGNED = 1 << 14,
+        FLOAT  = 1 << 12,
+        DOUBLE = 1 << 14,
+        OTHER  = 1 << 16,
+        SIGNED = 1 << 17,
+        UNSIGNED = 1 << 18,
     };
 
     Type *Ty = TyInt;
@@ -432,6 +434,10 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             Counter |= SIGNED;
         else if (equal(Tok, "unsigned"))
             Counter |= UNSIGNED;
+        else if (equal(Tok, "float"))
+            Counter += FLOAT;
+        else if (equal(Tok, "double"))
+            Counter += DOUBLE;
         else
             error("unreachable");
 
@@ -485,6 +491,12 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             case SIGNED + LONG + LONG:
             case SIGNED + LONG + LONG + INT:
                 Ty = TyLong;
+                break;
+            case FLOAT:
+                Ty = TyFloat;
+                break;
+            case DOUBLE:
+                Ty = TyDouble;
                 break;
             default:
                 errorTok(Tok, "invalid type");

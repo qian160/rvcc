@@ -157,7 +157,7 @@ bool isTypename(Token *Tok)
 {
     static char *types[] = 
         {"typedef", "char", "int", "struct", "union", 
-            "long", "short", "void", "_Bool", "enum",
+            "long", "short", "void", "_Bool", "enum", "float", "double",
             "static", "extern", "_Alignas", "signed", "unsigned",
             "const", "volatile", "auto", "register", 
             "restrict", "__restrict", "__restrict__", "_Noreturn",

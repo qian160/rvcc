@@ -100,8 +100,23 @@ static void load(Type *Ty) {
     // not necessary for double word, since it needs no extension
     char *Suffix = Ty->IsUnsigned ? "u" : "";
 
-    if (Ty->Kind == TY_ARRAY || Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION)
+    switch (Ty->Kind) {
+    case TY_ARRAY:
+    case TY_STRUCT:
+    case TY_UNION:
         return;
+    case TY_FLOAT:
+        // 访问a0中存放的地址，取得的值存入fa0
+        println("  flw fa0, 0(a0)");
+        return;
+    case TY_DOUBLE:
+        // 访问a0中存放的地址，取得的值存入fa0"
+        println("  fld fa0, 0(a0)");
+        return;
+    default:
+        break;
+    }
+
     switch (Ty->Size)
     {
         case 1:
@@ -124,30 +139,43 @@ static void load(Type *Ty) {
 // 将a0存入栈顶值(为一个地址). used in assign, and lhs value's address was pushed to stack already
 static void store(Type *Ty) {
     pop("a1");
-    // copy all the bytes from one struct to another
-    if (Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION) {
-        int I = 0;
-        while (I + 8 <= Ty->Size) {
-            println("  ld t1, %d(a0)", I);
-            println("  sd t1, %d(a1)", I);
-            I += 8;
+    switch(Ty->Kind){
+        case TY_STRUCT:
+        case TY_UNION:{
+            // copy all the bytes from one struct to another
+            int I = 0;
+            while (I + 8 <= Ty->Size) {
+                println("  ld t1, %d(a0)", I);
+                println("  sd t1, %d(a1)", I);
+                I += 8;
+            }
+            while (I + 4 <= Ty->Size) {
+                println("  lw t1, %d(a0)", I);
+                println("  sw t1, %d(a1)", I);
+                I += 4;
+            }
+            while (I + 2 <= Ty->Size) {
+                println("  lh t1, %d(a0)", I);
+                println("  sh t1, %d(a1)", I);
+                I += 2;
+            }
+            while (I + 1 <= Ty->Size) {
+                println("  lb t1, %d(a0)", I);
+                println("  sb t1, %d(a1)", I);
+                I += 1;
+            }
+            return;
         }
-        while (I + 4 <= Ty->Size) {
-            println("  lw t1, %d(a0)", I);
-            println("  sw t1, %d(a1)", I);
-            I += 4;
-        }
-        while (I + 2 <= Ty->Size) {
-            println("  lh t1, %d(a0)", I);
-            println("  sh t1, %d(a1)", I);
-            I += 2;
-        }
-        while (I + 1 <= Ty->Size) {
-            println("  lb t1, %d(a0)", I);
-            println("  sb t1, %d(a1)", I);
-            I += 1;
-        }
-        return;
+        case TY_FLOAT:
+            // 将fa0的值，写入到a1中存放的地址
+            println("  fsw fa0, 0(a1)");
+            return;
+        case TY_DOUBLE:
+            // 将fa0的值，写入到a1中存放的地址
+            println("  fsd fa0, 0(a1)");
+            return;
+        default:
+            break;
     }
 
     switch (Ty->Size)
@@ -171,7 +199,7 @@ static void store(Type *Ty) {
 
 // 类型枚举
 // note: don't modify their order. these are used as index in castTable
-enum { I8, I16, I32, I64, U8, U16, U32, U64 };
+enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64 };
 
 // 获取类型对应的枚举值
 static int getTypeId(Type *Ty) {
@@ -184,6 +212,10 @@ static int getTypeId(Type *Ty) {
         return Ty->IsUnsigned ? U32 : I32;
     case TY_LONG:
         return Ty->IsUnsigned ? U64 : I64;
+    case TY_FLOAT:
+        return F32;
+    case TY_DOUBLE:
+        return F64;
     default:
         return U64;
     }
@@ -217,21 +249,111 @@ static char u32i64[] =  "  # u32转换为i64类型\n"
                         "  slli a0, a0, 32\n"
                         "  srli a0, a0, 32";
 
+static char i32f32[] =  "  # i32转换为f32类型\n"
+                        "  fcvt.s.w fa0, a0";
+static char i32f64[] =  "  # i32转换为f64类型\n"
+                        "  fcvt.d.w fa0, a0";
+
+static char i64f32[] =  "  # i64转换为f32类型\n"
+                        "  fcvt.s.l fa0, a0";
+static char i64f64[] =  "  # i64转换为f64类型\n"
+                        "  fcvt.d.l fa0, a0";
+
+static char u32f32[] =  "  # u32转换为f32类型\n"
+                        "  fcvt.s.wu fa0, a0";
+static char u32f64[] =  "  # u32转换为f64类型\n"
+                        "  fcvt.d.wu fa0, a0";
+
+static char u64f32[] =  "  # u64转换为f32类型\n"
+                        "  fcvt.s.lu fa0, a0";
+static char u64f64[] =  "  # u64转换为f64类型\n"
+                        "  fcvt.d.lu fa0, a0";
+
+// 单精度浮点数转换为整型
+static char f32i8[] =   "  # f32转换为i8类型\n"
+                        "  fcvt.w.s a0, fa0, rtz\n"
+                        "  slli a0, a0, 56\n"
+                        "  srai a0, a0, 56";
+static char f32i16[] =  "  # f32转换为i16类型\n"
+                        "  fcvt.w.s a0, fa0, rtz\n"
+                        "  slli a0, a0, 48\n"
+                        "  srai a0, a0, 48";
+static char f32i32[] =  "  # f32转换为i32类型\n"
+                        "  fcvt.w.s a0, fa0, rtz\n"
+                        "  slli a0, a0, 32\n"
+                        "  srai a0, a0, 32";
+static char f32i64[] =  "  # f32转换为i64类型\n"
+                        "  fcvt.l.s a0, fa0, rtz";
+
+static char f32u8[] =   "  # f32转换为u8类型\n"
+                        "  fcvt.wu.s a0, fa0, rtz\n"
+                        "  slli a0, a0, 56\n"
+                        "  srli a0, a0, 56";
+static char f32u16[] =  "  # f32转换为u16类型\n"
+                        "  fcvt.wu.s a0, fa0, rtz\n"
+                        "  slli a0, a0, 48\n"
+                        "  srli a0, a0, 48\n";
+static char f32u32[] =  "  # f32转换为u32类型\n"
+                        "  fcvt.wu.s a0, fa0, rtz\n"
+                        "  slli a0, a0, 32\n"
+                        "  srai a0, a0, 32";
+static char f32u64[] =  "  # f32转换为u64类型\n"
+                        "  fcvt.lu.s a0, fa0, rtz";
+
+static char f32f64[] =  "  # f32转换为f64类型\n"
+                        "  fcvt.d.s fa0, fa0";
+
+static char f64i8[] =   "  # f64转换为i8类型\n"
+                        "  fcvt.w.d a0, fa0, rtz\n"
+                        "  slli a0, a0, 56\n"
+                        "  srai a0, a0, 56";
+static char f64i16[] =  "  # f64转换为i16类型\n"
+                        "  fcvt.w.d a0, fa0, rtz\n"
+                        "  slli a0, a0, 48\n"
+                        "  srai a0, a0, 48";
+static char f64i32[] =  "  # f64转换为i32类型\n"
+                        "  fcvt.w.d a0, fa0, rtz\n"
+                        "  slli a0, a0, 32\n"
+                        "  srai a0, a0, 32";
+static char f64i64[] =  "  # f64转换为i64类型\n"
+                        "  fcvt.l.d a0, fa0, rtz";
+
+static char f64u8[] =   "  # f64转换为u8类型\n"
+                        "  fcvt.wu.d a0, fa0, rtz\n"
+                        "  slli a0, a0, 56\n"
+                        "  srli a0, a0, 56";
+static char f64u16[] =  "  # f64转换为u16类型\n"
+                        "  fcvt.wu.d a0, fa0, rtz\n"
+                        "  slli a0, a0, 48\n"
+                        "  srli a0, a0, 48";
+static char f64u32[] =  "  # f64转换为u32类型\n"
+                        "  fcvt.wu.d a0, fa0, rtz\n"
+                        "  slli a0, a0, 32\n"
+                        "  srai a0, a0, 32";
+static char f64u64[] =  "  # f64转换为u64类型\n"
+                        "  fcvt.lu.d a0, fa0, rtz";
+
+static char f64f32[] =  "  # f64转换为f32类型\n"
+                        "  fcvt.s.d fa0, fa0";
+
 
 
 // 所有类型转换表
 static char *castTable[11][11] = {
     // 被映射到
-    // {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64}
-    {NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // 从i8转换
-    {i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // 从i16转换
-    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL},   // 从i32转换
-    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL},   // 从i64转换
+    // {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64,     f32,     f64}
+    {NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // 从i8转换
+    {i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // 从i16转换
+    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // 从i32转换
+    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    i64f32,  i64f64}, // 从i64转换
 
-    {i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL},   // 从u8转换
-    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL},   // 从u16转换
-    {i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64}, // 从u32转换
-    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL},   // 从u64转换
+    {i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL,    u32f32,  u32f64}, // 从u8转换
+    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL,    u32f32,  u32f64}, // 从u16转换
+    {i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64,  u32f32,  u32f64}, // 从u32转换
+    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    u64f32,  u64f64}, // 从u64转换
+
+    {f32i8,  f32i16,  f32i32,  f32i64,  f32u8,  f32u16,  f32u32,  f32u64,  NULL,    f32f64}, // 从f32转换
+    {f64i8,  f64i16,  f64i32,  f64i64,  f64u8,  f64u16,  f64u32,  f64u64,  f64f32,  NULL},   // 从f64转换
 };
 
 
@@ -397,30 +519,20 @@ static void genExpr(Node *Nd) {
             println("  neg%s a0, a0", Nd->Ty->Size <= 4? "w": "");
             return;
     // others. general op
-        // float和uint32、double和uint64 共用一份内存空间
         case ND_NUM: {
-            union {
-                float F32;
-                double F64;
-                uint32_t U32;
-                uint64_t U64;
-            } U;
-
             switch (Nd->Ty->Kind) {
                 case TY_FLOAT:
-                    U.F32 = Nd->FVal;
-                    println("  # 将a0转换到float类型值为%f的fa0中", Nd->FVal);
-                    println("  li a0, %u  # float %f", U.U32, Nd->FVal);
+                    // 将a0转换到float类型值为%f的fa0中
+                    // can't do the cast directly like (uint32_t)Nd->FVal. we need to reinterpret the bits
+                    println("  li a0, %u  # float %f", *(uint32_t*)&Nd->FVal, Nd->FVal);
                     println("  fmv.w.x fa0, a0");
                     return;
                 case TY_DOUBLE:
-                    println("  # 将a0转换到double类型值为%f的fa0中", Nd->FVal);
-                    U.F64 = Nd->FVal;
-                    println("  li a0, %lu  # double %f", U.U64, Nd->FVal);
+                    // 将a0转换到double类型值为%f的fa0中
+                    println("  li a0, %lu  # double %f", *(uint64_t*)&Nd->FVal, Nd->FVal);
                     println("  fmv.d.x fa0, a0");
                     return;
                 default:
-                    println("  # 将%ld加载到a0中", Nd->Val);
                     println("  li a0, %ld", Nd->Val);
                     return;
             }
