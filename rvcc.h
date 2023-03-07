@@ -289,6 +289,8 @@ void codegen(Obj *Prog, FILE *Out);
 bool isInteger(Type *TY);
 // 判断是否为浮点类型
 bool isFloNum(Type *Ty);
+// 判断是否为数字
+bool isNumeric(Type *Ty);
 // 为节点内的所有节点添加类型
 void addType(Node *Nd);
 // 构建一个指针类型，并指向基类

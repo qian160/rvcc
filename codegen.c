@@ -50,6 +50,8 @@ static void popF(char *Reg) {
     Depth--;
 }
 
+static void genExpr(Node *Nd);
+static void genStmt(Node *Nd);
 
 // ImmI: 12 bits. [-2048, 2047]
 // addi, load
@@ -393,7 +395,6 @@ static void cast(Type *From, Type *To) {
 // codeGen
 //
 
-static void genExpr(Node *Nd);
 // 计算给定节点的绝对地址, 并打印
 // 如果报错，说明节点不在内存中
 static void genAddr(Node *Nd) {
@@ -465,8 +466,6 @@ static void assignLVarOffsets(Obj *Prog) {
     }
 }
 
-static void genStmt(Node *Nd);
-
 // sementics: print the asm from an ast whose root node is `Nd`
 // steps: for each node,
 // 1. if it is a leaf node, then directly print the answer and return
@@ -530,9 +529,18 @@ static void genExpr(Node *Nd) {
         // 对寄存器取反
         case ND_NEG:
             genExpr(Nd->LHS);
-            // neg a0, a0是sub a0, x0, a0的别名, 即a0=0-a0
-            println("  neg%s a0, a0", Nd->Ty->Size <= 4? "w": "");
-            return;
+            switch (Nd->Ty->Kind) {
+                case TY_FLOAT:
+                    println("  fneg.s fa0, fa0");
+                    return;
+                case TY_DOUBLE:
+                    println("  fneg.d fa0, fa0");
+                    return;
+                default:
+                    // neg a0, a0是sub a0, x0, a0的别名, 即a0=0-a0
+                    println("  neg%s a0, a0", Nd->Ty->Size <= 4 ? "w" : "");
+                    return;
+            }
     // others. general op
         case ND_NUM: {
             switch (Nd->Ty->Kind) {
@@ -716,6 +724,18 @@ static void genExpr(Node *Nd) {
         char *Suffix = (Nd->LHS->Ty->Kind == TY_FLOAT) ? "s" : "d";
 
         switch (Nd->Kind) {
+            case ND_ADD:
+                println("  fadd.%s fa0, fa0, fa1", Suffix);
+                return;
+            case ND_SUB:
+                println("  fsub.%s fa0, fa0, fa1", Suffix);
+                return;
+            case ND_MUL:
+                println("  fmul.%s fa0, fa0, fa1", Suffix);
+                return;
+            case ND_DIV:
+                println("  fdiv.%s fa0, fa0, fa1", Suffix);
+                return;
             case ND_EQ:
                 println("  feq.%s a0, fa0, fa1", Suffix);
                 return;

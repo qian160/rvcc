@@ -226,7 +226,7 @@ Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
     addType(RHS);
 
     // num + num
-    if (isInteger(LHS->Ty) && isInteger(RHS->Ty))
+    if (isNumeric(LHS->Ty) && isNumeric(RHS->Ty))
         return newBinary(ND_ADD, LHS, RHS, Tok);
 
     // 不能解析 ptr + ptr
@@ -256,8 +256,8 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
     addType(RHS);
 
     // num - num
-    if (isInteger(LHS->Ty) && isInteger(RHS->Ty))
-    return newBinary(ND_SUB, LHS, RHS, Tok);
+    if (isNumeric(LHS->Ty) && isNumeric(RHS->Ty))
+        return newBinary(ND_SUB, LHS, RHS, Tok);
 
     // ptr - num
     // 指针用long类型存储
