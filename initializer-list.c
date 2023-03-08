@@ -467,6 +467,20 @@ static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
         return writeGVarData(Cur, Init->Children[0], Ty->Mems->Ty, Buf, Offset);
     }
 
+    // 处理单精度浮点数
+    if (Ty->Kind == TY_FLOAT) {
+        // 将缓冲区加上偏移量转换为float*后访问
+        *(float *)(Buf + Offset) = evalDouble(Init->Expr);
+        return Cur;
+    }
+
+    // 处理双精度浮点数
+    if (Ty->Kind == TY_DOUBLE) {
+        // 将缓冲区加上偏移量转换为double*后访问
+        *(double *)(Buf + Offset) = evalDouble(Init->Expr);
+        return Cur;
+    }
+
     // 这里返回，则会使Buf值为0
     if (!Init->Expr)
         return Cur;

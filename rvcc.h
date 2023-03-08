@@ -321,6 +321,7 @@ void errorAt(char *Loc, char *Fmt, ...);
 /* ---------- parse-util.c ---------- */
 int64_t eval(Node *Nd);
 int64_t eval2(Node *Nd, char **Label);
+double evalDouble(Node *Nd);
 int64_t constExpr(Token **Rest, Token *Tok);
 uint32_t simpleLog2(uint32_t v);
 
