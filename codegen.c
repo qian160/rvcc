@@ -1196,24 +1196,34 @@ void emitText(Obj *Prog) {
             println("  addi sp, sp, -%d", Fn->StackSize);
         else{
             println("  li t0, -%d", Fn->StackSize);
-            println("  add sp, sp, t0");
-        }
-        // map (actual params) -> (formal params)
-        // this needs to be done before entering the fn body
-        // then in the fn body we can use its formal params
-        // in stack as if they were passed from outside
+        println("  add sp, sp, t0");
+    }
+    // map (actual params) -> (formal params)
+    // this needs to be done before entering the fn body
+    // then in the fn body we can use its formal params
+    // in stack as if they were passed from outside
 
-        // 正常传递的形参
-        int I = 0;
-        for (Obj *Var = Fn->Params; Var; Var = Var->Next)
-            storeGeneral(I++, Var->Offset, Var->Ty->Size);
+    // 记录整型寄存器，浮点寄存器使用的数量
+    int GP = 0, FP = 0;
+    for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
+        if (isFloNum(Var->Ty)) {
+            // 正常传递的浮点形参
+            if (FP < 8)
+                storeFloat(FP++, Var->Offset, Var->Ty->Size);
+            else
+                storeGeneral(GP++, Var->Offset, Var->Ty->Size);
+        }
+        else
+            // 正常传递的整型形参
+            storeGeneral(GP++, Var->Offset, Var->Ty->Size);
+        }
 
         // 可变参数
         if (Fn->VaArea) {
             // 可变参数存入__va_area__，注意最多为7个
             int Offset = Fn->VaArea->Offset;
-            while (I < 8) {
-                storeGeneral(I++, Offset, 8);
+            while (GP < 8) {
+                storeGeneral(GP++, Offset, 8);
                 Offset += 8;
             }
         }
