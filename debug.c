@@ -55,3 +55,10 @@ void errorTok(Token *Tok, char *Fmt, ...) {
     verrorAt(Tok->LineNo, Tok->Loc, Fmt, VA);
 //    error("bad token: %s", tokenName(Tok));
 }
+
+void error(char *fmt, ...) {
+    va_list va;
+    va_start(va, fmt);
+    vprintf(fmt, va);
+    va_end(va);
+}

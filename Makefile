@@ -8,7 +8,8 @@ DST_DIR=target
 QEMU=qemu-riscv64
 
 SRCS=$(wildcard *.c)
-OBJS=$(addprefix $(DST_DIR)/, $(SRCS:.c=.o))
+objs=$(SRCS:.c=.o)
+OBJS=$(addprefix $(DST_DIR)/, $(objs))
 DEPS=$(addprefix $(DST_DIR)/, $(SRCS:.c=.d))
 
 $(shell mkdir -p $(DST_DIR))
@@ -45,10 +46,42 @@ test: $(TESTS)
 # default run all
 ifeq ($(all),"")
 	@for i in $^; do echo $$i; $(QEMU) ./$$i || exit 1; echo; done
-	@test/driver.sh
+	@test/driver.sh $(DST_DIR)/rvcc
 else
 	@$(QEMU) ./test/$(all).out || exit 1; echo done
 endif
+
+# 进行全部的测试
+# 文件之间的链接问题还没处理好，暂时不支持这个功能。 
+# 目前还是更喜欢现在这样的模块化组织
+test-all: test test-stage2
+
+# Stage 2
+
+# 此时构建的stage2/rvcc是RISC-V版本的，跟平台无关
+stage2/rvcc: $(objs:%=stage2/%)
+	$(CROSS-CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# 利用stage1的rvcc去将rvcc的源代码编译为stage2的汇编文件
+stage2/%.s: $(DST_DIR)/rvcc self.py %.c
+	mkdir -p stage2/test
+	./self.py rvcc.h $*.c > stage2/$*.c
+	$(DST_DIR)/rvcc -o stage2/$*.s stage2/$*.c
+
+# stage2的汇编编译为可重定位文件
+stage2/%.o: stage2/%.s
+	$(CROSS-CC) -c stage2/$*.s -o stage2/$*.o
+
+# 利用stage2的rvcc去进行测试
+stage2/test/%.out: stage2/rvcc test/%.c
+	mkdir -p stage2/test
+	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -o stage2/test/$*.s -
+	$(CROSS-CC) -o $@ stage2/test/$*.s -xc test/common
+
+test-stage2: $(TESTS:test/%=stage2/test/%)
+	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
+	test/driver.sh ./stage2/rvcc
+
 
 count:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
@@ -65,7 +98,7 @@ clean:
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
-.PHONY: test clean count tmp
+.PHONY: test clean count tmp test-stage2
 
 -include $(DEPS)
 $(DST_DIR)/%.d: %.c

@@ -317,6 +317,7 @@ char *format(char *Fmt, ...);
 
 void errorTok(Token *Tok, char *Fmt, ...);
 void errorAt(char *Loc, char *Fmt, ...);
+void error(char *fmt, ...);
 
 /* ---------- parse-util.c ---------- */
 int64_t eval(Node *Nd);
@@ -333,7 +334,7 @@ uint32_t simpleLog2(uint32_t v);
 // (0,Align]返回Align
 #define alignTo(N, Align) ((N + Align - 1) / Align * Align)
 
-#define error(format, ...) \
+//#define error(format, ...) \
     do{ \
         printf("\33[1;31m" "[%s:%d %s] " format "\33[0m" "\n", \
             __FILE__, __LINE__, __func__, ## __VA_ARGS__);\
@@ -354,7 +355,7 @@ uint32_t simpleLog2(uint32_t v);
     }\
     while(0);
 
-#define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
+//#define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
 #define todo() Assert(0, "todo")
 
