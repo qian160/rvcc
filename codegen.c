@@ -12,6 +12,7 @@ static Obj *CurrentFn;
 // 输出文件
 static FILE *OutputFile;
 
+/*
 void println(char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
@@ -19,7 +20,7 @@ void println(char *fmt, ...) {
     fprintf(OutputFile, "\n");
     va_end(va);
 }
-
+*/
 // 代码段计数
 static int count(void) {
     static int I = 1;
