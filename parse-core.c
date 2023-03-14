@@ -179,8 +179,17 @@
 // unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
 //       | postfix 
 //       | ("++" | "--") unary
+
 // postfix = "(" typeName ")" "{" initializerList "}"
-//         | primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
+//         = ident "(" funcArgs ")" postfixTail*
+//         | primary postfixTail*
+//
+// postfixTail = "[" expr "]"
+//             | "(" funcArgs ")"
+//             | "." ident
+//             | "->" ident
+//             | "++"
+//             | "--"
 
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
@@ -228,6 +237,7 @@ static Type *typename(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
 static Node *unary(Token **Rest, Token *Tok);
 static Node *postfix(Token **Rest, Token *Tok);
+static Node *funCall(Token **Rest, Token *Tok, Node *Nd);
 static Node *primary(Token **Rest, Token *Tok);
 
 static Token *parseTypedef(Token *Tok, Type *BaseTy);
@@ -1697,7 +1707,15 @@ static Node *newIncDec(Node *Nd, Token *Tok, int Addend) {
 //       primary  expr(idx=5)       */
 
 // postfix = "(" typeName ")" "{" initializerList "}"
-//         | primary ("[" expr "]" | "." ident)* | "->" ident | "++" | "--")*
+//         = ident "(" funcArgs ")" postfixTail*
+//         | primary postfixTail*
+//
+// postfixTail = "[" expr "]"
+//             | "(" funcArgs ")"
+//             | "." ident
+//             | "->" ident
+//             | "++"
+//             | "--"
 static Node *postfix(Token **Rest, Token *Tok) {
     // "(" typeName ")" "{" initializerList "}"
     // (struct x){1, 2, 6}; (int)1;
@@ -1724,6 +1742,12 @@ static Node *postfix(Token **Rest, Token *Tok) {
 
     // ("[" expr "]")*
     while (true) {
+        // ident "(" funcArgs ")"
+        // 匹配到函数调用
+        if (equal(Tok, "(")) {
+            Nd = funCall(&Tok, Tok->Next, Nd);
+            continue;
+        }
         if (equal(Tok, "[")) {
             // x[y] 等价于 *(x+y)
             Token *Start = Tok;
@@ -1767,22 +1791,18 @@ static Node *postfix(Token **Rest, Token *Tok) {
 }
 
 // 解析函数调用. a helper function used by primary
-// funcall = ident "(" (assign ("," assign)*)? ")"
+// funcall = (assign ("," assign)*)? ")"
 // the arg `Tok` is an ident
-static Node *funCall(Token **Rest, Token *Tok) {
-    Token *Start = Tok;
-    // get the 1st arg, or ")". jump skip indet and "("
-    Tok = Tok->Next->Next;
-
-    // 查找函数名
-    VarScope *S = findVar(Start);
-    if (!S)
-        errorTok(Start, "implicit declaration of a function");
-    if (!S->Var || S->Var->Ty->Kind != TY_FUNC)
-        errorTok(Start, "not a function");
+static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
+    addType(Fn);
+    Token *FnName = Tok;
+    // 检查函数指针
+    if (Fn->Ty->Kind != TY_FUNC &&
+        (Fn->Ty->Kind != TY_PTR || Fn->Ty->Base->Kind != TY_FUNC))
+        errorTok(Fn->Tok, "not a function");
 
     // 函数名的类型
-    Type *Ty = S->Var->Ty;
+    Type *Ty = (Fn->Ty->Kind == TY_FUNC) ? Fn->Ty : Fn -> Ty -> Base;
     // 函数形参的类型
     Type *ParamTy = Ty->Params;
 
@@ -1816,8 +1836,8 @@ static Node *funCall(Token **Rest, Token *Tok) {
     }
 
     *Rest = skip(Tok, ")");
-    Node *Nd = newNode(ND_FUNCALL, Start);
-    Nd->FuncName = tokenName(Start);
+    Node *Nd = newUnary(ND_FUNCALL, Fn, Tok);
+    Nd->FuncName = tokenName(FnName);
     Nd->Args = Head.Next;
     Nd->FuncType = Ty;
     Nd->Ty = Ty->ReturnTy;
@@ -1860,7 +1880,7 @@ static Type *typename(Token **Rest, Token *Tok) {
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" unary
-//         | ident funcArgs?
+//         | ident
 //         | str
 //         | num
 //         | "_Alignof" "(" typeName ")"
@@ -1934,31 +1954,26 @@ static Node *primary(Token **Rest, Token *Tok) {
         return newULong(Nd->Ty->Align, Tok);
     }
 
-    // ident args?
-    // args = "(" (expr ("," expr)*)? ")"
+    // ident
     if (Tok->Kind == TK_IDENT) {
-        // 函数调用
-        if (equal(Tok->Next, "("))
-            return funCall(Rest, Tok);
-
-        // ident
-        // 查找变量（或枚举常量）
         VarScope *S = findVar(Tok);
         // it could happen that the name exists, but var not.
         // that's because we also push typedef's name into scope(see parseTypedef)
         // and in that case we didn't allocate a var in the varscope
         // e.g: typedef int myint; myint = 1;  =>  undefined variable
-        if (!S || (!S->Var && !S->EnumTy))
-            errorTok(Tok, "undefined variable");
-
         *Rest = Tok->Next;
-        // 是否为变量
-        if (S->Var)
-            return newVarNode(S->Var, Tok);
-        // 否则为枚举常量
-        else
-            return newNum(S->EnumVal, Tok);
-
+        if (S) {
+            // 是否为变量
+            if (S->Var)
+                return newVarNode(S->Var, Tok);
+            // 否则为枚举常量
+            if (S->EnumTy)
+                return newNum(S->EnumVal, Tok);
+        }
+        if(equal(Tok->Next, "(")){
+            errorTok(Tok, "implicit declaration of a function");
+            errorTok(Tok, "undefined variable");
+        }
     }
 
     // str, recognized in tokenize
