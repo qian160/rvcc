@@ -611,12 +611,18 @@ static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
 
             Type *Ty2 = declspec(&Tok, Tok, NULL);
             Ty2 = declarator(&Tok, Tok, Ty2);
+            Token *Name = Ty2->Name;
             if (Ty2 -> Kind == TY_ARRAY){
-                Token *Name = Ty2 -> Name;
+                // T类型的数组或函数被转换为T*
                 // pointerTo will call calloc to create a new Type,
                 // which will clear the name field, so we need to keep and 
                 // reassign the name
                 Ty2 = pointerTo(Ty2 -> Base);
+                Ty2 -> Name = Name;
+            }
+            else if(Ty2->Kind == TY_FUNC){
+                // 在函数参数中退化函数为指针
+                Ty2 = pointerTo(Ty2);
                 Ty2 -> Name = Name;
             }
             // 将类型复制到形参链表一份. why copy?
