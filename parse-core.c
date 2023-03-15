@@ -63,9 +63,10 @@
 //                                  declarator2(type2)
 
 
-// final goal: to recognize declarator, the biggest one
-// note that inside our declarator, there are many other sub-declarations
-// since the function declarator() returns a type, we can call it recursively and build new type upon old ones(base)
+// final goal: to recognize declarator1, the biggest one
+// note that inside our declarator1, there are many other sub-declarators
+// since the function declarator() returns a type, we can call it recursively
+// and build new type upon old ones(base)
 
 // final type  = declspec + declarator1 + typeSuffix1
 // declarator1 = declarator2 + typeSuffix2
@@ -104,6 +105,20 @@
 //          DefaultCase             /    |    \            /   |   \
 //            /      \        LHS=STMT val=2  label      LHS  val=1  label
 //      LHS=STMT     label
+//
+//
+//  function pointer:
+//
+//                      declarator (also the return type)
+//                          ↑
+//           +----------------------------+
+//           |                            |
+//      int  (*fnptr (int (*fn)(int, int)))  (int, int) {return fn;}
+//       ↓                                   |        |
+//    declspec                               +----+---+
+//                                                ↓
+//                                           funcParams (arg type)
+
 //
 */
 
