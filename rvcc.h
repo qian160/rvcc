@@ -15,7 +15,7 @@
 #include<sys/types.h>
 #include<sys/wait.h>
 #include<unistd.h>
-
+#include<libgen.h>
 /*
 // 使用POSIX.1标准
 // 使用了strndup函数:
@@ -40,6 +40,14 @@ typedef struct Relocation Relocation;
 //
 // 共用头文件，定义了多个文件间共同使用的函数和数据
 //
+
+// 字符串数组
+typedef struct {
+    char **Data;  // 数据内容
+    int Capacity; // 能容纳字符串的容量
+    int Len;      // 当前字符串的数量，Len ≤ Capacity
+} StringArray;
+
 
 //
 // 终结符分析，词法分析
@@ -315,7 +323,7 @@ Type *structType(void);
 /* ---------- string.c ---------- */
 // 格式化后返回字符串
 char *format(char *Fmt, ...);
-
+void strArrayPush(StringArray *Arr, char *S);
 
 /* ---------- debug.c ---------- */
 

@@ -38,8 +38,8 @@ $(DST_DIR)/%.o: %.c rvcc.h
 # 最后再使用系统cc把刚刚产生的东西和common这个文件链接起来. 参数说明：
 # -o-将结果打印出来，-E只进行预处理，-P不输出行号信息，-C预处理时不会删除注释
 test/%.out: $(DST_DIR)/rvcc test/%.c
-	$(CROSS-CC) -o- -E -P -C test/$*.c | $(DST_DIR)/rvcc -o test/$*.s -
-	$(CROSS-CC) -static -o $@ test/$*.s -xc test/common
+	$(CROSS-CC) -o- -E -P -C test/$*.c | $(DST_DIR)/rvcc -o test/$*.o -
+	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
 
 # usage: make test all=xxx
 test: $(TESTS)
@@ -52,8 +52,7 @@ else
 endif
 
 # 进行全部的测试
-# 文件之间的链接问题还没处理好，暂时不支持这个功能。 
-# 目前还是更喜欢现在这样的模块化组织
+# 目前模块化的设计其实需要链接器的支持。而我们的rvcc不支持链接，所以暂时无法编译自己
 test-all: test test-stage2
 
 # Stage 2
@@ -63,10 +62,10 @@ stage2/rvcc: $(objs:%=stage2/%)
 	$(CROSS-CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # 利用stage1的rvcc去将rvcc的源代码编译为stage2的汇编文件
-stage2/%.s: $(DST_DIR)/rvcc self.py %.c
+stage2/%.o: $(DST_DIR)/rvcc self.py %.c
 	mkdir -p stage2/test
 	./self.py rvcc.h $*.c > stage2/$*.c
-	$(DST_DIR)/rvcc -o stage2/$*.s stage2/$*.c
+	$(DST_DIR)/rvcc -o stage2/$*.o stage2/$*.c
 
 # stage2的汇编编译为可重定位文件
 stage2/%.o: stage2/%.s
@@ -75,8 +74,8 @@ stage2/%.o: stage2/%.s
 # 利用stage2的rvcc去进行测试
 stage2/test/%.out: stage2/rvcc test/%.c
 	mkdir -p stage2/test
-	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -o stage2/test/$*.s -
-	$(CROSS-CC) -o $@ stage2/test/$*.s -xc test/common
+	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -o stage2/test/$*.o -
+	$(CROSS-CC) -o $@ stage2/test/$*.o -xc test/common
 
 test-stage2: $(TESTS:test/%=stage2/test/%)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
