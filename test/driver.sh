@@ -9,7 +9,7 @@ trap 'rm -rf $tmp' INT TERM HUP EXIT
 # 在临时文件夹内，新建一个空文件，名为empty.c
 echo > $tmp/empty.c
 
-rvcc=$1
+rvcc=target/rvcc
 
 # 判断返回值是否为0来判断程序是否成功执行
 check() {
@@ -53,5 +53,19 @@ check 'default output file -s'
 [ -f $tmp/out.s ]
 check 'default output file -o'
 
+# [156] 接受多个输入文件
+rm -f $tmp/foo.o $tmp/bar.o
+echo 'int x;' > $tmp/foo.c
+echo 'int y;' > $tmp/bar.c
+(cd $tmp; $OLDPWD/$rvcc $tmp/foo.c $tmp/bar.c)
+[ -f $tmp/foo.o ] && [ -f $tmp/bar.o ]
+check 'multiple input files'
+
+rm -f $tmp/foo.s $tmp/bar.s
+echo 'int x;' > $tmp/foo.c
+echo 'int y;' > $tmp/bar.c
+(cd $tmp; $OLDPWD/$rvcc -S $tmp/foo.c $tmp/bar.c)
+[ -f $tmp/foo.s ] && [ -f $tmp/bar.s ]
+check 'multiple input files'
 
 echo OK

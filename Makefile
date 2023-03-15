@@ -41,12 +41,12 @@ test/%.out: $(DST_DIR)/rvcc test/%.c
 	$(CROSS-CC) -o- -E -P -C test/$*.c | $(DST_DIR)/rvcc -o test/$*.o -
 	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
 
-# usage: make test all=xxx
+# usage: make test -jx all=xx
 test: $(TESTS)
 # default run all
 ifeq ($(all),"")
 	@for i in $^; do echo $$i; $(QEMU) ./$$i || exit 1; echo; done
-	@test/driver.sh $(DST_DIR)/rvcc
+	@test/driver.sh
 else
 	@$(QEMU) ./test/$(all).out || exit 1; echo done
 endif

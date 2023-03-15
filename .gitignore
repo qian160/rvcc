@@ -17,6 +17,7 @@
 
 # debug use temp file
 /a
+/b
 
 # 编译器默认生成的运行文件名
 a.out
