@@ -25,6 +25,14 @@ void strArrayPush(StringArray *Arr, char *S) {
     Arr->Data[Arr->Len++] = S;
 }
 
+// 判断字符串P是否以字符串Q结尾
+bool endsWith(char *P, char *Q) {
+    int len1 = strlen(P);
+    int len2 = strlen(Q);
+    // P比Q长且P最后Len2长度的字符和Q相等，则为真
+    return (len1 >= len2) && !strcmp(P + len1 - len2, Q);
+}
+
 // 格式化后返回字符串
 char *format(char *Fmt, ...) {
     char *Buf;

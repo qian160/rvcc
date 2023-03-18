@@ -16,6 +16,8 @@
 #include<sys/wait.h>
 #include<unistd.h>
 #include<libgen.h>
+#include<glob.h>
+#include<sys/stat.h>
 /*
 // 使用POSIX.1标准
 // 使用了strndup函数:
@@ -324,6 +326,8 @@ Type *structType(void);
 // 格式化后返回字符串
 char *format(char *Fmt, ...);
 void strArrayPush(StringArray *Arr, char *S);
+// 判断字符串P是否以字符串Q结尾
+bool endsWith(char *P, char *Q);
 
 /* ---------- debug.c ---------- */
 

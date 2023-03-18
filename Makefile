@@ -1,11 +1,12 @@
 # C编译器参数：使用C11标准，生成debug信息，禁止将未初始化的全局变量放入到common段
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
-# 指定C编译器，来构建项目
 CC=gcc
-CROSS-CC=riscv64-linux-gnu-gcc
-
+RISCV=/home/s081/riscv
+CROSS-CC=$(RISCV)/bin/riscv64-unknown-linux-gnu-gcc
+#riscv64-linux-gnu-gcc
 DST_DIR=target
-QEMU=qemu-riscv64
+QEMU=$(RISCV)/bin/qemu-riscv64
+#QEMU=qemu-riscv64
 
 SRCS=$(wildcard *.c)
 objs=$(SRCS:.c=.o)
@@ -38,17 +39,17 @@ $(DST_DIR)/%.o: %.c rvcc.h
 # 最后再使用系统cc把刚刚产生的东西和common这个文件链接起来. 参数说明：
 # -o-将结果打印出来，-E只进行预处理，-P不输出行号信息，-C预处理时不会删除注释
 test/%.out: $(DST_DIR)/rvcc test/%.c
-	$(CROSS-CC) -o- -E -P -C test/$*.c | $(DST_DIR)/rvcc -o test/$*.o -
+	$(CROSS-CC) -o- -E -P -C test/$*.c | $(DST_DIR)/rvcc -c -o test/$*.o -
 	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
 
 # usage: make test -jx all=xx
 test: $(TESTS)
 # default run all
 ifeq ($(all),"")
-	@for i in $^; do echo $$i; $(QEMU) ./$$i || exit 1; echo; done
+	@for i in $^; do echo $$i; $(QEMU) -L $(RISCV)/sysroot ./$$i || exit 1; echo; done
 	@test/driver.sh
 else
-	@$(QEMU) ./test/$(all).out || exit 1; echo done
+	@$(QEMU) -L $(RISCV)/sysroot ./test/$(all).out || exit 1; echo done
 endif
 
 # 进行全部的测试
@@ -65,7 +66,7 @@ stage2/rvcc: $(objs:%=stage2/%)
 stage2/%.o: $(DST_DIR)/rvcc self.py %.c
 	mkdir -p stage2/test
 	./self.py rvcc.h $*.c > stage2/$*.c
-	$(DST_DIR)/rvcc -o stage2/$*.o stage2/$*.c
+	$(DST_DIR)/rvcc -c -o stage2/$*.o stage2/$*.c
 
 # stage2的汇编编译为可重定位文件
 stage2/%.o: stage2/%.s
@@ -74,7 +75,7 @@ stage2/%.o: stage2/%.s
 # 利用stage2的rvcc去进行测试
 stage2/test/%.out: stage2/rvcc test/%.c
 	mkdir -p stage2/test
-	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -o stage2/test/$*.o -
+	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -c -o stage2/test/$*.o -
 	$(CROSS-CC) -o $@ stage2/test/$*.o -xc test/common
 
 test-stage2: $(TESTS:test/%=stage2/test/%)
@@ -85,19 +86,13 @@ test-stage2: $(TESTS:test/%=stage2/test/%)
 count:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
 
-# use system cc to help to link our program to libc
-tmp: $(DST_DIR)/rvcc
-	$(CROSS-CC) -o- -E -P -C -xc a | $(DST_DIR)/rvcc -o a.s -
-	$(CROSS-CC) -static -o tmp a.s -xc test/common
-	-$(QEMU) tmp
-
 # 清理所有非源代码文件
 clean:
-	-rm -rf rvcc tmp* *.d $(TESTS) test/*.s test/*.exe stage2/ thirdparty/ target/
+	-rm -rf rvcc tmp* *.d $(TESTS) test/*.s test/*.out stage2/ thirdparty/ target/
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
-.PHONY: test clean count tmp test-stage2
+.PHONY: test clean count test-stage2
 
 -include $(DEPS)
 $(DST_DIR)/%.d: %.c
