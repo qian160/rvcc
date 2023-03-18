@@ -283,7 +283,8 @@ static void runCC1(int Argc, char **Argv, char *Input, char *Output) {
 static void cc1(void) {
     // 解析文件，生成终结符流
     Token *Tok = tokenizeFile(BaseFile);
-
+    // 预处理
+    Tok = preprocess(Tok);
     // 解析终结符流
     Obj *Prog = parse(Tok);
 
@@ -309,70 +310,70 @@ static void runLinker(StringArray *Inputs, char *Output) {
     // 需要传递ld子进程的参数
     StringArray Arr = {};
 
-  // 链接器
-  char *Ld = strlen(RVPath)
-                 ? format("%s/bin/riscv64-unknown-linux-gnu-ld", RVPath)
-                 : "ld";
-  strArrayPush(&Arr, Ld);
+    // 链接器
+    char *Ld = strlen(RVPath)
+                    ? format("%s/bin/riscv64-unknown-linux-gnu-ld", RVPath)
+                    : "ld";
+    strArrayPush(&Arr, Ld);
 
-  // 输出文件
-  strArrayPush(&Arr, "-o");
-  strArrayPush(&Arr, Output);
-  strArrayPush(&Arr, "-m");
-  strArrayPush(&Arr, "elf64lriscv");
-  strArrayPush(&Arr, "-dynamic-linker");
+    // 输出文件
+    strArrayPush(&Arr, "-o");
+    strArrayPush(&Arr, Output);
+    strArrayPush(&Arr, "-m");
+    strArrayPush(&Arr, "elf64lriscv");
+    strArrayPush(&Arr, "-dynamic-linker");
 
-  char *LP64D =
-      strlen(RVPath)
-          ? format("%s/sysroot/lib/ld-linux-riscv64-lp64d.so.1", RVPath)
-          : "/lib/ld-linux-riscv64-lp64d.so.1";
-  strArrayPush(&Arr, LP64D);
+    char *LP64D =
+        strlen(RVPath)
+            ? format("%s/sysroot/lib/ld-linux-riscv64-lp64d.so.1", RVPath)
+            : "/lib/ld-linux-riscv64-lp64d.so.1";
+    strArrayPush(&Arr, LP64D);
 
-  char *LibPath = findLibPath();
-  char *GccLibPath = findGCCLibPath();
+    char *LibPath = findLibPath();
+    char *GccLibPath = findGCCLibPath();
 
-  strArrayPush(&Arr, format("%s/crt1.o", LibPath));
-  strArrayPush(&Arr, format("%s/crti.o", LibPath));
-  strArrayPush(&Arr, format("%s/crtbegin.o", GccLibPath));
-  strArrayPush(&Arr, format("-L%s", GccLibPath));
-  strArrayPush(&Arr, format("-L%s", LibPath));
-  strArrayPush(&Arr, format("-L%s/..", LibPath));
-  if (strlen(RVPath)) {
-    strArrayPush(&Arr, format("-L%s/sysroot/usr/lib64", RVPath));
-    strArrayPush(&Arr, format("-L%s/sysroot/lib64", RVPath));
-    strArrayPush(&Arr,
-                 format("-L%s/sysroot/usr/lib/riscv64-linux-gnu", RVPath));
-    strArrayPush(&Arr,
-                 format("-L%s/sysroot/usr/lib/riscv64-pc-linux-gnu", RVPath));
-    strArrayPush(&Arr,
-                 format("-L%s/sysroot/usr/lib/riscv64-redhat-linux", RVPath));
-    strArrayPush(&Arr, format("-L%s/sysroot/usr/lib", RVPath));
-    strArrayPush(&Arr, format("-L%s/sysroot/lib", RVPath));
-  } else {
-    strArrayPush(&Arr, "-L/usr/lib64");
-    strArrayPush(&Arr, "-L/lib64");
-    strArrayPush(&Arr, "-L/usr/lib/riscv64-linux-gnu");
-    strArrayPush(&Arr, "-L/usr/lib/riscv64-pc-linux-gnu");
-    strArrayPush(&Arr, "-L/usr/lib/riscv64-redhat-linux");
-    strArrayPush(&Arr, "-L/usr/lib");
-    strArrayPush(&Arr, "-L/lib");
-  }
+    strArrayPush(&Arr, format("%s/crt1.o", LibPath));
+    strArrayPush(&Arr, format("%s/crti.o", LibPath));
+    strArrayPush(&Arr, format("%s/crtbegin.o", GccLibPath));
+    strArrayPush(&Arr, format("-L%s", GccLibPath));
+    strArrayPush(&Arr, format("-L%s", LibPath));
+    strArrayPush(&Arr, format("-L%s/..", LibPath));
+    if (strlen(RVPath)) {
+        strArrayPush(&Arr, format("-L%s/sysroot/usr/lib64", RVPath));
+        strArrayPush(&Arr, format("-L%s/sysroot/lib64", RVPath));
+        strArrayPush(&Arr,
+                    format("-L%s/sysroot/usr/lib/riscv64-linux-gnu", RVPath));
+        strArrayPush(&Arr,
+                    format("-L%s/sysroot/usr/lib/riscv64-pc-linux-gnu", RVPath));
+        strArrayPush(&Arr,
+                    format("-L%s/sysroot/usr/lib/riscv64-redhat-linux", RVPath));
+        strArrayPush(&Arr, format("-L%s/sysroot/usr/lib", RVPath));
+        strArrayPush(&Arr, format("-L%s/sysroot/lib", RVPath));
+    } else {
+        strArrayPush(&Arr, "-L/usr/lib64");
+        strArrayPush(&Arr, "-L/lib64");
+        strArrayPush(&Arr, "-L/usr/lib/riscv64-linux-gnu");
+        strArrayPush(&Arr, "-L/usr/lib/riscv64-pc-linux-gnu");
+        strArrayPush(&Arr, "-L/usr/lib/riscv64-redhat-linux");
+        strArrayPush(&Arr, "-L/usr/lib");
+        strArrayPush(&Arr, "-L/lib");
+    }
 
-  // 输入文件，存入到链接器参数中
-  for (int I = 0; I < Inputs->Len; I++)
-    strArrayPush(&Arr, Inputs->Data[I]);
+    // 输入文件，存入到链接器参数中
+    for (int I = 0; I < Inputs->Len; I++)
+        strArrayPush(&Arr, Inputs->Data[I]);
 
-  strArrayPush(&Arr, "-lc");
-  strArrayPush(&Arr, "-lgcc");
-  strArrayPush(&Arr, "--as-needed");
-  strArrayPush(&Arr, "-lgcc_s");
-  strArrayPush(&Arr, "--no-as-needed");
-  strArrayPush(&Arr, format("%s/crtend.o", GccLibPath));
-  strArrayPush(&Arr, format("%s/crtn.o", LibPath));
-  strArrayPush(&Arr, NULL);
+    strArrayPush(&Arr, "-lc");
+    strArrayPush(&Arr, "-lgcc");
+    strArrayPush(&Arr, "--as-needed");
+    strArrayPush(&Arr, "-lgcc_s");
+    strArrayPush(&Arr, "--no-as-needed");
+    strArrayPush(&Arr, format("%s/crtend.o", GccLibPath));
+    strArrayPush(&Arr, format("%s/crtn.o", LibPath));
+    strArrayPush(&Arr, NULL);
 
-  // 开辟的链接器子进程
-  runSubprocess(Arr.Data);
+    // 开辟的链接器子进程
+    runSubprocess(Arr.Data);
 }
 
 int main(int Argc, char **Argv) {

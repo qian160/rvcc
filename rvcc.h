@@ -288,6 +288,10 @@ Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);
 
+/* ---------- preprocess.c ---------- */
+// 预处理器入口函数
+Token *preprocess(Token *Tok);
+
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
 Obj *parse(Token *Tok);

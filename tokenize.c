@@ -39,22 +39,6 @@ bool consume(Token **Rest, Token *Tok, char *Str) {
     return false;
 }
 
-// 判断是否为关键字
-static bool isKeyword(Token *Tok) {
-    // 关键字列表
-    static char *Kw[] = 
-        {   "return", "goto","if", "else", "for", "do","while", 
-            "break", "continue", "switch", "case", "default",
-            "int", "long", "short, void", "char", "_Bool", "float", "double",
-            "struct", "union",  "typedef", "enum", 
-            "extern", "sizeof", "static", "signed", "unsigned",
-            "_Alignof", "_Alignas", "const", "volatile", "auto", "register", 
-            "restrict", "__restrict", "__restrict__", "_Noreturn",
-        };
-
-    return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);
-}
-
 // 生成新的Token
 Token *newToken(TokenKind Kind, char *Start, char *End) {
     // 分配1个Token的内存空间
@@ -346,14 +330,6 @@ static int readPunct(char *Ptr) {
     return ispunct(*Ptr) ? 1 : 0;
 }
 
-// 将名为xxx的终结符转为KEYWORD
-static void convertKeywords(Token *Tok) {
-    for (Token *T = Tok; T->Kind != TK_EOF; T = T->Next) {
-        if (isKeyword(T))
-            T->Kind = TK_KEYWORD;
-    }
-}
-
 // 为所有Token添加行号
 static void addLineNumbers(Token *Tok) {
     char *P = CurrentInput;
@@ -458,8 +434,6 @@ static Token *tokenize(char *Filename, char *P) {
     // 为所有Token添加行号
     addLineNumbers(Head.Next);
 
-    // 将所有关键字的终结符，都标记为KEYWORD
-    convertKeywords(Head.Next);
     // Head无内容，所以直接返回Next
     return Head.Next;
 }
