@@ -73,11 +73,11 @@ struct Token {
     double FVal;    // TK_NUM浮点值
     char *Loc;      // 在解析的字符串内的位置
     int Len;        // 长度
-//    int strLen;     // TK_STR使用. 由于转义字符的存在，strlen可能会小于len
     Type *Ty;       // TK_NUM或TK_STR使用
     char *Str;      // 字符串字面量，包括'\0'
 
     int LineNo;     // 行号
+    bool AtBOL;     // 终结符在行首(begin of line)
 };
 
 //

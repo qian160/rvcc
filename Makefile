@@ -5,6 +5,7 @@ RISCV=/home/s081/riscv
 CROSS-CC=$(RISCV)/bin/riscv64-unknown-linux-gnu-gcc
 #riscv64-linux-gnu-gcc
 DST_DIR=target
+RVCC=$(DST_DIR)/rvcc
 QEMU=$(RISCV)/bin/qemu-riscv64
 #QEMU=qemu-riscv64
 
@@ -34,12 +35,17 @@ $(DST_DIR)/%.o: %.c rvcc.h
 	@echo [CC] $(basename $@)
 	@$(CC) -c $*.c -g -o $@
 
+# 只使用rvcc进行宏的测试
+test/macro.out: rvcc test/macro.c
+	$(RVCC) -c -o test/macro.o test/macro.c
+	$(CROSS-CC) -o $@ test/macro.o -xc test/common
+
 # 编译测试中的每个.c文件 由于现在的rvcc功能还较弱，所以借助了一些现有编译器的功能
 # 做法是先使用系统cc预处理一遍，再把这个预处理结果交给rvcc
 # 最后再使用系统cc把刚刚产生的东西和common这个文件链接起来. 参数说明：
 # -o-将结果打印出来，-E只进行预处理，-P不输出行号信息，-C预处理时不会删除注释
 test/%.out: $(DST_DIR)/rvcc test/%.c
-	$(CROSS-CC) -o- -E -P -C test/$*.c | $(DST_DIR)/rvcc -c -o test/$*.o -
+	$(CROSS-CC) -o- -E -P -C test/$*.c | $(RVCC) -c -o test/$*.o -
 	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
 
 # usage: make test -jx all=xx
@@ -66,11 +72,18 @@ stage2/rvcc: $(objs:%=stage2/%)
 stage2/%.o: $(DST_DIR)/rvcc self.py %.c
 	mkdir -p stage2/test
 	./self.py rvcc.h $*.c > stage2/$*.c
-	$(DST_DIR)/rvcc -c -o stage2/$*.o stage2/$*.c
+	$(RVCC) -c -o stage2/$*.o stage2/$*.c
 
 # stage2的汇编编译为可重定位文件
 stage2/%.o: stage2/%.s
 	$(CROSS-CC) -c stage2/$*.s -o stage2/$*.o
+
+# 只使用stage2的rvcc进行宏的测试
+stage2/test/macro.exe: stage2/rvcc test/macro.c
+	mkdir -p stage2/test
+	./stage2/rvcc -c -o stage2/test/macro.o test/macro.c
+	$(CROSS-CC) -o $@ stage2/test/macro.o -xc test/common
+
 
 # 利用stage2的rvcc去进行测试
 stage2/test/%.out: stage2/rvcc test/%.c
@@ -88,7 +101,7 @@ count:
 
 # 清理所有非源代码文件
 clean:
-	-rm -rf rvcc tmp* *.d $(TESTS) test/*.s test/*.out stage2/ thirdparty/ target/
+	-rm -rf tmp* *.d $(TESTS) test/*.s test/*.out stage2/ thirdparty/ target/
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件

@@ -15,6 +15,7 @@ bool equal2(Token *Tok, int n, char*kw[]){
 
 char * CurrentInput;
 char * CurrentFilename;
+static bool AtBOL;      // current token is "at begin of line"
 
 // 跳过指定的Str
 Token *skip(Token *Tok, char *Str) {
@@ -46,6 +47,9 @@ Token *newToken(TokenKind Kind, char *Start, char *End) {
     Tok->Kind = Kind;
     Tok->Loc = Start;
     Tok->Len = End - Start;
+    // 读取是否为行首，然后设置为false
+    Tok->AtBOL = AtBOL;
+    AtBOL = false;
     return Tok;
 }
 
@@ -353,6 +357,9 @@ static Token *tokenize(char *Filename, char *P) {
     Token Head = {};
     Token *Cur = &Head;
 
+    // 文件开始设置为行首
+    AtBOL = true;
+
     while (*P) {
         // 跳过行注释
         if (startsWith(P, "//")) {
@@ -371,6 +378,14 @@ static Token *tokenize(char *Filename, char *P) {
             P = Q + 2;
             continue;
         }
+
+        // 匹配换行符，设置为行首
+        if (*P == '\n') {
+            P++;
+            AtBOL = true;
+            continue;
+        }
+
         // 跳过所有空白符如：空格、回车
         if (isspace(*P)) {
             ++P;
