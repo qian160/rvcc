@@ -36,7 +36,7 @@ $(DST_DIR)/%.o: %.c rvcc.h
 	@$(CC) -c $*.c -g -o $@
 
 # 只使用rvcc进行宏的测试
-test/macro.out: rvcc test/macro.c
+test/macro.out: $(DST_DIR)/rvcc test/macro.c
 	$(RVCC) -c -o test/macro.o test/macro.c
 	$(CROSS-CC) -o $@ test/macro.o -xc test/common
 
@@ -79,7 +79,7 @@ stage2/%.o: stage2/%.s
 	$(CROSS-CC) -c stage2/$*.s -o stage2/$*.o
 
 # 只使用stage2的rvcc进行宏的测试
-stage2/test/macro.exe: stage2/rvcc test/macro.c
+stage2/test/macro.out: stage2/rvcc test/macro.c
 	mkdir -p stage2/test
 	./stage2/rvcc -c -o stage2/test/macro.o test/macro.c
 	$(CROSS-CC) -o $@ stage2/test/macro.o -xc test/common

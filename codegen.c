@@ -560,7 +560,7 @@ static void assignLVarOffsets(Obj *Prog) {
 static void genExpr(Node *Nd) {
     if(!Nd) return;
     // .loc 文件编号 行号. debug use
-    println("  .loc 1 %d", Nd->Tok->LineNo);
+    println("  .loc %d %d", Nd->Tok->File->FileNo, Nd->Tok->LineNo);
 
     // 生成各个根节点
     switch (Nd->Kind) {
@@ -956,7 +956,7 @@ static void genExpr(Node *Nd) {
 // 生成语句
 static void genStmt(Node *Nd) {
     // .loc 文件编号 行号, debug use
-    println("  .loc 1 %d", Nd->Tok->LineNo);
+    println("  .loc %d %d", Nd->Tok->File->FileNo, Nd->Tok->LineNo);
 
     switch (Nd->Kind){
         // 生成代码块，遍历代码块的语句链表
@@ -1267,6 +1267,12 @@ void emitText(Obj *Prog) {
 // 代码生成入口函数，包含代码块的基础信息
 void codegen(Obj * Prog, FILE *Out) {
     OutputFile = Out;
+
+    // 获取所有的输入文件，并输出.file指示
+    File **Files = getInputFiles();
+    for (int I = 0; Files[I]; I++)
+        println("  .file %d \"%s\"", Files[I]->FileNo, Files[I]->Name);
+
     // 为本地变量计算偏移量, 以及决定函数最终的栈大小
     assignLVarOffsets(Prog);
     // 生成数据

@@ -5,7 +5,7 @@ static char *RVPath = "/home/s081/riscv";
 // 目标文件的路径
 static char *OptO;
 // 输入文件名
-static char *BaseFile;
+char *BaseFile;
 // 输出文件名
 static char *OutputFile;
 // 输入文件区, default = "-"
@@ -283,6 +283,9 @@ static void runCC1(int Argc, char **Argv, char *Input, char *Output) {
 static void cc1(void) {
     // 解析文件，生成终结符流
     Token *Tok = tokenizeFile(BaseFile);
+    // 终结符流生成失败，对应文件报错
+    if (!Tok)
+        error("%s: %s", BaseFile, strerror(errno));
     // 预处理
     Tok = preprocess(Tok);
     // 解析终结符流
@@ -290,8 +293,6 @@ static void cc1(void) {
 
     // 生成代码
     FILE *Out = openFile(OutputFile);
-    // .file 文件编号 文件名
-    fprintf(Out, ".file 1 \"%s\"\n", BaseFile);
     codegen(Prog, Out);
 }
 

@@ -1,16 +1,16 @@
 #include"rvcc.h"
 
 extern char * CurrentInput;
-extern char * CurrentFilename;
+extern File * CurrentFile;         // 输入文件
 
 // 输出错误出现的位置，并退出
-void verrorAt(int LineNo, char *Loc, char *Fmt, va_list VA) {
+void verrorAt(char *Filename, char *Input, int LineNo, char *Loc, char *Fmt, va_list VA) {
     // 查找包含loc的行
     char *Line = Loc;
     // Line递减到当前行的最开始的位置
     // Line<CurrentInput, 判断是否读取到文件最开始的位置
     // Line[-1] != '\n'，Line字符串前一个字符是否为换行符（上一行末尾）
-    while (CurrentInput < Line && Line[-1] != '\n')
+    while (Input < Line && Line[-1] != '\n')
         Line--;
 
     // End递增到行尾的换行符
@@ -20,7 +20,7 @@ void verrorAt(int LineNo, char *Loc, char *Fmt, va_list VA) {
 
     // 输出 文件名:错误行
     // Indent记录输出了多少个字符
-    int Indent = fprintf(stderr, "%s:%d: ", CurrentFilename, LineNo);
+    int Indent = fprintf(stderr, "%s:%d: ", Filename, LineNo);
     // 输出Line的行内所有字符（不含换行符）
     fprintf(stderr, "%.*s\n", (int)(End - Line), Line);
 
@@ -38,13 +38,13 @@ void verrorAt(int LineNo, char *Loc, char *Fmt, va_list VA) {
 // 字符解析出错
 void errorAt(char *Loc, char *Fmt, ...) {
     int LineNo = 1;
-    for (char *P = CurrentInput; P < Loc; P++)
+    for (char *P = CurrentFile->Contents; P < Loc; P++)
         if (*P == '\n')
         LineNo++;
 
     va_list VA;
     va_start(VA, Fmt);
-    verrorAt(LineNo, Loc, Fmt, VA);
+    verrorAt(CurrentFile->Name, CurrentFile->Contents, LineNo, Loc, Fmt, VA);
     exit(1);
 }
 
@@ -52,8 +52,7 @@ void errorAt(char *Loc, char *Fmt, ...) {
 void errorTok(Token *Tok, char *Fmt, ...) {
     va_list VA;
     va_start(VA, Fmt);
-    verrorAt(Tok->LineNo, Tok->Loc, Fmt, VA);
-//    error("bad token: %s", tokenName(Tok));
+    verrorAt(Tok->File->Name, Tok->File->Contents,  Tok->LineNo, Tok->Loc, Fmt, VA);
 }
 /*
 void error(char *fmt, ...) {

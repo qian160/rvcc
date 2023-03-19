@@ -13,9 +13,10 @@ bool equal2(Token *Tok, int n, char*kw[]){
     return false;
 }
 
-char * CurrentInput;
-char * CurrentFilename;
-static bool AtBOL;      // current token is "at begin of line"
+
+File * CurrentFile;         // 输入文件
+static File **InputFiles;   // 输入文件列表
+static bool AtBOL;          // current token is "at begin of line"
 
 // 跳过指定的Str
 Token *skip(Token *Tok, char *Str) {
@@ -49,6 +50,7 @@ Token *newToken(TokenKind Kind, char *Start, char *End) {
     Tok->Len = End - Start;
     // 读取是否为行首，然后设置为false
     Tok->AtBOL = AtBOL;
+    Tok->File = CurrentFile;
     AtBOL = false;
     return Tok;
 }
@@ -336,7 +338,7 @@ static int readPunct(char *Ptr) {
 
 // 为所有Token添加行号
 static void addLineNumbers(Token *Tok) {
-    char *P = CurrentInput;
+    char *P = CurrentFile->Contents;
     int N = 1;
 
     do {
@@ -351,9 +353,12 @@ static void addLineNumbers(Token *Tok) {
 
 
 // 终结符解析，文件名，文件内容
-static Token *tokenize(char *Filename, char *P) {
-    CurrentFilename = Filename;
-    CurrentInput = P;
+static Token *tokenize(File *FP) {
+    // 设定当前文件
+    CurrentFile = FP;
+    // 读取相应的内容
+    char *P = FP->Contents;
+
     Token Head = {};
     Token *Cur = &Head;
 
@@ -497,7 +502,40 @@ static char *readFile(char *Path) {
     return Buf;
 }
 
-// 对文件进行词法分析
+// 获取输入文件
+File **getInputFiles(void) { return InputFiles; }
+
+// 新建一个File
+static File *newFile(char *Name, int FileNo, char *Contents) {
+    File *FP = calloc(1, sizeof(File));
+    FP->Name = Name;
+    FP->FileNo = FileNo;
+    FP->Contents = Contents;
+    return FP;
+}
+
+// 词法分析文件
 Token *tokenizeFile(char *Path) {
-    return tokenize(Path, readFile(Path));
+    // 读取文件内容
+    char *P = readFile(Path);
+    if (!P)
+        return NULL;
+
+    // 文件编号
+    static int FileNo;
+    // 文件路径，文件编号从1开始，文件内容
+    File *FP = newFile(Path, FileNo + 1, P);
+
+    // 为汇编的.file指示保存文件名
+    // 最后字符串为空，作为结尾。
+    // realloc根据(FileNo + 2)重新分配给定的内存区域
+    InputFiles = realloc(InputFiles, sizeof(char *) * (FileNo + 2));
+    // 当前文件存入字符串对应编号-1位置
+    InputFiles[FileNo] = FP;
+    // 最后字符串为空，作为结尾。
+    InputFiles[FileNo + 1] = NULL;
+    // 文件编号加1
+    FileNo++;
+
+    return tokenize(FP);
 }
