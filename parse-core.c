@@ -780,7 +780,7 @@ static Type *structUnionDecl(Token **Rest, Token *Tok) {
         for (TagScope *S = Scp->Tags; S; S = S->Next) {
             if (equal(Tag, S->Name)) {
                 *S->Ty = *Ty;
-                // why not Ty?
+                // why not Ty? because we may need to cast the type in the future
                 return S->Ty;
             }
         }

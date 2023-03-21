@@ -54,11 +54,26 @@ void errorTok(Token *Tok, char *Fmt, ...) {
     va_start(VA, Fmt);
     verrorAt(Tok->File->Name, Tok->File->Contents,  Tok->LineNo, Tok->Loc, Fmt, VA);
 }
+
+// Tok解析警告
+void warnTok(Token *Tok, char *Fmt, ...) {
+    va_list VA;
+    va_start(VA, Fmt);
+    verrorAt(Tok->File->Name, Tok->File->Contents, Tok->LineNo, Tok->Loc, Fmt, VA);
+    va_end(VA);
+}
 /*
+
 void error(char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
-    vprintf(fmt, va);
+    vfprintf(stderr, fmt, va);
     va_end(va);
+    exit(1);
+}
+
+void Assert(int cond, char *fmt, ...) {
+    if(!cond)
+        error(fmt, "FAIL");
 }
 */

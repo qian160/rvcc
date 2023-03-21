@@ -59,7 +59,7 @@ else
 endif
 
 # 进行全部的测试
-# 目前模块化的设计其实需要链接器的支持。而我们的rvcc不支持链接，所以暂时无法编译自己
+# 暂时无法编译自己, for macros and linkage problems
 test-all: test test-stage2
 
 # Stage 2

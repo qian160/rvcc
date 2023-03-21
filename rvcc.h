@@ -353,6 +353,8 @@ bool endsWith(char *P, char *Q);
 void errorTok(Token *Tok, char *Fmt, ...);
 void errorAt(char *Loc, char *Fmt, ...);
 void error(char *fmt, ...);
+void warnTok(Token *Tok, char *Fmt, ...);
+//void Assert(int cond, char *fmt, ...);
 
 /* ---------- parse-util.c ---------- */
 int64_t eval(Node *Nd);
@@ -364,6 +366,9 @@ uint32_t simpleLog2(uint32_t v);
 //
 // macros
 //
+
+// stage2 cant recognize them now, so disable them temporarily
+
 
 // 对齐到Align的整数倍
 // (0,Align]返回Align
@@ -390,7 +395,7 @@ uint32_t simpleLog2(uint32_t v);
     }\
     while(0);
 
-#define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
+//#define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
 #define todo() Assert(0, "todo")
 

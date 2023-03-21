@@ -12,7 +12,7 @@ static Obj *CurrentFn;
 // 输出文件
 static FILE *OutputFile;
 
-/*
+
 void println(char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
@@ -20,7 +20,7 @@ void println(char *fmt, ...) {
     fprintf(OutputFile, "\n");
     va_end(va);
 }
-*/
+
 // 代码段计数
 static int count(void) {
     static int I = 1;
@@ -81,15 +81,17 @@ static void pushArgs(Node *Args) {
     println("  # ↑结束压栈↑");
 }
 
+// stage2 can't deal with "inline" now
+
 // ImmI: 12 bits. [-2048, 2047]
 // addi, load
-static inline bool isLegalImmI(int i){
+static /*inline*/ bool isLegalImmI(int i){
     return (i >= -0x800 && i <= 0x7ff);
 }
 
 // ImmS: 12 bits. also [-2048, 2047], just bits' location different
 // store
-static inline bool isLegalImmS(int i){
+static /*inline*/ bool isLegalImmS(int i){
     return isLegalImmI(i);
 }
 

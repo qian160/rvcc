@@ -115,12 +115,14 @@ for Path in sys.argv[1:]:
         S = re.sub(r'\bNULL\b', '0', S)
         # 替换 va_list和其后的变量
         S = re.sub(r'\bva_list ([a-zA-Z_]+)[ ]*;',
-                   'va_list \\1 = __va_area__;', S)
+                    'va_list \\1 = __va_area__;', S)
         # 删除 va_start
         S = re.sub(r'\bva_start\(([^)]*),([^)]*)\);',
-                   '', S)
+                    '', S)
         # 替换 unreachable()
         S = re.sub(r'\bunreachable\(\)', 'error("unreachable")', S)
         # 替换 MIN宏
         S = re.sub(r'\bMIN\(([^)]*),([^)]*)\)', '((\\1)<(\\2)?(\\1):(\\2))', S)
+        # 替换 alignTo宏
+        S = re.sub(r'\balignTo\(([^)]*),([^)]*)\)', '( (\\1 + \\2 - 1) / (\\2) * (\\2) )', S)
         print(S)
