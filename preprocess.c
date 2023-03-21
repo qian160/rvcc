@@ -4,8 +4,10 @@
 // conditional inclusion
 typedef struct CondIncl CondIncl;
 struct CondIncl {
-    CondIncl *Next; // 下一个
-    Token *Tok;     // 对应的终结符
+    CondIncl *Next;                // 下一个
+    enum { IN_THEN, IN_ELSE } Ctx; // 类型
+    Token *Tok;                    // 对应的终结符
+    bool Included;                 // 是否被包含
 };
 
 // 全局的#if保存栈
@@ -13,20 +15,6 @@ static CondIncl *CondIncls;
 
 // 是否行首是#号
 static bool isHash(Token *Tok) { return Tok->AtBOL && equal(Tok, "#"); }
-
-// 一些预处理器允许#include等指示，在换行前有多余的终结符
-// 此函数跳过这些终结符
-static Token *skipLine(Token *Tok) {
-    // 在行首，正常情况
-    if (Tok->AtBOL)
-        return Tok;
-    // 提示多余的字符
-    warnTok(Tok, "extra token");
-    // 跳过终结符，直到行首
-    while (!Tok->AtBOL)
-        Tok = Tok->Next;
-    return Tok;
-}
 
 static Token *copyToken(Token *Tok) {
     Token *T = calloc(1, sizeof(Token));
@@ -62,18 +50,45 @@ static Token *append(Token *Tok1, Token *Tok2) {
     return Head.Next;
 }
 
+// 一些预处理器允许#include等指示，在换行前有多余的终结符
+// 此函数跳过这些终结符
+static Token *skipLine(Token *Tok) {
+    // 在行首，正常情况
+    if (Tok->AtBOL)
+        return Tok;
+    // 提示多余的字符
+    warnTok(Tok, "extra token");
+    // 跳过终结符，直到行首
+    while (!Tok->AtBOL)
+        Tok = Tok->Next;
+    return Tok;
+}
+
+// 跳过#if和#endif
+static Token *skipCondIncl2(Token *Tok) {
+    while (Tok->Kind != TK_EOF) {
+        if (isHash(Tok) && equal(Tok->Next, "if")) {
+            Tok = skipCondIncl2(Tok->Next->Next);
+            continue;
+        }
+        if (isHash(Tok) && equal(Tok->Next, "endif"))
+            return Tok->Next->Next;
+        Tok = Tok->Next;
+    }
+    return Tok;
+}
+
 // #if为空时，一直跳过到#endif
 // 其中嵌套的#if语句也一起跳过
 static Token *skipCondIncl(Token *Tok) {
     while (Tok->Kind != TK_EOF) {
         // 跳过#if语句
         if (isHash(Tok) && equal(Tok->Next, "if")) {
-            Tok = skipCondIncl(Tok->Next->Next);
-            Tok = Tok->Next;
+            Tok = skipCondIncl2(Tok->Next->Next);
             continue;
         }
-        // #endif
-        if (isHash(Tok) && equal(Tok->Next, "endif"))
+        // #endif, #else
+        if (isHash(Tok) && equal2(Tok->Next, 2, (char *[]){"endif", "else"}))
             break;
         Tok = Tok->Next;
     }
@@ -116,11 +131,13 @@ static long evalConstExpr(Token **Rest, Token *Tok) {
 }
 
 // 压入#if栈中
-static CondIncl *pushCondIncl(Token *Tok) {
+static CondIncl *pushCondIncl(Token *Tok, bool Included) {
     CondIncl *CI = calloc(1, sizeof(CondIncl));
     CI->Next = CondIncls;
     CI->Tok = Tok;
     CondIncls = CI;
+    CI->Ctx = IN_THEN;
+    CI->Included = Included;
     return CI;
 }
 
@@ -176,9 +193,23 @@ static Token *preprocess2(Token *Tok) {
             // 计算常量表达式
             long Val = evalConstExpr(&Tok, Tok);
             // 将Tok压入#if栈中
-            pushCondIncl(Start);
+            pushCondIncl(Start, Val);
             // 处理#if后值为假的情况，全部跳过
             if (!Val)
+                Tok = skipCondIncl(Tok);
+            continue;
+        }
+
+        // 匹配#else
+        if (equal(Tok, "else")) {
+            if (!CondIncls || CondIncls->Ctx == IN_ELSE)
+                errorTok(Start, "stray #else");
+            CondIncls->Ctx = IN_ELSE;
+            // 走到行首
+            Tok = skipLine(Tok->Next);
+
+            // 处理之前有值为真的情况，则#else全部跳过
+            if (CondIncls->Included)
                 Tok = skipCondIncl(Tok);
             continue;
         }
