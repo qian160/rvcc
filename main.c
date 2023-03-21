@@ -18,6 +18,8 @@ static bool OptHashHashHash;
 static bool OptS;
 // -c选项
 static bool OptC;
+// -E选项
+static bool OptE;
 
 
 // 临时文件区
@@ -34,7 +36,6 @@ static void usage(int Status) {
 static bool takeArg(char *Arg) { 
     return !strcmp(Arg, "-o");
 }
-
 
 // 解析传入程序的参数
 static void parseArgs(int Argc, char **Argv) {
@@ -89,6 +90,12 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-E
+        if (!strcmp(Argv[I], "-E")) {
+            OptE = true;
+            continue;
+        }
+
         // 解析-cc1-input
         if (!strcmp(Argv[I], "-cc1-input")) {
             BaseFile = Argv[++I];
@@ -125,6 +132,27 @@ static FILE *openFile(char *Path) {
         error("cannot open output file: %s: %s", Path, strerror(errno));
     return Out;
 }
+
+// 当指定-E选项时，打印出所有终结符
+static void printTokens(Token *Tok) {
+    // 输出文件，默认为stdout
+    FILE *Out = openFile(OptO ? OptO : "-");
+
+    // 记录行数
+    int Line = 1;
+    // 遍历读取终结符
+    for (; Tok->Kind != TK_EOF; Tok = Tok->Next) {
+        // 位于行首打印出换行符
+        if (Line > 1 && Tok->AtBOL)
+            fprintf(Out, "\n");
+        // 打印出空格和终结符
+        fprintf(Out, " %.*s", Tok->Len, Tok->Loc);
+        Line++;
+    }
+    // 文件以换行符结尾
+    fprintf(Out, "\n");
+}
+
 
 // 查找文件
 static char *findFile(char *Pattern) {
@@ -288,6 +316,13 @@ static void cc1(void) {
         error("%s: %s", BaseFile, strerror(errno));
     // 预处理
     Tok = preprocess(Tok);
+
+    // 如果指定了-E那么打印出预处理过的C代码
+    if (OptE) {
+        printTokens(Tok);
+        return;
+    }
+
     // 解析终结符流
     Obj *Prog = parse(Tok);
 
@@ -389,9 +424,9 @@ int main(int Argc, char **Argv) {
         return 0;
     }
 
-    // 当前不能指定-c、-S后，将多个输入文件，输出到一个文件中
-    if (InputPaths.Len > 1 && OptO && (OptC || OptS))
-        error("cannot specify '-o' with '-c' or '-S' with multiple files");
+    // 当前不能指定-c、-S、-E后，将多个输入文件，输出到一个文件中
+    if (InputPaths.Len > 1 && OptO && (OptC || OptS || OptE))
+        error("cannot specify '-o' with '-c', '-S' or '-E' with multiple files");
 
     StringArray LdArgs = {};
 
@@ -428,6 +463,12 @@ int main(int Argc, char **Argv) {
         // 处理.c文件
 //        if (!endsWith(Input, ".c") && strcmp(Input, "-"))
 //            error("unknown file extension: %s", Input);
+
+        // 只进行解析
+        if (OptE) {
+            runCC1(Argc, Argv, Input, NULL);
+            continue;
+        }
 
         // 如果有-S选项，那么执行调用cc1程序
         if (OptS) {
