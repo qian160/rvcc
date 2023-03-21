@@ -68,9 +68,9 @@ static Token *skipCondIncl(Token *Tok) {
     while (Tok->Kind != TK_EOF) {
         // 跳过#if语句
         if (isHash(Tok) && equal(Tok->Next, "if")) {
-        Tok = skipCondIncl(Tok->Next->Next);
-        Tok = Tok->Next;
-        continue;
+            Tok = skipCondIncl(Tok->Next->Next);
+            Tok = Tok->Next;
+            continue;
         }
         // #endif
         if (isHash(Tok) && equal(Tok->Next, "endif"))
