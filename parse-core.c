@@ -258,8 +258,8 @@ static Node *primary(Token **Rest, Token *Tok);
 static Token *parseTypedef(Token *Tok, Type *BaseTy);
 
 static bool isFunction(Token *Tok);
-// 在解析时，全部的变量实例都被累加到这个列表里。
 
+// 在解析时，全部的变量实例都被累加到这个列表里。
 Obj *Locals;    // 局部变量
 Obj *Globals;   // 全局变量
 // note: it is allowed to have an variable defined both in global
