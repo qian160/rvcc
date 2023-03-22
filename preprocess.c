@@ -10,8 +10,52 @@ struct CondIncl {
     bool Included;                          // 是否被包含
 };
 
+// 定义的宏变量
+typedef struct Macro Macro;
+struct Macro {
+    Macro *Next; // 下一个
+    char *Name;  // 名称
+    Token *Body; // 对应的终结符
+};
+
 // 全局的#if保存栈
 static CondIncl *CondIncls;
+// 宏变量栈
+static Macro *Macros;
+
+static Token *append(Token *Tok1, Token *Tok2);
+// 查找相应的宏变量
+static Macro *findMacro(Token *Tok) {
+    // 如果不是标识符，直接报错
+    if (Tok->Kind != TK_IDENT)
+        return NULL;
+
+    // 遍历宏变量栈，如果匹配则返回相应的宏变量
+    for (Macro *M = Macros; M; M = M->Next)
+        if (strlen(M->Name) == Tok->Len && !strncmp(M->Name, Tok->Loc, Tok->Len))
+            return M;
+    return NULL;
+}
+
+// 新增宏变量，压入宏变量栈中
+static Macro *addMacro(char *Name, Token *Body) {
+    Macro *M = calloc(1, sizeof(Macro));
+    M->Next = Macros;
+    M->Name = Name;
+    M->Body = Body;
+    Macros = M;
+    return M;
+}
+
+// 如果是宏变量就展开，返回真
+// 否则返回空和假
+static bool expandMacro(Token **Rest, Token *Tok) {
+    Macro *M = findMacro(Tok);
+    if (!M)
+        return false;
+    *Rest = append(M->Body, Tok->Next);
+    return true;
+}
 
 // 是否行首是#号
 static bool isHash(Token *Tok) { return Tok->AtBOL && equal(Tok, "#"); }
@@ -34,14 +78,14 @@ static Token *newEOF(Token *Tok) {
 // 将Tok2放入Tok1的尾部
 static Token *append(Token *Tok1, Token *Tok2) {
     // Tok1为空时，直接返回Tok2
-    if (!Tok1 || Tok1->Kind == TK_EOF)
+    if (Tok1->Kind == TK_EOF)
         return Tok2;
 
     Token Head = {};
     Token *Cur = &Head;
 
     // 遍历Tok1，存入链表
-    for (; Tok1 && Tok1->Kind != TK_EOF; Tok1 = Tok1->Next)
+    for (; Tok1->Kind != TK_EOF; Tok1 = Tok1->Next)
         Cur = Cur->Next = copyToken(Tok1);
 
     // 链表后接Tok2
@@ -148,6 +192,9 @@ static Token *preprocess2(Token *Tok) {
 
     // 遍历终结符
     while (Tok->Kind != TK_EOF) {
+        // 如果是个宏变量，那么就展开
+        if (expandMacro(&Tok, Tok))
+            continue;
         // 如果不是#号开头则前进
         if (!isHash(Tok)) {
             Cur->Next = Tok;
@@ -158,6 +205,19 @@ static Token *preprocess2(Token *Tok) {
 
         Token *Start = Tok;
         Tok = Tok->Next;
+
+        // 匹配#define
+        if (equal(Tok, "define")) {
+            Tok = Tok->Next;
+            // 如果匹配到的不是标识符就报错
+            if (Tok->Kind != TK_IDENT)
+                errorTok(Tok, "macro name must be an identifier");
+            // 复制名字
+            char *Name = strndup(Tok->Loc, Tok->Len);
+            // 增加宏变量
+            addMacro(Name, copyLine(&Tok, Tok->Next));
+            continue;
+        }
 
         // 匹配#include
         if (equal(Tok, "include")) {
