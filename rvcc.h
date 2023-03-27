@@ -37,6 +37,8 @@ typedef struct Type Type;
 typedef struct Member Member;
 typedef struct Relocation Relocation;
 typedef struct File File;
+typedef struct Hideset Hideset;
+
 
 // put some data structures and useful macros here
 
@@ -79,6 +81,7 @@ struct Token {
     File *File;     // 源文件位置
     int LineNo;     // 行号
     bool AtBOL;     // 终结符在行首(begin of line)
+    Hideset *Hideset; // 用于宏展开时的隐藏集
 };
 
 // 文件

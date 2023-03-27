@@ -10,6 +10,59 @@ struct CondIncl {
     bool Included;                          // 是否被包含
 };
 
+// 预处理语言的设计方式使得即使存在递归宏也可以保证停止。
+// 一个宏只对每个终结符应用一次。
+//
+// 宏展开时的隐藏集
+typedef struct Hideset Hideset;
+struct Hideset {
+    Hideset *Next; // 下一个
+    char *Name;    // 名称
+};
+
+static Token *append(Token *Tok1, Token *Tok2);
+static Token *copyToken(Token *Tok);
+
+// 新建一个隐藏集
+static Hideset *newHideset(char *Name) {
+    Hideset *Hs = calloc(1, sizeof(Hideset));
+    Hs->Name = Name;
+    return Hs;
+}
+
+// 连接两个隐藏集
+static Hideset *hidesetCat(Hideset *Hs1, Hideset *Hs2) {
+    Hideset Head = {};
+    Hideset *Cur = &Head;
+
+    for (; Hs1; Hs1 = Hs1->Next)
+        Cur = Cur->Next = newHideset(Hs1->Name);
+    Cur->Next = Hs2;
+    return Head.Next;
+}
+
+// 是否已经处于宏变量当中
+static bool hidesetContains(Hideset *Hs, char *S, int Len) {
+    // 遍历隐藏集
+    for (; Hs; Hs = Hs->Next)
+        if (strlen(Hs->Name) == Len && !strncmp(Hs->Name, S, Len))
+            return true;
+    return false;
+}
+
+// 遍历Tok之后的所有终结符，将隐藏集Hs都赋给每个终结符
+static Token *addHideset(Token *Tok, Hideset *Hs) {
+    Token Head = {};
+    Token *Cur = &Head;
+
+    for (; Tok; Tok = Tok->Next) {
+        Token *T = copyToken(Tok);
+        T->Hideset = hidesetCat(T->Hideset, Hs);
+        Cur = Cur->Next = T;
+    }
+    return Head.Next;
+}
+
 // 定义的宏变量
 typedef struct Macro Macro;
 struct Macro {
@@ -24,7 +77,6 @@ static CondIncl *CondIncls;
 // 宏变量栈
 static Macro *Macros;
 
-static Token *append(Token *Tok1, Token *Tok2);
 // 查找相应的宏变量
 static Macro *findMacro(Token *Tok) {
     // 如果不是标识符，直接报错
@@ -48,13 +100,20 @@ static Macro *addMacro(char *Name, Token *Body) {
     return M;
 }
 
-// 如果是宏变量就展开，返回真
-// 否则返回空和假
+// 如果是宏变量并展开成功，返回真
 static bool expandMacro(Token **Rest, Token *Tok) {
+    // 判断是否处于隐藏集之中
+    if (hidesetContains(Tok->Hideset, Tok->Loc, Tok->Len))
+        return false;
+
     Macro *M = findMacro(Tok);
     if (!M)
         return false;
-    *Rest = append(M->Body, Tok->Next);
+    // 展开过一次的宏变量，就加入到隐藏集当中
+    Hideset *Hs = hidesetCat(Tok->Hideset, newHideset(M->Name));
+    // 处理此宏变量之后，传递隐藏集给之后的终结符
+    Token *Body = addHideset(M->Body, Hs);
+    *Rest = append(Body, Tok->Next);
     return true;
 }
 
@@ -217,7 +276,7 @@ static Token *preprocess2(Token *Tok) {
             if (Tok->Kind != TK_IDENT)
                 errorTok(Tok, "macro name must be an identifier");
             // 复制名字
-            char *Name = strndup(Tok->Loc, Tok->Len);
+            char *Name = tokenName(Tok);
             // 增加宏变量
             addMacro(Name, copyLine(&Tok, Tok->Next));
             continue;
@@ -230,7 +289,7 @@ static Token *preprocess2(Token *Tok) {
             if (Tok->Kind != TK_IDENT)
                 errorTok(Tok, "macro name must be an identifier");
             // 复制名字
-            char *Name = strndup(Tok->Loc, Tok->Len);
+            char *Name = tokenName(Tok);
             // 跳到行首
             Tok = skipLine(Tok->Next);
 
