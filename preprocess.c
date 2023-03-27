@@ -156,11 +156,14 @@ static Token *copyLine(Token **Rest, Token *Tok) {
     return head.Next;
 }
 
+static Token *preprocess2(Token *Tok);
 // 读取并计算常量表达式
 static long evalConstExpr(Token **Rest, Token *Tok) {
     Token *Start = Tok;
     // 解析#if后的常量表达式
     Token *Expr = copyLine(Rest, Tok->Next);
+    // 对于宏变量进行解析
+    Expr = preprocess2(Expr);
 
     // 空表达式报错
     if (Expr->Kind == TK_EOF)
