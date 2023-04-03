@@ -33,17 +33,6 @@ static Hideset *newHideset(char *Name) {
     return Hs;
 }
 
-// 连接两个隐藏集
-static Hideset *hidesetCat(Hideset *Hs1, Hideset *Hs2) {
-    Hideset Head = {};
-    Hideset *Cur = &Head;
-
-    for (; Hs1; Hs1 = Hs1->Next)
-        Cur = Cur->Next = newHideset(Hs1->Name);
-    Cur->Next = Hs2;
-    return Head.Next;
-}
-
 // 是否已经展开once
 static bool hidesetContains(Hideset *Hs, char *S, int Len) {
     // 遍历隐藏集
@@ -53,6 +42,29 @@ static bool hidesetContains(Hideset *Hs, char *S, int Len) {
     return false;
 }
 
+// 连接两个隐藏集
+static Hideset *hidesetUnion(Hideset *Hs1, Hideset *Hs2) {
+    Hideset Head = {};
+    Hideset *Cur = &Head;
+
+    for (; Hs1; Hs1 = Hs1->Next)
+        Cur = Cur->Next = newHideset(Hs1->Name);
+    Cur->Next = Hs2;
+    return Head.Next;
+}
+
+// 取两个隐藏集的交集
+static Hideset *hidesetIntersection(Hideset *Hs1, Hideset *Hs2) {
+    Hideset Head = {};
+    Hideset *Cur = &Head;
+
+    // 遍历Hs1，如果Hs2也有，那么就加入链表当中
+    for (; Hs1; Hs1 = Hs1->Next)
+        if (hidesetContains(Hs2, Hs1->Name, strlen(Hs1->Name)))
+        Cur = Cur->Next = newHideset(Hs1->Name);
+    return Head.Next;
+}
+
 // 遍历Tok之后的所有终结符，将隐藏集Hs都赋给每个终结符
 static Token *addHideset(Token *Tok, Hideset *Hs) {
     Token Head = {};
@@ -60,7 +72,7 @@ static Token *addHideset(Token *Tok, Hideset *Hs) {
 
     for (; Tok; Tok = Tok->Next) {
         Token *T = copyToken(Tok);
-        T->Hideset = hidesetCat(T->Hideset, Hs);
+        T->Hideset = hidesetUnion(T->Hideset, Hs);
         Cur = Cur->Next = T;
     }
     return Head.Next;
@@ -219,7 +231,9 @@ static MacroArg *readMacroArgs(Token **Rest, Token *Tok, MacroParam *Params) {
     // 如果形参没有遍历完，就报错
     if (PP)
         errorTok(Start, "too many arguments");
-    *Rest = skip(Tok, ")");
+    skip(Tok, ")");
+    // 这里返回右括号
+    *Rest = Tok;
     return Head.Next;
 }
 
@@ -273,7 +287,7 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     // 为宏变量时
     if (M->IsObjlike) {
         // 展开过一次的宏变量，就加入到隐藏集当中
-        Hideset *Hs = hidesetCat(Tok->Hideset, newHideset(M->Name));
+        Hideset *Hs = hidesetUnion(Tok->Hideset, newHideset(M->Name));
         // 处理此宏变量之后，传递隐藏集给之后的终结符
         Token *Body = addHideset(M->Body, Hs);
         *Rest = append(Body, Tok->Next);
@@ -285,9 +299,22 @@ static bool expandMacro(Token **Rest, Token *Tok) {
         return false;
 
     // 处理宏函数，并连接到Tok之后
-    // 读取宏函数实参
+    // 读取宏函数实参，这里是宏函数的隐藏集
+    Token *MacroToken = Tok;
     MacroArg *Args = readMacroArgs(&Tok, Tok, M->Params);
-    *Rest = append(subst(M->Body, Args), Tok);
+    // 这里返回的是右括号，这里是宏参数的隐藏集
+    Token *RParen = Tok;
+    // 宏函数间可能具有不同的隐藏集，新的终结符就不知道应该使用哪个隐藏集。
+    // 我们取宏终结符和右括号的交集，并将其用作新的隐藏集。
+    Hideset *Hs = hidesetIntersection(MacroToken->Hideset, RParen->Hideset);
+    // 将当前函数名加入隐藏集
+    Hs = hidesetUnion(Hs, newHideset(M->Name));
+    // 替换宏函数内的形参为实参
+    Token *Body = subst(M->Body, Args);
+    // 为宏函数内部设置隐藏集
+    Body = addHideset(Body, Hs);
+    // 将设置好的宏函数内部连接到终结符链表中
+    *Rest = append(Body, Tok->Next);
 
     return true;
 }
