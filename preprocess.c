@@ -41,7 +41,7 @@ static Hideset *hidesetCat(Hideset *Hs1, Hideset *Hs2) {
     return Head.Next;
 }
 
-// 是否已经处于宏变量当中
+// 是否已经展开once
 static bool hidesetContains(Hideset *Hs, char *S, int Len) {
     // 遍历隐藏集
     for (; Hs; Hs = Hs->Next)
@@ -79,7 +79,6 @@ static Macro *Macros;
 
 // 查找相应的宏变量
 static Macro *findMacro(Token *Tok) {
-    // 如果不是标识符，直接报错
     if (Tok->Kind != TK_IDENT)
         return NULL;
 
@@ -113,6 +112,7 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     Hideset *Hs = hidesetCat(Tok->Hideset, newHideset(M->Name));
     // 处理此宏变量之后，传递隐藏集给之后的终结符
     Token *Body = addHideset(M->Body, Hs);
+    // all the following tokens are also 
     *Rest = append(Body, Tok->Next);
     return true;
 }
@@ -171,7 +171,7 @@ static Token *skipLine(Token *Tok) {
 // 跳过#if和#endif
 static Token *skipCondIncl2(Token *Tok) {
     while (Tok->Kind != TK_EOF) {
-        if (isHash(Tok) && equal(Tok->Next, "if")) {
+        if (isHash(Tok) && equal2(Tok->Next, 3, (char *[]){"if", "ifdef", "ifndef"})) {
             Tok = skipCondIncl2(Tok->Next->Next);
             continue;
         }
@@ -187,7 +187,7 @@ static Token *skipCondIncl2(Token *Tok) {
 static Token *skipCondIncl(Token *Tok) {
     while (Tok->Kind != TK_EOF) {
         // 跳过#if语句
-        if (isHash(Tok) && equal(Tok->Next, "if")) {
+        if (isHash(Tok) && equal2(Tok->Next, 3, (char *[]){"if", "ifdef", "ifndef"})) {
             Tok = skipCondIncl2(Tok->Next->Next);
             continue;
         }
@@ -329,6 +329,35 @@ static Token *preprocess2(Token *Tok) {
             Tok = append(Tok2, Tok);
             continue;
         }
+
+        // 匹配#ifdef
+        if (equal(Tok, "ifdef")) {
+            // 查找宏变量
+            bool Defined = findMacro(Tok->Next);
+            // 压入#if栈
+            pushCondIncl(Tok, Defined);
+            // 跳到行首
+            Tok = skipLine(Tok->Next->Next);
+            // 如果没被定义，那么应该跳过这个部分
+            if (!Defined)
+            Tok = skipCondIncl(Tok);
+            continue;
+        }
+
+        // 匹配#ifndef
+        if (equal(Tok, "ifndef")) {
+            // 查找宏变量
+            bool Defined = findMacro(Tok->Next);
+            // 压入#if栈，此时不存在时则设为真
+            pushCondIncl(Tok, !Defined);
+            // 跳到行首
+            Tok = skipLine(Tok->Next->Next);
+            // 如果被定义了，那么应该跳过这个部分
+            if (Defined)
+                Tok = skipCondIncl(Tok);
+            continue;
+        }
+
 
         // 匹配#if
         if (equal(Tok, "if")) {
