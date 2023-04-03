@@ -169,12 +169,20 @@ static void readMacroDefinition(Token **Rest, Token *Tok) {
 static MacroArg *readMacroArgOne(Token **Rest, Token *Tok) {
     Token Head = {};
     Token *Cur = &Head;
+    // [175] 允许括号内的表达式作为宏参数
+    // e.g. ADD((2 + 5), 9)
+    int Level = 0;
 
     // 读取实参对应的终结符
-    while (!equal(Tok, ",") && !equal(Tok, ")")) {
+    while (Level > 0 || !equal(Tok, ",") && !equal(Tok, ")")) {
         if (Tok->Kind == TK_EOF)
         errorTok(Tok, "premature end of input");
         // 将标识符加入到链表中
+        if (equal(Tok, "("))
+            Level++;
+        else if (equal(Tok, ")"))
+            Level--;
+
         Cur = Cur->Next = copyToken(Tok);
         Tok = Tok->Next;
     }
