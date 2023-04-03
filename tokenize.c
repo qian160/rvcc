@@ -17,6 +17,7 @@ bool equal2(Token *Tok, int n, char*kw[]){
 File * CurrentFile;         // 输入文件
 static File **InputFiles;   // 输入文件列表
 static bool AtBOL;          // current token is "at begin of line"
+static bool HasSpace;       // 终结符前是有空格时为真
 
 // 跳过指定的Str
 Token *skip(Token *Tok, char *Str) {
@@ -43,15 +44,15 @@ bool consume(Token **Rest, Token *Tok, char *Str) {
 
 // 生成新的Token
 Token *newToken(TokenKind Kind, char *Start, char *End) {
-    // 分配1个Token的内存空间
     Token *Tok = calloc(1, sizeof(Token));
     Tok->Kind = Kind;
     Tok->Loc = Start;
     Tok->Len = End - Start;
-    // 读取是否为行首，然后设置为false
     Tok->AtBOL = AtBOL;
-    Tok->File = CurrentFile;
     AtBOL = false;
+    Tok->HasSpace = HasSpace;
+    HasSpace = false;
+    Tok->File = CurrentFile;
     return Tok;
 }
 
@@ -364,6 +365,7 @@ static Token *tokenize(File *FP) {
 
     // 文件开始设置为行首
     AtBOL = true;
+    HasSpace = false;
 
     while (*P) {
         // 跳过行注释
@@ -371,6 +373,7 @@ static Token *tokenize(File *FP) {
             P += 2;
             while (*P != '\n')
                 P++;
+            HasSpace = true;
             continue;
         }
 
@@ -381,6 +384,7 @@ static Token *tokenize(File *FP) {
             if (!Q)
                 errorAt(P, "unclosed block comment");
             P = Q + 2;
+            HasSpace = true;
             continue;
         }
 
@@ -388,12 +392,14 @@ static Token *tokenize(File *FP) {
         if (*P == '\n') {
             P++;
             AtBOL = true;
+            HasSpace = true;
             continue;
         }
 
         // 跳过所有空白符如：空格、回车
         if (isspace(*P)) {
             ++P;
+            HasSpace = true;
             continue;
         }
 
