@@ -20,11 +20,134 @@ struct Hideset {
     char *Name;    // 名称
 };
 
-static Token *append(Token *Tok1, Token *Tok2);
-static Token *copyToken(Token *Tok);
-static Token *copyLine(Token **Rest, Token *Tok);
-static Token *newEOF(Token *Tok);
 static Token *preprocess2(Token *Tok);
+
+// 是否行首是#号
+static bool isHash(Token *Tok) { return Tok->AtBOL && equal(Tok, "#"); }
+
+static Token *copyToken(Token *Tok) {
+    Token *T = calloc(1, sizeof(Token));
+    *T = *Tok;
+    T->Next = NULL;
+    return T;
+}
+
+// 新建一个EOF终结符
+static Token *newEOF(Token *Tok) {
+    Token *T = copyToken(Tok);
+    T->Kind = TK_EOF;
+    T->Len = 0;
+    return T;
+}
+
+// 将Tok2放入Tok1的尾部
+static Token *append(Token *Tok1, Token *Tok2) {
+    // Tok1为空时，直接返回Tok2
+    if (Tok1->Kind == TK_EOF)
+        return Tok2;
+
+    Token Head = {};
+    Token *Cur = &Head;
+
+    // 遍历Tok1，存入链表
+    for (; Tok1->Kind != TK_EOF; Tok1 = Tok1->Next)
+        Cur = Cur->Next = copyToken(Tok1);
+
+    // 链表后接Tok2
+    Cur->Next = Tok2;
+    // 返回下一个
+    return Head.Next;
+}
+// 拷贝当前Tok到换行符间的所有终结符，并以EOF终结符结尾
+static Token *copyLine(Token **Rest, Token *Tok) {
+    Token head = {};
+    Token *Cur = &head;
+
+    // 遍历复制终结符
+    for (; !Tok->AtBOL; Tok = Tok->Next)
+        Cur = Cur->Next = copyToken(Tok);
+
+    // 以EOF终结符结尾
+    Cur->Next = newEOF(Tok);
+    *Rest = Tok;
+    return head.Next;
+}
+
+// 将给定的字符串用双引号包住
+static char *quoteString(char *Str) {
+    // 两个引号，一个\0
+    int BufSize = 3;
+    // 如果有 \ 或 " 那么需要多留一个位置，存储转义用的 \ 符号
+    for (int I = 0; Str[I]; I++) {
+        if (Str[I] == '\\' || Str[I] == '"')
+        BufSize++;
+        BufSize++;
+    }
+
+    // 分配相应的空间
+    char *Buf = calloc(1, BufSize);
+
+    char *P = Buf;
+    // 开头的"
+    *P++ = '"';
+    for (int I = 0; Str[I]; I++) {
+        if (Str[I] == '\\' || Str[I] == '"')
+        // 加上转义用的 \ 符号
+        *P++ = '\\';
+        *P++ = Str[I];
+    }
+    // 结尾的"\0
+    *P++ = '"';
+    *P++ = '\0';
+    return Buf;
+}
+
+// 构建一个新的字符串的终结符
+static Token *newStrToken(char *Str, Token *Tmpl) {
+    // 将字符串加上双引号
+    char *Buf = quoteString(Str);
+    // 将字符串和相应的宏名称传入词法分析，去进行解析
+    return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
+}
+
+// 将终结符链表中的所有终结符都连接起来，然后返回一个新的字符串
+static char *joinTokens(Token *Tok) {
+    // 计算最终终结符的长度
+    int Len = 1;
+    for (Token *T = Tok; T && T->Kind != TK_EOF; T = T->Next) {
+        // 非第一个，且前面有空格，计数加一
+        if (T != Tok && T->HasSpace)
+            Len++;
+        // 加上终结符的长度
+        Len += T->Len;
+    }
+
+    // 开辟相应的空间
+    char *Buf = calloc(1, Len);
+
+    // 复制终结符的文本
+    int Pos = 0;
+    for (Token *T = Tok; T && T->Kind != TK_EOF; T = T->Next) {
+        // 非第一个，且前面有空格，设为空格
+        if (T != Tok && T->HasSpace)
+        Buf[Pos++] = ' ';
+        // 拷贝相应的内容
+        strncpy(Buf + Pos, T->Loc, T->Len);
+        Pos += T->Len;
+    }
+    // 以'\0'结尾
+    Buf[Pos] = '\0';
+    return Buf;
+}
+
+// 将所有实参中的终结符连接起来，然后返回一个字符串的终结符
+static Token *stringize(Token *Hash, Token *Arg) {
+    // 创建一个字符串的终结符
+    char *S = joinTokens(Arg);
+    // 我们需要一个位置用来报错，所以使用了宏的名字
+    return newStrToken(S, Hash);
+}
+
 
 // 新建一个隐藏集
 static Hideset *newHideset(char *Name) {
@@ -252,6 +375,17 @@ static Token *subst(Token *Tok, MacroArg *Args) {
 
     // 遍历将形参替换为实参的终结符链表
     while (Tok->Kind != TK_EOF) {
+        // #宏实参 会被替换为相应的字符串
+        if (equal(Tok, "#")) {
+            // 查找实参
+            MacroArg *Arg = findArg(Args, Tok->Next);
+            if (!Arg)
+                errorTok(Tok->Next, "'#' is not followed by a macro parameter");
+            // 将实参的终结符字符化
+            Cur = Cur->Next = stringize(Tok, Arg->Tok);
+            Tok = Tok->Next->Next;
+            continue;
+        }
         // 查找实参
         MacroArg *Arg = findArg(Args, Tok);
         // 处理宏终结符，宏实参在被替换之前已经被展开了
@@ -302,7 +436,7 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     // 读取宏函数实参，这里是宏函数的隐藏集
     Token *MacroToken = Tok;
     MacroArg *Args = readMacroArgs(&Tok, Tok, M->Params);
-    // 这里返回的是右括号，这里是宏参数的隐藏集
+    // 这里返回的是右括号
     Token *RParen = Tok;
     // 宏函数间可能具有不同的隐藏集，新的终结符就不知道应该使用哪个隐藏集。
     // 我们取宏终结符和右括号的交集，并将其用作新的隐藏集。
@@ -317,43 +451,6 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     *Rest = append(Body, Tok->Next);
 
     return true;
-}
-
-// 是否行首是#号
-static bool isHash(Token *Tok) { return Tok->AtBOL && equal(Tok, "#"); }
-
-static Token *copyToken(Token *Tok) {
-    Token *T = calloc(1, sizeof(Token));
-    *T = *Tok;
-    T->Next = NULL;
-    return T;
-}
-
-// 新建一个EOF终结符
-static Token *newEOF(Token *Tok) {
-    Token *T = copyToken(Tok);
-    T->Kind = TK_EOF;
-    T->Len = 0;
-    return T;
-}
-
-// 将Tok2放入Tok1的尾部
-static Token *append(Token *Tok1, Token *Tok2) {
-    // Tok1为空时，直接返回Tok2
-    if (Tok1->Kind == TK_EOF)
-        return Tok2;
-
-    Token Head = {};
-    Token *Cur = &Head;
-
-    // 遍历Tok1，存入链表
-    for (; Tok1->Kind != TK_EOF; Tok1 = Tok1->Next)
-        Cur = Cur->Next = copyToken(Tok1);
-
-    // 链表后接Tok2
-    Cur->Next = Tok2;
-    // 返回下一个
-    return Head.Next;
 }
 
 // 一些预处理器允许#include等指示，在换行前有多余的终结符
@@ -399,22 +496,6 @@ static Token *skipCondIncl(Token *Tok) {
         Tok = Tok->Next;
     }
     return Tok;
-}
-
-// 拷贝当前Tok到换行符间的所有终结符，并以EOF终结符结尾
-// 此函数为#if分析参数
-static Token *copyLine(Token **Rest, Token *Tok) {
-    Token head = {};
-    Token *Cur = &head;
-
-    // 遍历复制终结符
-    for (; !Tok->AtBOL; Tok = Tok->Next)
-        Cur = Cur->Next = copyToken(Tok);
-
-    // 以EOF终结符结尾
-    Cur->Next = newEOF(Tok);
-    *Rest = Tok;
-    return head.Next;
 }
 
 // 读取并计算常量表达式

@@ -304,8 +304,10 @@ bool equal2(Token *Tok, int n, char *kw[]);
 Token *skip(Token *Tok, char *Str);
 bool consume(Token **Rest, Token *Tok, char *Str);
 char* tokenName(Token *Tok);
-// 获取输入文件
 File **getInputFiles(void);
+File *newFile(char *Name, int FileNo, char *Contents);
+Token *tokenize(File *FP);
+
 
 /* ---------- preprocess.c ---------- */
 // 预处理器入口函数
