@@ -293,7 +293,7 @@ extern Type *TyDouble;
 //
 
 extern char *BaseFile;
-
+void printTokens(Token *Tok);
 // functions
 
 /* ---------- tokenize.c ---------- */
@@ -401,7 +401,7 @@ uint32_t simpleLog2(uint32_t v);
     }\
     while(0);
 
-//#define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
+#define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
 #define todo() Assert(0, "todo")
 

@@ -106,6 +106,8 @@ static char *quoteString(char *Str) {
 static Token *newStrToken(char *Str, Token *Tmpl) {
     // 将字符串加上双引号
     char *Buf = quoteString(Str);
+    Token * Tok = malloc(sizeof(Token));
+    Tok -> Str = Buf;
     // 将字符串和相应的宏名称传入词法分析，去进行解析
     return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
 }
@@ -141,6 +143,8 @@ static char *joinTokens(Token *Tok) {
 }
 
 // 将所有实参中的终结符连接起来，然后返回一个字符串的终结符
+// arg1: #
+// arg2: 
 static Token *stringize(Token *Hash, Token *Arg) {
     // 创建一个字符串的终结符
     char *S = joinTokens(Arg);
@@ -401,8 +405,6 @@ static Token *subst(Token *Tok, MacroArg *Args) {
 
         // 查找实参
         MacroArg *Arg = findArg(Args, Tok);
-        if(Arg)
-            trace("%s\n", Arg->Name);
 
         // 左边及##，用于连接终结符
         if (Arg && equal(Tok->Next, "##")) {

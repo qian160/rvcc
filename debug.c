@@ -62,6 +62,7 @@ void warnTok(Token *Tok, char *Fmt, ...) {
     verrorAt(Tok->File->Name, Tok->File->Contents, Tok->LineNo, Tok->Loc, Fmt, VA);
     va_end(VA);
 }
+
 /*
 
 void error(char *fmt, ...) {

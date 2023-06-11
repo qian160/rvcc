@@ -13,7 +13,7 @@ SRCS=$(wildcard *.c)
 objs=$(SRCS:.c=.o)
 OBJS=$(addprefix $(DST_DIR)/, $(objs))
 DEPS=$(addprefix $(DST_DIR)/, $(SRCS:.c=.d))
-
+LOGO=$(DST_DIR)/logo.o
 $(shell mkdir -p $(DST_DIR))
 
 TEST_SRCS=$(wildcard test/*.c)
@@ -23,9 +23,12 @@ TESTS=$(TEST_SRCS:.c=.out)
 all=""
 
 # $@表示目标文件，此处为rvcc，$^表示依赖文件，此处为$(OBJS)
-$(DST_DIR)/rvcc: $(OBJS)
+$(DST_DIR)/rvcc: $(OBJS) $(LOGO)
 	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo [LD] $@
+
+$(LOGO): logo.S
+	@as $< -o $@
 
 (OBJS): rvcc.h
 	@echo [CC] $(basename $@)
@@ -35,18 +38,15 @@ $(DST_DIR)/%.o: %.c rvcc.h
 	@echo [CC] $(basename $@)
 	@$(CC) -c $*.c -g -o $@
 
-# 只使用rvcc进行宏的测试
-test/macro.out: $(DST_DIR)/rvcc test/macro.c
-	$(RVCC) -c -o test/macro.o test/macro.c
-	$(CROSS-CC) -o $@ test/macro.o -xc test/common
-
 # 编译测试中的每个.c文件 由于现在的rvcc功能还较弱，所以借助了一些现有编译器的功能
 # 做法是先使用系统cc预处理一遍，再把这个预处理结果交给rvcc
 # 最后再使用系统cc把刚刚产生的东西和common这个文件链接起来. 参数说明：
 # -o-将结果打印出来，-E只进行预处理，-P不输出行号信息，-C预处理时不会删除注释
 test/%.out: $(DST_DIR)/rvcc test/%.c
-	$(CROSS-CC) -o- -E -P -C test/$*.c | $(RVCC) -c -o test/$*.o -
-	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
+#	$(CROSS-CC) -o- -E -P -C test/$*.c | $(RVCC) -c -o test/$*.o -
+#	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
+	$(RVCC) -c test/$*.c -o test/$*.o
+	$(CROSS-CC) -o $@ test/$*.o -xc test/common
 
 # usage: make test -jx all=xx
 test: $(TESTS)
@@ -78,17 +78,11 @@ stage2/%.o: $(DST_DIR)/rvcc self.py %.c
 stage2/%.o: stage2/%.s
 	$(CROSS-CC) -c stage2/$*.s -o stage2/$*.o
 
-# 只使用stage2的rvcc进行宏的测试
-stage2/test/macro.out: stage2/rvcc test/macro.c
-	mkdir -p stage2/test
-	./stage2/rvcc -c -o stage2/test/macro.o test/macro.c
-	$(CROSS-CC) -o $@ stage2/test/macro.o -xc test/common
-
-
 # 利用stage2的rvcc去进行测试
 stage2/test/%.out: stage2/rvcc test/%.c
 	mkdir -p stage2/test
-	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -c -o stage2/test/$*.o -
+#	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -c -o stage2/test/$*.o -
+	./stage2/rvcc -c -o stage2/test/$*.o test/$*.c
 	$(CROSS-CC) -o $@ stage2/test/$*.o -xc test/common
 
 test-stage2: $(TESTS:test/%=stage2/test/%)
@@ -117,3 +111,5 @@ $(DST_DIR)/%.d: %.c
 # sed here: find the pattern "xxx.o :" first, then
 # substitute it with "xxx.o xxx.d :". 1 is a placeholder.
 # otherwords just insert the .d file to the lhs of dependancy list
+#
+# qemu-riscv64 -L ~/riscv/sysroot a.out

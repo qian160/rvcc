@@ -20,7 +20,9 @@ static bool OptS;
 static bool OptC;
 // -E选项
 static bool OptE;
-
+// -V选项
+static bool OptV;
+extern const char logo[];   // don't use char *
 
 // 临时文件区
 static StringArray TmpFiles;
@@ -29,6 +31,12 @@ static StringArray TmpFiles;
 static void usage(int Status) {
     fprintf(stderr, "rvcc [ -o <path> ] <file>\n");
     exit(Status);
+}
+
+static void version() {
+    puts(logo);
+    fprintf(stderr, "rvcc v1.14514\n");
+    exit(0);
 }
 
 // 判断需要一个参数的选项，是否具有一个参数
@@ -96,6 +104,12 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-V
+        if (!strcmp(Argv[I], "-v")) {
+            OptV = true;
+            continue;
+        }
+
         // 解析-cc1-input
         if (!strcmp(Argv[I], "-cc1-input")) {
             BaseFile = Argv[++I];
@@ -134,7 +148,8 @@ static FILE *openFile(char *Path) {
 }
 
 // 当指定-E选项时，打印出所有终结符
-static void printTokens(Token *Tok) {
+// for debug use, I remove the "static" keyword
+void printTokens(Token *Tok) {
     // 输出文件，默认为stdout
     FILE *Out = openFile(OptO ? OptO : "-");
 
@@ -426,6 +441,8 @@ int main(int Argc, char **Argv) {
         cc1();
         return 0;
     }
+    if (OptV)
+        version();
 
     // 当前不能指定-c、-S、-E后，将多个输入文件，输出到一个文件中
     if (InputPaths.Len > 1 && OptO && (OptC || OptS || OptE))
