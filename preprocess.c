@@ -470,6 +470,9 @@ static Token *subst(Token *Tok, MacroArg *Args) {
         if (Arg) {
             // 解析实参对应的终结符链表
             Token *T = preprocess2(Arg->Tok);
+            // 传递 是否为行首 和 前面是否有空格 的信息
+            T->AtBOL = Tok->AtBOL;
+            T->HasSpace = Tok->HasSpace;
             for (; T->Kind != TK_EOF; T = T->Next)
                 Cur = Cur->Next = copyToken(T);
                 Tok = Tok->Next;
@@ -503,6 +506,9 @@ static bool expandMacro(Token **Rest, Token *Tok) {
         // 处理此宏变量之后，传递隐藏集给之后的终结符
         Token *Body = addHideset(M->Body, Hs);
         *Rest = append(Body, Tok->Next);
+        // 传递 是否为行首 和 前面是否有空格 的信息
+        (*Rest)->AtBOL = Tok->AtBOL;
+        (*Rest)->HasSpace = Tok->HasSpace;
         return true;
     }
 
@@ -527,7 +533,9 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     Body = addHideset(Body, Hs);
     // 将设置好的宏函数内部连接到终结符链表中
     *Rest = append(Body, Tok->Next);
-
+    // 传递 是否为行首 和 前面是否有空格 的信息
+    (*Rest)->AtBOL = MacroToken->AtBOL;
+    (*Rest)->HasSpace = MacroToken->HasSpace;
     return true;
 }
 
@@ -578,8 +586,8 @@ static Token *skipCondIncl(Token *Tok) {
 
 // 构造数字终结符
 static Token *newNumToken(int Val, Token *Tmpl) {
-  char *Buf = format("%d\n", Val);
-  return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
+    char *Buf = format("%d\n", Val);
+    return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
 }
 
 // 读取常量表达式
