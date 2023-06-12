@@ -93,6 +93,13 @@ test-stage2: $(TESTS:test/%=stage2/test/%)
 count:
 	@ls | grep "\.[ch]" | xargs cat | wc -l
 
+msg=""
+git:
+	make clean
+	git add -A
+	git commit -m "$(msg)"
+#	@git push rvcc master
+
 # 清理所有非源代码文件
 clean:
 	-rm -rf tmp* *.d $(TESTS) test/*.s test/*.out stage2/ thirdparty/ target/
