@@ -576,11 +576,60 @@ static Token *skipCondIncl(Token *Tok) {
     return Tok;
 }
 
+// 构造数字终结符
+static Token *newNumToken(int Val, Token *Tmpl) {
+  char *Buf = format("%d\n", Val);
+  return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
+}
+
+// 读取常量表达式
+static Token *readConstExpr(Token **Rest, Token *Tok) {
+    // 复制当前行
+    Tok = copyLine(Rest, Tok);
+
+    Token Head = {};
+    Token *Cur = &Head;
+
+    // 遍历终结符
+    while (Tok->Kind != TK_EOF) {
+        // "defined(foo)" 或 "defined foo"如果存在foo为1否则为0
+        if (equal(Tok, "defined")) {
+            Token *Start = Tok;
+            // 消耗掉(
+            bool HasParen = consume(&Tok, Tok->Next, "(");
+
+            if (Tok->Kind != TK_IDENT)
+                errorTok(Start, "macro name must be an identifier");
+            // 查找宏
+            Macro *M = findMacro(Tok);
+            Tok = Tok->Next;
+
+            // 对应着的)
+            if (HasParen)
+                Tok = skip(Tok, ")");
+
+            // 构造一个相应的数字终结符
+            Cur = Cur->Next = newNumToken(M ? 1 : 0, Start);
+            continue;
+        }
+
+        // 将剩余的终结符存入链表
+        Cur = Cur->Next = Tok;
+        // 终结符前进
+        Tok = Tok->Next;
+    }
+
+    // 将剩余的终结符存入链表
+    Cur->Next = Tok;
+    return Head.Next;
+}
+
+
 // 读取并计算常量表达式
 static long evalConstExpr(Token **Rest, Token *Tok) {
     Token *Start = Tok;
     // 解析#if后的常量表达式
-    Token *Expr = copyLine(Rest, Tok->Next);
+    Token *Expr = readConstExpr(Rest, Tok->Next);
     // 对于宏变量进行解析
     Expr = preprocess2(Expr);
 
