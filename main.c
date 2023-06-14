@@ -1,5 +1,4 @@
 #include "rvcc.h"
-
 // 注意 ~ 应替换为具体的 /home/用户名 的路径
 static char *RVPath = "/home/s081/riscv";
 // 目标文件的路径
@@ -190,7 +189,7 @@ static char *findFile(char *Pattern) {
 
 
 // 文件存在时，为真
-static bool fileExists(char *Path) {
+bool fileExists(char *Path) {
     struct stat St;
     return !stat(Path, &St);
 }

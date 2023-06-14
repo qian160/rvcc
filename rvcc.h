@@ -292,9 +292,12 @@ extern Type *TyDouble;
 // 主程序，驱动文件
 //
 
+/* ---------- main.c ---------- */
 extern char *BaseFile;
 void printTokens(Token *Tok);
-// functions
+bool fileExists(char *Path);
+
+// other functions
 
 /* ---------- tokenize.c ---------- */
 // 词法分析

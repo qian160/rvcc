@@ -28,7 +28,7 @@ $(DST_DIR)/rvcc: $(OBJS) $(LOGO)
 	@echo [LD] $@
 
 $(LOGO): logo.S
-	@as $< -o $@
+	as $< -o $@
 
 (OBJS): rvcc.h
 	@echo [CC] $(basename $@)
@@ -95,9 +95,9 @@ count:
 
 msg=""
 git:
-	make clean
-	git add -A
-	git commit -m "$(msg)"
+	@make clean
+	@git add -A
+	@git commit -m "$(msg)"
 #	@git push rvcc master
 
 # 清理所有非源代码文件
