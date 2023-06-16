@@ -9,9 +9,12 @@ char *BaseFile;
 static char *OutputFile;
 // 输入文件区, default = "-"
 static StringArray InputPaths;
+// 引入路径区
+StringArray IncludePaths;
 // cc1选项
 static bool OptCC1;
 // ###选项
+// print link info
 static bool OptHashHashHash;
 // -S选项
 static bool OptS;
@@ -39,9 +42,13 @@ static void version() {
 }
 
 // 判断需要一个参数的选项，是否具有一个参数
-// only -o needs an arg at present
-static bool takeArg(char *Arg) { 
-    return !strcmp(Arg, "-o");
+static bool takeArg(char *Arg) {
+    char *X[] = {"-o", "-I"};
+
+    for (int I = 0; I < sizeof(X) / sizeof(*X); I++)
+        if (!strcmp(Arg, X[I]))
+            return true;
+    return false;
 }
 
 // 解析传入程序的参数
@@ -118,6 +125,12 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-cc1-output
         if (!strcmp(Argv[I], "-cc1-output")) {
             OutputFile = Argv[++I];
+            continue;
+        }
+
+        // 解析-I
+        if (!strncmp(Argv[I], "-I", 2)) {
+            strArrayPush(&IncludePaths, Argv[I] + 2);
             continue;
         }
 

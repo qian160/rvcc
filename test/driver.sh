@@ -1,16 +1,15 @@
 #!/bin/bash
 
+rvcc=./target/rvcc
+RISCV="/home/s081/riscv"
 # 创建一个临时文件夹，XXXXXX会被替换为随机字符串
 tmp=`mktemp -d /tmp/rvcc-test-XXXXXX`
-RISCV="/home/s081/riscv"
 # 清理工作
 # 在接收到 中断（ctrl+c），终止，挂起（ssh掉线，用户退出），退出 信号时
 # 执行rm命令，删除掉新建的临时文件夹
 trap 'rm -rf $tmp' INT TERM HUP EXIT
 # 在临时文件夹内，新建一个空文件，名为empty.c
 echo > $tmp/empty.c
-
-rvcc=target/rvcc
 
 # 判断返回值是否为0来判断程序是否成功执行
 check() {
@@ -48,11 +47,11 @@ rm -f $tmp/out.o $tmp/out.s
 echo 'int main() {}' > $tmp/out.c
 ($rvcc -c $tmp/out.c > $tmp/out.o )
 [ -f $tmp/out.o ]
-check 'default output file -s'
+check 'default output file'
 
-($rvcc -S -c $tmp/out.c > $tmp/out.s)
+($rvcc -c -S $tmp/out.c > $tmp/out.s)
 [ -f $tmp/out.s ]
-check 'default output file -o'
+check 'default output file'
 
 # [156] 接受多个输入文件
 rm -f $tmp/foo.o $tmp/bar.o
@@ -110,5 +109,11 @@ echo "#include \"$tmp/out1\"" | $rvcc -E -o $tmp/out2 -
 cat $tmp/out2 | grep -q foo
 check '-E and -o'
 
+# [185] 支持 -I<Dir> 选项
+# -I
+mkdir $tmp/dir
+echo foo > $tmp/dir/i-option-test
+echo "#include \"i-option-test\"" | $rvcc -I$tmp/dir -E - | grep -q foo
+check -I
 
 echo OK

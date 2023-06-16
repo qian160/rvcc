@@ -28,7 +28,7 @@ $(DST_DIR)/rvcc: $(OBJS) $(LOGO)
 	@echo [LD] $@
 
 $(LOGO): logo.S
-	as $< -o $@
+	@as $< -o $@
 
 (OBJS): rvcc.h
 	@echo [CC] $(basename $@)
@@ -45,7 +45,7 @@ $(DST_DIR)/%.o: %.c rvcc.h
 test/%.out: $(DST_DIR)/rvcc test/%.c
 #	$(CROSS-CC) -o- -E -P -C test/$*.c | $(RVCC) -c -o test/$*.o -
 #	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
-	$(RVCC) -c test/$*.c -o test/$*.o
+	$(RVCC) -Itest -c test/$*.c -o test/$*.o
 	$(CROSS-CC) -o $@ test/$*.o -xc test/common
 
 # usage: make test -jx all=xx
@@ -72,7 +72,7 @@ stage2/rvcc: $(objs:%=stage2/%)
 stage2/%.o: $(DST_DIR)/rvcc self.py %.c
 	mkdir -p stage2/test
 	./self.py rvcc.h $*.c > stage2/$*.c
-	$(RVCC) -c -o stage2/$*.o stage2/$*.c
+	$(RVCC) -Itest -c -o stage2/$*.o stage2/$*.c
 
 # stage2的汇编编译为可重定位文件
 stage2/%.o: stage2/%.s

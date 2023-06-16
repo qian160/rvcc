@@ -296,7 +296,7 @@ extern Type *TyDouble;
 extern char *BaseFile;
 void printTokens(Token *Tok);
 bool fileExists(char *Path);
-
+extern StringArray IncludePaths;
 // other functions
 
 /* ---------- tokenize.c ---------- */
