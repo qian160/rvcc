@@ -41,6 +41,17 @@ static void version() {
     exit(0);
 }
 
+// 增加默认引入路径
+static void addDefaultIncludePaths(char *Argv0) {
+    // rvcc特定的引入文件被安装到了argv[0]的./include位置
+    strArrayPush(&IncludePaths, format("%s/include", dirname(strdup(Argv0))));
+
+    // 支持标准的引入路径
+    strArrayPush(&IncludePaths, "/usr/local/include");
+    strArrayPush(&IncludePaths, "/usr/include/riscv64-linux-gnu");
+    strArrayPush(&IncludePaths, "/usr/include");
+}
+
 // 判断需要一个参数的选项，是否具有一个参数
 static bool takeArg(char *Arg) {
     char *X[] = {"-o", "-I"};
@@ -450,6 +461,7 @@ int main(int Argc, char **Argv) {
     // 如果指定了-cc1选项
     // 直接编译C文件到汇编文件
     if (OptCC1) {
+        addDefaultIncludePaths(Argv[0]);
         cc1();
         return 0;
     }
