@@ -39,9 +39,6 @@ typedef struct Relocation Relocation;
 typedef struct File File;
 typedef struct Hideset Hideset;
 
-
-// put some data structures and useful macros here
-
 //
 // 共用头文件，定义了多个文件间共同使用的函数和数据
 //
@@ -83,6 +80,7 @@ struct Token {
     bool AtBOL;     // 终结符在行首(begin of line)
     bool HasSpace;    // 终结符前是否有空格
     Hideset *Hideset; // 用于宏展开时的隐藏集
+    Token *Origin;    // 宏展开前的原始终结符
 };
 
 // 文件
@@ -270,7 +268,6 @@ struct Relocation {
     char *Label;      // 标签名
     long Addend;      // 加数
 };
-
 
 // 声明一个全局变量，定义在type.c中。
 extern Type *TyInt;

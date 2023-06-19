@@ -20,6 +20,36 @@ struct Hideset {
     char *Name;    // 名称
 };
 
+// 宏函数形参
+typedef struct MacroParam MacroParam;
+struct MacroParam {
+    MacroParam *Next; // 下一个
+    char *Name;       // 名称
+};
+
+// 宏函数实参
+typedef struct MacroArg MacroArg;
+struct MacroArg {
+    MacroArg *Next; // 下一个
+    char *Name;     // 名称
+    Token *Tok;     // 对应的终结符链表
+};
+// 宏处理函数
+typedef Token *macroHandlerFn(Token *);
+
+// 定义的宏变量
+typedef struct Macro Macro;
+struct Macro {
+    Macro *Next;             // 下一个
+    char *Name;              // 名称
+    Token *Body;             // 对应的终结符
+    bool Deleted;            // 是否被删除了
+    bool IsObjlike;          // 宏变量为真，或者宏函数为假
+    MacroParam *Params;      // 宏函数参数
+    macroHandlerFn *Handler; // 宏处理函数
+};
+
+
 static Token *preprocess2(Token *Tok);
 
 // 是否行首是#号
@@ -109,6 +139,12 @@ static Token *newStrToken(char *Str, Token *Tmpl) {
     Token * Tok = malloc(sizeof(Token));
     Tok -> Str = Buf;
     // 将字符串和相应的宏名称传入词法分析，去进行解析
+    return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
+}
+
+// 构造数字终结符
+static Token *newNumToken(int Val, Token *Tmpl) {
+    char *Buf = format("%d\n", Val);
     return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
 }
 
@@ -205,36 +241,66 @@ static Token *addHideset(Token *Tok, Hideset *Hs) {
     return Head.Next;
 }
 
-// 宏函数形参
-typedef struct MacroParam MacroParam;
-struct MacroParam {
-    MacroParam *Next; // 下一个
-    char *Name;       // 名称
-};
-
-// 宏函数实参
-typedef struct MacroArg MacroArg;
-struct MacroArg {
-    MacroArg *Next; // 下一个
-    char *Name;     // 名称
-    Token *Tok;     // 对应的终结符链表
-};
-
-// 定义的宏变量
-typedef struct Macro Macro;
-struct Macro {
-    Macro *Next;        // 下一个
-    char *Name;         // 名称
-    Token *Body;        // 对应的终结符
-    bool Deleted;       // 是否被删除了
-    bool IsObjlike;     // 宏变量为真，或者宏函数为假
-    MacroParam *Params; // 宏函数参数
-};
-
 // 全局的#if保存栈
 static CondIncl *CondIncls;
+
+// 拼接两个终结符构建一个新的终结符
+static Token *paste(Token *LHS, Token *RHS) {
+    // 合并两个终结符
+    char *Buf = format("%.*s%.*s", LHS->Len, LHS->Loc, RHS->Len, RHS->Loc);
+
+    // 词法解析生成的字符串，转换为相应的终结符
+    Token *Tok = tokenize(newFile(LHS->File->Name, LHS->File->FileNo, Buf));
+    if (Tok->Next->Kind != TK_EOF)
+        errorTok(LHS, "pasting forms '%s', an invalid token", Buf);
+    return Tok;
+}
+
+//
+// -------- macros --------
+//
+
 // 宏变量栈
 static Macro *Macros;
+
+// 新增宏变量，压入宏变量栈中
+static Macro *addMacro(char *Name, bool IsObjlike, Token *Body) {
+    Macro *M = calloc(1, sizeof(Macro));
+    M->Next = Macros;
+    M->Name = Name;
+    M->IsObjlike = IsObjlike;
+    M->Body = Body;
+    Macros = M;
+    return M;
+}
+
+// 增加内建的宏和相应的宏处理函数
+static Macro *addBuiltin(char *Name, macroHandlerFn *Fn) {
+    // 增加宏
+    Macro *M = addMacro(Name, true, NULL);
+    // 设置相应的处理函数
+    M->Handler = Fn;
+    return M;
+}
+
+// 文件标号函数
+static Token *fileMacro(Token *Tmpl) {
+    // 如果存在原始的宏，则遍历后使用原始的宏
+    while (Tmpl->Origin)
+        Tmpl = Tmpl->Origin;
+    // 根据原始宏的文件名构建字符串终结符
+    return newStrToken(Tmpl->File->Name, Tmpl);
+}
+
+// 行标号函数
+static Token *lineMacro(Token *Tmpl) {
+    // 如果存在原始的宏，则遍历后使用原始的宏
+    while (Tmpl->Origin)
+        Tmpl = Tmpl->Origin;
+    // 根据原始的宏的行号构建数值终结符
+    return newNumToken(Tmpl->LineNo, Tmpl);
+}
+
 
 // 查找相应的宏变量
 static Macro *findMacro(Token *Tok) {
@@ -246,17 +312,6 @@ static Macro *findMacro(Token *Tok) {
         if (strlen(M->Name) == Tok->Len && !strncmp(M->Name, Tok->Loc, Tok->Len))
             return M->Deleted ? NULL: M;
     return NULL;
-}
-
-// 新增宏变量，压入宏变量栈中
-static Macro *addMacro(char *Name, bool IsObjlike, Token *Body) {
-    Macro *M = calloc(1, sizeof(Macro));
-    M->Next = Macros;
-    M->Name = Name;
-    M->IsObjlike = IsObjlike;
-    M->Body = Body;
-    Macros = M;
-    return M;
 }
 
 // 读取宏形参
@@ -372,17 +427,6 @@ static MacroArg *findArg(MacroArg *Args, Token *Tok) {
     return NULL;
 }
 
-// 拼接两个终结符构建一个新的终结符
-static Token *paste(Token *LHS, Token *RHS) {
-    // 合并两个终结符
-    char *Buf = format("%.*s%.*s", LHS->Len, LHS->Loc, RHS->Len, RHS->Loc);
-
-    // 词法解析生成的字符串，转换为相应的终结符
-    Token *Tok = tokenize(newFile(LHS->File->Name, LHS->File->FileNo, Buf));
-    if (Tok->Next->Kind != TK_EOF)
-        errorTok(LHS, "pasting forms '%s', an invalid token", Buf);
-    return Tok;
-}
 
 // 将宏函数形参替换为指定的实参
 static Token *subst(Token *Tok, MacroArg *Args) {
@@ -499,6 +543,16 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     Macro *M = findMacro(Tok);
     if (!M)
         return false;
+
+    // 如果宏设置了相应的处理函数，例如__LINE__
+    if (M->Handler) {
+        // 就使用相应的处理函数解析当前的宏
+        *Rest = M->Handler(Tok);
+        // 紧接着处理后续终结符
+        (*Rest)->Next = Tok->Next;
+        return true;
+    }
+
     // 为宏变量时
     if (M->IsObjlike) {
         // 展开过一次的宏变量，就加入到隐藏集当中
@@ -506,6 +560,10 @@ static bool expandMacro(Token **Rest, Token *Tok) {
         // 处理此宏变量之后，传递隐藏集给之后的终结符
         Token *Body = addHideset(M->Body, Hs);
         *Rest = append(Body, Tok->Next);
+        // 记录展开前的宏
+        for (Token *T = Body; T->Kind != TK_EOF; T = T->Next)
+            T->Origin = Tok;
+
         // 传递 是否为行首 和 前面是否有空格 的信息
         (*Rest)->AtBOL = Tok->AtBOL;
         (*Rest)->HasSpace = Tok->HasSpace;
@@ -531,6 +589,9 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     Token *Body = subst(M->Body, Args);
     // 为宏函数内部设置隐藏集
     Body = addHideset(Body, Hs);
+    // 记录展开前的宏函数
+    for (Token *T = Body; T->Kind != TK_EOF; T = T->Next)
+        T->Origin = MacroToken;
     // 将设置好的宏函数内部连接到终结符链表中
     *Rest = append(Body, Tok->Next);
     // 传递 是否为行首 和 前面是否有空格 的信息
@@ -538,7 +599,6 @@ static bool expandMacro(Token **Rest, Token *Tok) {
     (*Rest)->HasSpace = MacroToken->HasSpace;
     return true;
 }
-
 
 // 定义预定义的宏
 static void defineMacro(char *Name, char *Buf) {
@@ -594,6 +654,9 @@ static void initMacros(void) {
     defineMacro("__riscv_div", "1");
     defineMacro("__riscv_float_abi_double", "1");
     defineMacro("__riscv_flen", "64");
+
+    addBuiltin("__FILE__", fileMacro);
+    addBuiltin("__LINE__", lineMacro);
 }
 
 // 一些预处理器允许#include等指示，在换行前有多余的终结符
@@ -639,12 +702,6 @@ static Token *skipCondIncl(Token *Tok) {
         Tok = Tok->Next;
     }
     return Tok;
-}
-
-// 构造数字终结符
-static Token *newNumToken(int Val, Token *Tmpl) {
-    char *Buf = format("%d\n", Val);
-    return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
 }
 
 // 读取常量表达式
