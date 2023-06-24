@@ -1996,7 +1996,7 @@ static Node *primary(Token **Rest, Token *Tok) {
                 return newNum(S->EnumVal, Tok);
         }
 
-        if(equal(Tok, "__func__")){
+        if(equal2(Tok, 2, (char*[]){"__func__", "__FUNCTION__"})){
             int len = strlen(CurrentFn->Name)+1;
             Type *Ty = arrayOf(TyChar, len);
             Obj *Var = newStringLiteral(CurrentFn->Name, Ty);

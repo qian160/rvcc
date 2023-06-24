@@ -6,6 +6,7 @@ bool equal(Token *Tok, char *Str) {
 }
 
 // 当要比较的关键字较多时可以用这个。第二个参数可以在外面通过(sizeof(Kw) / sizeof(*Kw))获得.(pointer size, 8)
+// usage of arg3: (char *[]){"...", "...", ".."}
 bool equal2(Token *Tok, int n, char*kw[]){
     for(int i = 0; i < n; i++)
         if(equal(Tok, kw[i]))
