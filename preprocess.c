@@ -914,6 +914,9 @@ static Token *preprocess2(Token *Tok) {
         Token *Start = Tok;
         Tok = Tok->Next;
 
+        if(equal(Tok, "__func__"))
+            trace("__func__.....\n");
+
         // 匹配#define
         if (equal(Tok, "define")) {
             readMacroDefinition(&Tok, Tok->Next);

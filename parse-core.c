@@ -331,6 +331,10 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     if (Ty->IsVariadic)
         Fn->VaArea = newLVar("__va_area__", arrayOf(TyChar, 64));
 
+    // __func__被定义为包含当前函数名称的局部?变量
+    // pushScope("__func__")->Var =
+    //     newStringLiteral(Fn->Name, arrayOf(TyChar, strlen(Fn->Name) + 1));
+
     // 函数体存储语句的AST，Locals存储变量
     Fn->Body = compoundStmt(&Tok, Tok);
     Fn->Locals = Locals;
@@ -1991,6 +1995,14 @@ static Node *primary(Token **Rest, Token *Tok) {
             if (S->EnumTy)
                 return newNum(S->EnumVal, Tok);
         }
+
+        if(equal(Tok, "__func__")){
+            int len = strlen(CurrentFn->Name)+1;
+            Type *Ty = arrayOf(TyChar, len);
+            Obj *Var = newStringLiteral(CurrentFn->Name, Ty);
+            return newVarNode(Var, Tok);
+        }
+
         if(equal(Tok->Next, "(")){
             errorTok(Tok, "implicit declaration of a function");
             errorTok(Tok, "undefined variable");

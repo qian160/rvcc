@@ -534,7 +534,6 @@ static void assignLVarOffsets(Obj *Prog) {
         int Offset = 0;
         if(Fn->Ty->Kind != TY_FUNC)
             continue;
-//        println(" # local variables of Fn %s:", Fn->Name);
         // 读取所有变量
         for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
             // the offset here is relevent to fp, which is at top of stack

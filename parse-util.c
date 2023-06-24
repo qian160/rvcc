@@ -30,7 +30,6 @@ void leaveScope(void) {
 }
 
 // 将变量存入当前的域中
-// returning the varscope for further process
 VarScope *pushScope(char *Name) {
     VarScope *S = calloc(1, sizeof(VarScope));
     S->Name = Name;
@@ -60,7 +59,7 @@ VarScope *findVar(Token *Tok) {
             //if (equal(Tok, S2->Var->Name))
             if (equal(Tok, S2->Name))
                 return S2;
-    // trace("%s: NOT FOUND", _TKNAME_);
+    //trace("%s: NOT FOUND", tokenName(Tok));
     return NULL;
 }
 
@@ -133,7 +132,7 @@ Obj *newAnonGVar(Type *Ty) {
     return newGVar(newUniqueName(), Ty);
 }
 
-// 新增字符串字面量
+// 新增字符串字面量, name = .L..%d, Ty = char[]
 Obj *newStringLiteral(char *Str, Type *Ty) {
     Obj *Var = newAnonGVar(Ty);
     Var->InitData = Str;
