@@ -272,34 +272,40 @@ static Token *readNumber(char *Start) {
     return Tok;
 }
 
+// 读取到字符串字面量结尾
+static char *stringLiteralEnd(char *P) {
+    char *Start = P;
+    for (; *P != '"'; P++) {
+        if (*P == '\n' || *P == '\0')
+        errorAt(Start, "unclosed string literal");
+        if (*P == '\\')
+        P++;
+    }
+    return P;
+}
+
 // 读取字符串字面量. *Start = "
 static Token *readStringLiteral(char *Start) {
-    // check legality and compute length
-    char *P = Start + 1;
-    int len = 0;
-    for(; *P != '"'; P++){
-        if(*P == '\n' || *P == '\0')
-            error("unclosed string literal: %s", Start);
-        if(*P == '\\') 
-            P++;
-        len++;
-    }
-    len++;      // '\0'
-    char * Buf = calloc(1, len);
+    // 读取到字符串字面量的右引号
+    char *End = stringLiteralEnd(Start + 1);
+    // 定义一个与字符串字面量内字符数+1的Buf
+    // 用来存储最大位数的字符串字面量
+    char *Buf = calloc(1, End - Start);
+    // 实际的字符位数，一个转义字符为1位
+    int Len = 0;
 
-    int i = 0;
     // 将读取后的结果写入Buf
-    for (char *P = Start + 1; *P != '"';) {
+    for (char *P = Start + 1; P < End;) {
         if (*P == '\\') {
-            Buf[i++] = readEscapedChar(&P, P + 1);
+            Buf[Len++] = readEscapedChar(&P, P + 1);
         } else {
-            Buf[i++] = *P++;
+            Buf[Len++] = *P++;
         }
     }
 
     // Token这里需要包含带双引号的字符串字面量
-    Token *Tok = newToken(TK_STR, Start, P + 1);
-    Tok->Ty = arrayOf(TyChar, len);
+    Token *Tok = newToken(TK_STR, Start, End + 1);
+    Tok->Ty = arrayOf(TyChar, Len + 1);
     Tok->Str = Buf;
     return Tok;
 }
