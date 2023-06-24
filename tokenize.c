@@ -129,8 +129,8 @@ static int readEscapedChar(char **NewPos, char * P) {
 }
 
 // 读取字符字面量
-static Token *readCharLiteral(char *Start) {
-    char *P = Start + 1;
+static Token *readCharLiteral(char *Start, char *Quote) {
+    char *P = Quote + 1;
     // 解析字符为 \0 的情况
     if (*P == '\0')
         errorAt(Start, "unclosed char literal");
@@ -151,7 +151,10 @@ static Token *readCharLiteral(char *Start) {
     // 构造一个NUM的终结符，值为C的数值
     Token *Tok = newToken(TK_NUM, Start, End + 1);
     Tok->Val = C;
-    Tok->Ty = TyChar;
+    Tok->Ty = TyInt;
+    // note: char literal is stored by an 'int'
+    // sizeof('\0') == sizeof(0) == sizeof(int) == 4
+    // Tok->Ty = TyChar;
     return Tok;
 }
 
@@ -421,11 +424,19 @@ Token *tokenize(File *FP) {
 
         // 解析字符字面量
         if (*P == '\'') {
-            Cur->Next = readCharLiteral(P);
+            Cur->Next = readCharLiteral(P, P);
             Cur = Cur->Next;
             P += Cur->Len;
             continue;
         }
+
+        // 宽字符字面量，占两个字节
+        if (startsWith(P, "L'")) {
+            Cur = Cur->Next = readCharLiteral(P, P + 1);
+            P += Cur->Len;
+            continue;
+        }
+
 
         // 解析整型和浮点数
         if (isdigit(*P) || (*P == '.' && isdigit(P[1]))) {
