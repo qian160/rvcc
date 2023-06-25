@@ -713,7 +713,7 @@ static Token *skipLine(Token *Tok) {
 // 跳过#if和#endif
 static Token *skipCondIncl2(Token *Tok) {
     while (Tok->Kind != TK_EOF) {
-        if (isHash(Tok) && equal2(Tok->Next, 3, (char *[]){"if", "ifdef", "ifndef"})) {
+        if (isHash(Tok) && equal2(Tok->Next, 3, stringSet("if", "ifdef", "ifndef"))) {
             Tok = skipCondIncl2(Tok->Next->Next);
             continue;
         }
@@ -729,12 +729,12 @@ static Token *skipCondIncl2(Token *Tok) {
 static Token *skipCondIncl(Token *Tok) {
     while (Tok->Kind != TK_EOF) {
         // 跳过#if语句
-        if (isHash(Tok) && equal2(Tok->Next, 3, (char *[]){"if", "ifdef", "ifndef"})) {
+        if (isHash(Tok) && equal2(Tok->Next, 3, stringSet("if", "ifdef", "ifndef"))) {
             Tok = skipCondIncl2(Tok->Next->Next);
             continue;
         }
         // #endif, #else
-        if (isHash(Tok) && equal2(Tok->Next, 3, (char *[]){"endif", "else", "elif"}))
+        if (isHash(Tok) && equal2(Tok->Next, 3, stringSet("endif", "else", "elif")))
             break;
         Tok = Tok->Next;
     }

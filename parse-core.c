@@ -377,7 +377,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 遍历所有类型名的Tok
     while (isTypename(Tok)) {
         // 处理typedef等关键字
-        if (equal2(Tok, 3, (char*[]){"static", "typedef", "extern"})) {
+        if (equal2(Tok, 3, stringSet("static", "typedef", "extern"))) {
             if (!Attr)
                 errorTok(Tok, "storage class specifier is not allowed in this context");
             if (equal(Tok, "typedef"))
@@ -422,7 +422,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
 
         // 处理用户定义的类型
         Type *Ty2 = findTypedef(Tok);
-        if (equal2(Tok, 3, (char*[]){"struct", "union", "enum"}) || Ty2) {
+        if (equal2(Tok, 3, stringSet("struct", "union", "enum")) || Ty2) {
             if (Counter)
                 break;
 
@@ -1948,7 +1948,6 @@ static Node *primary(Token **Rest, Token *Tok) {
     // num
     if (Tok->Kind == TK_NUM) {
         Node *Nd;
-        //trace("%s: %p", __TKNAME__, Tok->Ty);
         if (isFloNum(Tok->Ty)) {
             // 浮点数节点
             Nd = newNode(ND_NUM, Tok);
@@ -1996,7 +1995,7 @@ static Node *primary(Token **Rest, Token *Tok) {
                 return newNum(S->EnumVal, Tok);
         }
 
-        if(equal2(Tok, 2, (char*[]){"__func__", "__FUNCTION__"})){
+        if(equal2(Tok, 2, stringSet("__func__", "__FUNCTION__"))){
             int len = strlen(CurrentFn->Name)+1;
             Type *Ty = arrayOf(TyChar, len);
             Obj *Var = newStringLiteral(CurrentFn->Name, Ty);

@@ -403,13 +403,29 @@ uint32_t simpleLog2(uint32_t v);
 
 #define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
-#define todo() Assert(0, "todo")
+#define MYTYPE(T) _Generic((T), \
+    int: "int", \
+    float: "float", \
+    double: "double",   \
+    char: "char", \
+    default: "other"    \
+)
 
 #define MAX(x, y) ((x) < (y) ? (y) : (x))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
-#define __TKNAME__  tokenName(Tok)
-
 #define __test__    trace("%s", tokenName(Tok));
+
+#define stringSet(...) \
+    (char*[]){__VA_ARGS__}
+
+#define emmmm(x) \
+        _Generic((x), \
+                int: "int",\
+                char: "char",\
+                float: "float",\
+                double: "double",\
+                default: "114514"\
+        )
 
 #endif
