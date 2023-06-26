@@ -69,10 +69,9 @@ stage2/rvcc: $(objs:%=stage2/%)
 	$(CROSS-CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # 利用stage1的rvcc去将rvcc的源代码编译为stage2的汇编文件
-stage2/%.o: $(DST_DIR)/rvcc self.py %.c
+stage2/%.o: $(DST_DIR)/rvcc %.c
 	mkdir -p stage2/test
-	./self.py rvcc.h $*.c > stage2/$*.c
-	$(RVCC) -Itest -Iinclude -c -o stage2/$*.o stage2/$*.c
+	$(RVCC) -Itest -Iinclude -c -o $(@D)/$*.o $*.c
 
 # stage2的汇编编译为可重定位文件
 stage2/%.o: stage2/%.s

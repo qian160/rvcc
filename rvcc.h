@@ -179,9 +179,10 @@ struct Node {
     double FVal;    // 存储ND_NUM种类的浮点值
     Token * Tok;    // 节点对应的终结符. debug
     // 函数
-    char *FuncName; // 函数名
-    Node *Args;     // 函数被调用时代入的实参，可看作是一串表达式链表。 形参则保存在Nd->Ty->Parms中
-    Type *FuncType; // 函数类型
+    char *FuncName;     // 函数名
+    Node *Args;         // 函数被调用时代入的实参，可看作是一串表达式链表。 形参则保存在Nd->Ty->Parms中
+    Type *FuncType;     // 函数类型
+    bool PassByStack;   // 通过栈传递
     // "if"语句
     Node *Cond;     // 条件内的表达式
     Node *Then;     // 符合条件后的语句(do/while/if代码块内的语句)

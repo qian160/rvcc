@@ -1862,12 +1862,17 @@ static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
 
     *Rest = skip(Tok, ")");
     Node *Nd = newUnary(ND_FUNCALL, Fn, Tok);
-    Nd->FuncName = tokenName(FnName);
     Nd->Args = Head.Next;
     Nd->FuncType = Ty;
     Nd->Ty = Ty->ReturnTy;
-
-    return newCast(Nd, Ty->ReturnTy);
+    return Nd;
+    // can't do the return value cast here.
+    // instead we should do it in codegen,
+    // because we may meet conflict function declarations
+    // such like we declare a _Bool fn in one module,
+    // and import it as int fn in another module.
+    // then we should return int instead of _Bool
+    //return newCast(Nd, Ty->ReturnTy);
 }
 
 // abstractDeclarator = pointers ("(" abstractDeclarator ")")? typeSuffix
