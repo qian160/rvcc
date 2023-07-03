@@ -179,7 +179,6 @@ struct Node {
     double FVal;    // 存储ND_NUM种类的浮点值
     Token * Tok;    // 节点对应的终结符. debug
     // 函数
-    char *FuncName;     // 函数名
     Node *Args;         // 函数被调用时代入的实参，可看作是一串表达式链表。 形参则保存在Nd->Ty->Parms中
     Type *FuncType;     // 函数类型
     bool PassByStack;   // 通过栈传递
@@ -247,7 +246,10 @@ struct Type {
     // 结构体
     Member *Mems;
     bool IsFlexible; // 是否为灵活的
-    Token *Tok;     // 用于报错信息
+    Token *Tok;      // 用于报错信息
+    Type *FSReg1Ty;  // 浮点结构体的对应寄存器
+    Type *FSReg2Ty;  // 浮点结构体的对应寄存器
+
 };
 
 // 结构体成员
@@ -322,7 +324,7 @@ Obj *parse(Token *Tok);
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
 void codegen(Obj *Prog, FILE *Out);
-
+bool OptW;
 
 /* ---------- type.c ---------- */
 // 判断是否为整型
@@ -359,7 +361,7 @@ bool endsWith(char *P, char *Q);
 
 void errorTok(Token *Tok, char *Fmt, ...);
 void errorAt(char *Loc, char *Fmt, ...);
-void error(char *fmt, ...);
+//void error(char *fmt, ...);
 void warnTok(Token *Tok, char *Fmt, ...);
 //void Assert(int cond, char *fmt, ...);
 
@@ -389,12 +391,19 @@ uint32_t simpleLog2(uint32_t v);
     }\
     while(0);
 
+//#define trace(format, ...) \
+//    do{ \
+//        printf("  # \33[1;33m" "[%s:%d %s - %s] " format "\33[0m" "\n", \
+//            __FILE__, __LINE__, __func__, __TIME__, ## __VA_ARGS__);\
+//    }\
+//    while(0);
+
 #define trace(format, ...) \
-    do{ \
-        printf("  # \33[1;33m" "[%s:%d %s] " format "\33[0m" "\n", \
-            __FILE__, __LINE__, __func__, ## __VA_ARGS__);\
-    }\
-    while(0);
+        printf("  # \33[1;33m" "[%s:%d %s - %s] " format "\33[0m" "\n", \
+            __FILE__, __LINE__, __func__, __TIME__, ## __VA_ARGS__);
+
+// 31=red, 32=green, 33=yellow, 34=blue, 35=purple, 36=cyan, 
+#define color_text(s, n) "\x1b[1;" #n "m" s "\x1b[0m"
 
 #define Assert(cond, fmt, ...) \
     do{\
@@ -404,29 +413,20 @@ uint32_t simpleLog2(uint32_t v);
 
 #define println(format, ...) fprintf(OutputFile, format "\n", ## __VA_ARGS__)
 
-#define MYTYPE(T) _Generic((T), \
-    int: "int", \
-    float: "float", \
-    double: "double",   \
-    char: "char", \
-    default: "other"    \
-)
+//#define MAX(x, y) ((x) < (y) ? (y) : (x))
+//#define MIN(x, y) ((x) < (y) ? (x) : (y))
+// this version looks cooler
+#define MAX(x, y) \
+    _Generic((x), \
+            default: ((x) < (y) ? (y) : (x))\
+    )
 
-#define MAX(x, y) ((x) < (y) ? (y) : (x))
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
-
-#define __test__    trace("%s", tokenName(Tok));
+#define MIN(x, y) \
+    _Generic((x), \
+            default: ((x) > (y) ? (y) : (x))\
+    )
 
 #define stringSet(...) \
     (char*[]){__VA_ARGS__}
-
-#define emmmm(x) \
-        _Generic((x), \
-                int: "int",\
-                char: "char",\
-                float: "float",\
-                double: "double",\
-                default: "114514"\
-        )
 
 #endif

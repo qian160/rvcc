@@ -325,6 +325,13 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     enterScope();
     // 函数参数
     createParamLVars(Ty->Params);
+    /*
+    Obj *tmp = Locals;
+    while(tmp){
+        trace("%s\n", tmp->Name);
+        tmp = tmp->Next;
+    }
+    */
     Fn->Params = Locals;
 
     // 判断是否为可变参数
@@ -332,8 +339,10 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
         Fn->VaArea = newLVar("__va_area__", arrayOf(TyChar, 64));
 
     // __func__被定义为包含当前函数名称的局部?变量
-    // pushScope("__func__")->Var =
-    //     newStringLiteral(Fn->Name, arrayOf(TyChar, strlen(Fn->Name) + 1));
+    pushScope("__func__")->Var =
+        newStringLiteral(Fn->Name, arrayOf(TyChar, strlen(Fn->Name) + 1));
+    pushScope("__FUNCTION__")->Var =
+        newStringLiteral(Fn->Name, arrayOf(TyChar, strlen(Fn->Name) + 1));
 
     // 函数体存储语句的AST，Locals存储变量
     Fn->Body = compoundStmt(&Tok, Tok);
@@ -1840,12 +1849,14 @@ static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
         // expr
         Node *Arg = assign(&Tok, Tok);
         addType(Arg);
-
         if (ParamTy) {
-            if (ParamTy->Kind == TY_STRUCT || ParamTy->Kind == TY_UNION)
-                errorTok(Arg->Tok, "passing struct or union is not supported yet");
-            // 将参数节点的类型进行转换
-            Arg = newCast(Arg, ParamTy);
+            // simple arg type check
+            if(Arg->Ty->Kind != ParamTy->Kind && OptW &&
+                (Arg->Ty->Kind != TY_ARRAY && ParamTy->Kind != TY_PTR))
+                warnTok(Tok, "type mismatch here. expected [%d] but get [%d]\n", ParamTy->Kind, Arg->Ty->Kind);
+            if (ParamTy->Kind != TY_STRUCT && ParamTy->Kind != TY_UNION)
+                // 将参数节点的类型进行转换
+                Arg = newCast(Arg, ParamTy);
             // 前进到下一个形参类型
             ParamTy = ParamTy->Next;
         }
@@ -1866,12 +1877,13 @@ static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
     Nd->FuncType = Ty;
     Nd->Ty = Ty->ReturnTy;
     return Nd;
-    // can't do the return value cast here.
-    // instead we should do it in codegen,
-    // because we may meet conflict function declarations
-    // such like we declare a _Bool fn in one module,
-    // and import it as int fn in another module.
-    // then we should return int instead of _Bool
+    /*  can't do the return value cast here.
+        instead we could do it in codegen,
+        because we may meet conflict function declarations,
+        eg we declare a fn returning _Bool in one .h header file,
+        and import it but as returning int in another file, like
+            "extern int fn(...);"
+        then we should return int instead of _Bool in that file */
     //return newCast(Nd, Ty->ReturnTy);
 }
 
@@ -1999,14 +2011,14 @@ static Node *primary(Token **Rest, Token *Tok) {
             if (S->EnumTy)
                 return newNum(S->EnumVal, Tok);
         }
-
+/*
         if(equal2(Tok, 2, stringSet("__func__", "__FUNCTION__"))){
             int len = strlen(CurrentFn->Name)+1;
             Type *Ty = arrayOf(TyChar, len);
             Obj *Var = newStringLiteral(CurrentFn->Name, Ty);
             return newVarNode(Var, Tok);
         }
-
+*/
         if(equal(Tok->Next, "(")){
             errorTok(Tok, "implicit declaration of a function");
             errorTok(Tok, "undefined variable");

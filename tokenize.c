@@ -152,7 +152,7 @@ static Token *readCharLiteral(char *Start, char *Quote) {
     Token *Tok = newToken(TK_NUM, Start, End + 1);
     Tok->Val = C;
     Tok->Ty = TyInt;
-    // note: char literal is stored by an 'int'
+    // note: char literal is represented by an 'int'
     // sizeof('\0') == sizeof(0) == sizeof(int) == 4
     // Tok->Ty = TyChar;
     return Tok;
@@ -494,7 +494,7 @@ static char *readFile(char *Path) {
     } else {
         FP = fopen(Path, "r");
         if (!FP)
-            error("cannot open %s: %s", Path, strerror(errno));
+            error("cannot open %s: %s, maybe try '-Iinclude'?", Path, strerror(errno));
     }
 
     // 要返回的字符串

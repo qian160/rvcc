@@ -88,6 +88,7 @@ Obj *newLVar(char *Name, Type *Ty) {
 Obj *newGVar(char *Name, Type *Ty) {
     Obj *Var = newVar(Name, Ty);
     Var->Next = Globals;
+    Var->IsStatic = true;
     Var->IsDefinition = true;
     Globals = Var;
     return Var;

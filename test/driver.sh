@@ -11,12 +11,15 @@ trap 'rm -rf $tmp' INT TERM HUP EXIT
 # 在临时文件夹内，新建一个空文件，名为empty.c
 echo > $tmp/empty.c
 
+COLOR_RED="\033[1;31m"
+COLOR_GREEN="\033[1;32m"
+COLOR_NONE="\033[0m"
 # 判断返回值是否为0来判断程序是否成功执行
 check() {
   if [ $? -eq 0 ]; then
-    echo "testing $1 ... passed"
+    printf "testing $1 ...$COLOR_GREEN passed $COLOR_NONE\n"
   else
-    echo "testing $1 ... failed"
+    printf "testing $1 ...$COLOR_RED failed $COLOR_NONE\n"
     exit 1
   fi
 }
@@ -116,4 +119,4 @@ echo foo > $tmp/dir/i-option-test
 echo "#include \"i-option-test\"" | $rvcc -I$tmp/dir -E - | grep -q foo
 check -I
 
-echo OK
+printf "$COLOR_GREEN OK $COLOR_NONE\n"

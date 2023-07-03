@@ -24,6 +24,8 @@ static bool OptC;
 static bool OptE;
 // -V选项
 static bool OptV;
+// -W选项
+bool OptW;
 extern const char logo[];   // don't use char *
 
 // 临时文件区
@@ -31,13 +33,17 @@ static StringArray TmpFiles;
 
 // 输出程序的使用说明
 static void usage(int Status) {
+    fprintf(stderr, "\33[1;38m");
     fprintf(stderr, "rvcc [ -o <path> ] <file>\n");
+    fprintf(stderr, "\33[0m");
     exit(Status);
 }
 
 static void version() {
     puts(logo);
-    fprintf(stderr, "rvcc v1.14514\n");
+    fprintf(stderr, "\33[1;38m");
+    fprintf(stderr, "[ %s - %s ] rvcc v1.14514\n", __DATE__, __TIME__);
+    fprintf(stderr, "\33[0m");
     exit(0);
 }
 
@@ -127,6 +133,12 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-V
+        if (!strcmp(Argv[I], "-W")) {
+            OptW = true;
+            continue;
+        }
+
         // 解析-cc1-input
         if (!strcmp(Argv[I], "-cc1-input")) {
             BaseFile = Argv[++I];
@@ -154,7 +166,7 @@ static void parseArgs(int Argc, char **Argv) {
     }
 
     // 不存在输入文件时报错
-    if (InputPaths.Len == 0 && !BaseFile)
+    if (!OptV && InputPaths.Len == 0 && !BaseFile)
         error("no input files");
 }
 

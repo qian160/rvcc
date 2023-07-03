@@ -53,6 +53,7 @@ void errorTok(Token *Tok, char *Fmt, ...) {
     va_list VA;
     va_start(VA, Fmt);
     verrorAt(Tok->File->Name, Tok->File->Contents,  Tok->LineNo, Tok->Loc, Fmt, VA);
+    exit(1);
 }
 
 // Tok解析警告
@@ -63,6 +64,9 @@ void warnTok(Token *Tok, char *Fmt, ...) {
     va_end(VA);
 }
 
+void printFnSignature(Node *Fn){
+    trace("%s", tokenName(Fn->Tok));
+}
 /*
 
 void error(char *fmt, ...) {

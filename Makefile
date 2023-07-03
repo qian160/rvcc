@@ -59,7 +59,6 @@ else
 endif
 
 # 进行全部的测试
-# 暂时无法编译自己, for macros and linkage problems
 test-all: test test-stage2
 
 # Stage 2

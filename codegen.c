@@ -9,12 +9,12 @@
 
 // 记录栈深度
 static int Depth;
-
+// 当前的函数
 static Obj *CurrentFn;
-
 // 输出文件
 static FILE *OutputFile;
-
+// 记录大结构体的深度
+static int BSDepth;
 /*
 void println(char *fmt, ...) {
     va_list va;
@@ -22,6 +22,7 @@ void println(char *fmt, ...) {
     vfprintf(OutputFile, fmt, va);
     fprintf(OutputFile, "\n");
     va_end(va);
+    //fprintf(OutputFile, fmt, __builtin_va_arg_pack());
 }
 */
 
@@ -63,6 +64,151 @@ static void popF(int Reg) {
 static void genExpr(Node *Nd);
 static void genStmt(Node *Nd);
 
+// 获取浮点结构体的成员类型
+void getFloStMemsTy(Type *Ty, Type **RegsTy, int *Idx) {
+    switch (Ty->Kind) {
+        case TY_STRUCT:
+            // 遍历结构体的成员，获取成员类型
+            for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
+                getFloStMemsTy(Mem->Ty, RegsTy, Idx);
+            return;
+        case TY_UNION:
+            // 含有联合体不是浮点结构体
+            *Idx += 2;
+            return;
+        case TY_ARRAY:
+            // 遍历数组的成员，计算是否为浮点结构体
+            for (int I = 0; I < Ty->ArrayLen; ++I)
+            getFloStMemsTy(Ty->Base, RegsTy, Idx);
+            return;
+        default:
+            // 若为基础类型，且存在可用寄存器时，填充成员的类型
+            if (*Idx < 2)
+                RegsTy[*Idx] = Ty;
+                *Idx += 1;
+            return;
+        }
+}
+
+// 是否为一或两个含浮点成员变量的结构体
+void setFloStMemsTy(Type **Ty, int GP, int FP) {
+    Type *T = *Ty;
+    T->FSReg1Ty = TyVoid;
+    T->FSReg2Ty = TyVoid;
+
+    // 联合体不通过浮点寄存器传递
+    if (T->Kind == TY_UNION)
+        return;
+
+    // RTy：RegsType，结构体的第一、二个寄存器的类型
+    Type *RTy[2] = {TyVoid, TyVoid};
+    // 记录可以使用的寄存器的索引值
+    int RegsTyIdx = 0;
+    // 获取浮点结构体的寄存器类型，如果不是则为TyVoid
+    getFloStMemsTy(T, RTy, &RegsTyIdx);
+
+    // 不是浮点结构体，直接退出
+    if (RegsTyIdx > 2)
+        return;
+
+    if ( // 只有一个浮点成员的结构体，使用1个FP
+        (isFloNum(RTy[0]) && RTy[1] == TyVoid && FP < FP_MAX) ||
+        // 一个浮点成员和一个整型成员的结构体，使用1个FP和1个GP
+        (isFloNum(RTy[0]) && isInteger(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
+        (isInteger(RTy[0]) && isFloNum(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
+        // 两个浮点成员的结构体，使用2个FP
+        (isFloNum(RTy[0]) && isFloNum(RTy[1]) && FP + 1 < FP_MAX))
+    {
+            T->FSReg1Ty = RTy[0];
+            T->FSReg2Ty = RTy[1];
+    }
+}
+
+// 为大结构体开辟空间
+static int createBSSpace(Node *Args) {
+    int BSStack = 0;
+    for (Node *Arg = Args; Arg; Arg = Arg->Next) {
+        Type *Ty = Arg->Ty;
+        // 大于16字节的结构体
+        if (Ty->Size > 16 && Ty->Kind == TY_STRUCT) {
+            println("  # 大于16字节的结构体，先开辟相应的栈空间");
+            int Sz = alignTo(Ty->Size, 8);
+            println("  addi sp, sp, -%d", Sz);
+            // t6指向了最终的 大结构体空间的起始位置
+            println("  mv t6, sp");
+            Depth += Sz / 8;
+            BSStack += Sz / 8;
+        BSDepth += Sz / 8;
+        }
+    }
+    return BSStack;
+}
+
+// 传递结构体的指针
+static void pushStruct(Type *Ty) {
+    // 大于16字节的结构体
+    // 将结构体复制一份到栈中，然后通过寄存器或栈传递被复制结构体的地址
+    // ---------------------------------
+    //             大结构体      ←
+    // --------------------------------- <- t6
+    //      栈传递的   其他变量
+    // ---------------------------------
+    //            大结构体的指针  ↑
+    // --------------------------------- <- sp
+    if (Ty->Size > 16) {
+        // 计算大结构体的偏移量
+        int Sz = alignTo(Ty->Size, 8);
+        // BSDepth记录了剩余 大结构体的字节数
+        BSDepth -= Sz / 8;
+        // t6存储了，大结构体空间的起始位置
+        int BSOffset = BSDepth * 8;
+
+        println("  # 复制%d字节的大结构体到%d(t6)的位置", Sz, BSOffset);
+        for (int I = 0; I < Sz; I++) {
+            println("  lb t0, %d(a0)", I);
+            println("  sb t0, %d(t6)", BSOffset + I);
+        }
+
+        println("  # 大于16字节的结构体，对该结构体地址压栈");
+        println("  addi a0, t6, %d", BSOffset);
+        push();
+        return;
+    }
+
+    // 含有两个成员（含浮点）的结构体
+    // 展开到栈内的两个8字节的空间
+    if ((isFloNum(Ty->FSReg1Ty) && Ty->FSReg2Ty != TyVoid) ||
+        isFloNum(Ty->FSReg2Ty)) {
+        println("  # 对含有两个成员（含浮点）结构体进行压栈");
+        println("  addi sp, sp, -16");
+        Depth += 2;
+
+        println("  ld t0, 0(a0)");
+        println("  sd t0, 0(sp)");
+
+        // 计算第二部分在结构体中的偏移量，为两个成员间的最大尺寸
+        int Off = MAX(Ty->FSReg1Ty->Size, Ty->FSReg2Ty->Size);
+        println("  ld t0, %d(a0)", Off);
+        println("  sd t0, 8(sp)");
+
+        return;
+    }
+    // 处理只有一个浮点成员的结构体
+    // 或者是小于16字节的结构体
+    char *Str = isFloNum(Ty->FSReg1Ty) ? "只有一个浮点" : "小于16字节";
+    int Sz = alignTo(Ty->Size, 8);
+    println("  # 为%s的结构体开辟%d字节的空间，", Str, Sz);
+    println("  addi sp, sp, -%d", Sz);
+    Depth += Sz / 8;
+
+    println("  # 开辟%d字节的空间，复制%s的内存", Sz, Str);
+    for (int I = 0; I < Ty->Size; I++) {
+        println("  lb t0, %d(a0)", I);
+        println("  sb t0, %d(sp)", I);
+    }
+    return;
+}
+
 // 将函数实参计算后压入栈中
 static void pushArgs2(Node *Args, bool FirstPass) {
     // 参数为空直接返回
@@ -78,15 +224,22 @@ static void pushArgs2(Node *Args, bool FirstPass) {
         (!FirstPass && Args->PassByStack))
         return;
 
-    println("\n  # ↓对%s表达式进行计算，然后压栈↓",
-            isFloNum(Args->Ty) ? "浮点" : "整型");
+    println("\n  # ↓对表达式进行计算，然后压栈↓");
     // 计算出表达式
     genExpr(Args);
     // 根据表达式结果的类型进行压栈
-    if (isFloNum(Args->Ty)) {
-        pushF();
-    } else {
-        push();
+    switch(Args->Ty->Kind) {
+        case TY_STRUCT:
+        case TY_UNION:
+            pushStruct(Args->Ty);
+            break;
+        case TY_FLOAT:
+        case TY_DOUBLE:
+            pushF();
+            break;
+        default:
+            push();
+            break;
     }
     println("  # ↑结束压栈↑");
 }
@@ -97,50 +250,86 @@ static int pushArgs(Node *Args) {
 
     // 遍历所有参数，优先使用寄存器传递，然后是栈传递
     for (Node *Arg = Args; Arg; Arg = Arg->Next) {
-        if (isFloNum(Arg->Ty)) {
-          // 浮点优先使用FP，而后是GP，最后是栈传递
-        if (FP < FP_MAX) {
-            println("  # 浮点%f值通过fa%d传递", Arg->FVal, FP);
-            FP++;
-        } else if (GP < GP_MAX) {
-            println("  # 浮点%f值通过a%d传递", Arg->FVal, GP);
-            GP++;
-        } else {
-            println("  # 浮点%f值通过栈传递", Arg->FVal);
-            Arg->PassByStack = true;
+        // 读取实参的类型
+        Type *Ty = Arg->Ty;
+
+        switch (Ty->Kind) {
+            case TY_STRUCT:
+            case TY_UNION: {
+                // 判断结构体的类型
+                setFloStMemsTy(&Ty, GP, FP);
+                // 处理一或两个浮点成员变量的结构体
+                if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                    Type *Regs[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
+                    for (int I = 0; I < 2; ++I) {
+                    if (isFloNum(Regs[I]))
+                        FP++;
+                    if (isInteger(Regs[I]))
+                        GP++;
+                    }
+                    break;
+                }
+
+                // 9~16字节整型结构体用两个寄存器，其他字节结构体用一个寄存器
+                int Regs = (8 < Ty->Size && Ty->Size <= 16) ? 2 : 1;
+                for (int I = 1; I <= Regs; ++I) {
+                    if (GP < GP_MAX) {
+                        GP++;
+                    }
+                    else {
+                        Arg->PassByStack = true;
+                        Stack++;
+                    }
+                }
+                break;
+            }
+            case TY_FLOAT:
+            case TY_DOUBLE:
+                // 浮点优先使用FP，而后是GP，最后是栈传递
+                if (FP < FP_MAX) {
+                    println("  # 浮点%f值通过fa%d传递", Arg->FVal, FP);
+                    FP++;
+                } else if (GP < GP_MAX) {
+                    println("  # 浮点%f值通过a%d传递", Arg->FVal, GP);
+                    GP++;
+                } else {
+                    println("  # 浮点%f值通过栈传递", Arg->FVal);
+                    Arg->PassByStack = true;
+                    Stack++;
+                }
+                break;
+            default:
+                // 整型优先使用GP，最后是栈传递
+                if (GP < GP_MAX) {
+                    println("  # 整型%ld值通过a%d传递", Arg->Val, GP);
+                    GP++;
+                } else {
+                    println("  # 整型%ld值通过栈传递", Arg->Val);
+                    Arg->PassByStack = true;
+                    Stack++;
+                }
+                break;
+        }
+    }
+
+        // 对齐栈边界
+        if ((Depth + Stack) % 2 == 1) {
+            println("  # 对齐栈边界到16字节");
+            println("  addi sp, sp, -8");
+            Depth++;
             Stack++;
         }
-        } else {
-        // 整型优先使用GP，最后是栈传递
-            if (GP < GP_MAX) {
-                println("  # 整型%ld值通过a%d传递", Arg->Val, GP);
-                GP++;
-            } else {
-                println("  # 整型%ld值通过栈传递", Arg->Val);
-                Arg->PassByStack = true;
-                Stack++;
-            }
-        }
-    }
-
-    // 对齐栈边界
-    if ((Depth + Stack) % 2 == 1) {
-        println("  # 对齐栈边界到16字节");
-        println("  addi sp, sp, -8");
-        Depth++;
-        Stack++;
-    }
 
     // 进行压栈
+    // 开辟大于16字节的结构体的栈空间
+    int BSStack = createBSSpace(Args);
     // 第一遍对栈传递的变量进行压栈
     pushArgs2(Args, true);
     // 第二遍对寄存器传递的变量进行压栈
     pushArgs2(Args, false);
     // 返回栈传递参数的个数
-    return Stack;
+    return Stack + BSStack;
 }
-
-// stage2 can't deal with "inline" now
 
 // ImmI: 12 bits. [-2048, 2047]
 // addi, load
@@ -195,6 +384,7 @@ static void storeGeneral(int Reg, int Offset, int Size) {
             }
             return;
         default:
+            error("bad size: %d. unreachable\n", Size);
             error("unreachable");
     }
 }
@@ -812,19 +1002,63 @@ static void genExpr(Node *Nd) {
                 }
 
                 CurArg = CurArg->Next;
-                if (isFloNum(Arg->Ty)) {
-                    if (FP < FP_MAX) {
-                        println("  # fa%d传递浮点参数", FP);
-                        popF(FP++);
-                    } else if (GP < GP_MAX) {
-                        println("  # a%d传递浮点参数", GP);
-                        pop(GP++);
+                Type *Ty = Arg->Ty;
+                switch (Ty->Kind) {
+                    case TY_STRUCT:
+                    case TY_UNION: {
+                        // 判断结构体的类型
+                        // 结构体的大小
+                        int Sz = Ty->Size;
+                        // 处理一或两个浮点成员变量的结构体
+                        if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                            Type *Regs[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
+                            for (int I = 0; I < 2; ++I) {
+                                if (Regs[I]->Kind == TY_FLOAT) {
+                                    println("  # %d字节float结构体%d通过fa%d传递", Sz, I, FP);
+                                    println("  # 弹栈，将栈顶的值存入fa%d", FP);
+                                    println("  flw fa%d, 0(sp)", FP++);
+                                    println("  addi sp, sp, 8");
+                                    Depth--;
+                                }
+                                if (Regs[I]->Kind == TY_DOUBLE) {
+                                println("  # %d字节double结构体%d通过fa%d传递", Sz, I, FP);
+                                popF(FP++);
+                                }
+                                if (isInteger(Regs[I])) {
+                                    println("  # %d字节浮点结构体%d通过a%d传递", Sz, I, GP);
+                                    pop(GP++);
+                                }
+                            }
+                            break;
+                        }
+
+                        // 其他整型结构体或多字节结构体
+                        // 9~16字节整型结构体用两个寄存器，其他字节结构体用一个结构体
+                        int Regs = (8 < Sz && Sz <= 16) ? 2 : 1;
+                        for (int I = 1; I <= Regs; ++I) {
+                            if (GP < GP_MAX) {
+                                println("  # %d字节的整型结构体%d通过a%d传递", Sz, I, GP);
+                                pop(GP++);
+                            }
+                        }
+                        break;
                     }
-                } else {
-                    if (GP < GP_MAX) {
-                        println("  # a%d传递整型参数", GP);
-                        pop(GP++);
-                    }
+                    case TY_FLOAT:
+                    case TY_DOUBLE:
+                        if (FP < FP_MAX) {
+                            println("  # fa%d传递浮点参数", FP);
+                            popF(FP++);
+                        } else if (GP < GP_MAX) {
+                            println("  # a%d传递浮点参数", GP);
+                            pop(GP++);
+                        }
+                        break;
+                    default:
+                        if (GP < GP_MAX) {
+                            println("  # a%d传递整型参数", GP);
+                            pop(GP++);
+                        }
+                        break;
                 }
             }
             // 调用函数
@@ -833,10 +1067,12 @@ static void genExpr(Node *Nd) {
 
             // 回收为栈传递的变量开辟的栈空间
             if (StackArgs) {
-                // 栈的深度减去栈传递参数的个数
+                // 栈的深度减去栈传递参数的字节数
                 Depth -= StackArgs;
                 println("  # 回收栈传递参数的%d个字节", StackArgs * 8);
                 println("  addi sp, sp, %d", StackArgs * 8);
+                // 清除记录的大结构体的数量
+                BSDepth = 0;
             }
             // 清除寄存器中高位无关的数据
             switch (Nd->Ty->Kind) {
