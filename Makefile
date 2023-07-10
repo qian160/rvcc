@@ -114,7 +114,8 @@ $(DST_DIR)/%.d: %.c
 		rm -f $@.$$$$
 
 # sed here: find the pattern "xxx.o :" first, then
-# substitute it with "xxx.o xxx.d :". 1 is a placeholder.
-# otherwords just insert the .d file to the lhs of dependancy list
+# substitute it with "xxx.o xxx.d :".
+# \1 is just a placeholder.
+# otherwords, just insert the .d file into the lhs of dependancy list
 #
 # qemu-riscv64 -L ~/riscv/sysroot a.out

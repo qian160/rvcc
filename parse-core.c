@@ -115,7 +115,7 @@
 //           |                            |
 //      int  (*fnptr (int (*fn)(int, int)))  (int, int) {return fn;}
 //       ↓                                   |        |
-//    declspec                               +----+---+
+//    declspec(base type)                    +----+---+
 //                                                ↓
 //                                           funcParams (arg type)
 
@@ -307,6 +307,7 @@ static Token *parseTypedef(Token *Tok, Type *BaseTy) {
 
 
 // functionDefinition = declspec declarator compoundStmt*
+//                    | declspec declarator ["," declarator]* ";"
 static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     Type *Ty = declarator(&Tok, Tok, BaseTy);
     if (!Ty->Name)
@@ -314,24 +315,36 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
     Fn->IsStatic = Attr->IsStatic;
-    Fn->IsDefinition = !consume(&Tok, Tok, ";");
+    Fn->IsDefinition = consume(&Tok, Tok, ";");
     // no function body, just a defination
-    if(!Fn->IsDefinition)
+    if(Fn->IsDefinition)
         return Tok;
-    
+
+    // continous defination is also allowed, although this may be not very useful
+    // e.g:
+    // double a(), *b(), c(int a);
+    bool isMultiDefination = consume(&Tok, Tok, ",");
+    if(isMultiDefination){
+        while(!equal(Tok, ";")){
+            Type * Ty = declarator(&Tok, Tok, BaseTy);
+            if (!Ty->Name)
+                errorTok(Ty->NamePos, "function name omitted");
+            Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
+            Fn->IsStatic = Attr->IsStatic;
+            Fn->IsDefinition = true;
+            if(!equal(Tok, ";"))
+                Tok = skip(Tok, ",");
+        }
+        return Tok;
+    }
+
+    // this variable will later be used by compoundStmt
     CurrentFn = Fn;
     // 清空全局变量Locals
     Locals = (void*)0;
     enterScope();
     // 函数参数
     createParamLVars(Ty->Params);
-    /*
-    Obj *tmp = Locals;
-    while(tmp){
-        trace("%s\n", tmp->Name);
-        tmp = tmp->Next;
-    }
-    */
     Fn->Params = Locals;
 
     // 判断是否为可变参数
@@ -343,6 +356,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
         newStringLiteral(Fn->Name, arrayOf(TyChar, strlen(Fn->Name) + 1));
     pushScope("__FUNCTION__")->Var =
         newStringLiteral(Fn->Name, arrayOf(TyChar, strlen(Fn->Name) + 1));
+
 
     // 函数体存储语句的AST，Locals存储变量
     Fn->Body = compoundStmt(&Tok, Tok);
@@ -379,7 +393,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
         SIGNED = 1 << 17,
         UNSIGNED = 1 << 18,
     };
-
+    // default int
     Type *Ty = TyInt;
     int Counter = 0; // 记录类型相加的数值
     // typedef int intt
@@ -612,69 +626,69 @@ Type *declarator(Token **Rest, Token *Tok, Type *Ty) {
 // funcParams =  "(" "void" | (param ("," param)* "," "..." ? )? ")"
 // param = declspec declarator
 static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
-        // skip "(" at the begining of fn
-        Tok = skip(Tok, "(");
-        // "void"
-        if (equal(Tok, "void") && equal(Tok->Next, ")")) {
-            *Rest = Tok->Next->Next;
-            return funcType(Ty);
+    // skip "(" at the begining of fn
+    Tok = skip(Tok, "(");
+    // "void"
+    if (equal(Tok, "void") && equal(Tok->Next, ")")) {
+        *Rest = Tok->Next->Next;
+        return funcType(Ty);
+    }
+    
+    // 存储形参的链表
+    Type Head = {};
+    Type *Cur = &Head;
+    bool IsVariadic = false;
+    while (!equal(Tok, ")")) {
+        // funcParams = param ("," param)*
+        // param = declspec declarator
+        if (Cur != &Head)
+            Tok = skip(Tok, ",");
+        // ("," "...")?
+        if (equal(Tok, "...")) {
+            IsVariadic = true;
+            Tok = Tok->Next;
+            skip(Tok, ")");
+            break;
         }
-        
-        // 存储形参的链表
-        Type Head = {};
-        Type *Cur = &Head;
-        bool IsVariadic = false;
-        while (!equal(Tok, ")")) {
-            // funcParams = param ("," param)*
-            // param = declspec declarator
-            if (Cur != &Head)
-                Tok = skip(Tok, ",");
-            // ("," "...")?
-            if (equal(Tok, "...")) {
-                IsVariadic = true;
-                Tok = Tok->Next;
-                skip(Tok, ")");
-                break;
-            }
 
-            Type *Ty2 = declspec(&Tok, Tok, NULL);
-            Ty2 = declarator(&Tok, Tok, Ty2);
-            Token *Name = Ty2->Name;
-            if (Ty2 -> Kind == TY_ARRAY){
-                // T类型的数组或函数被转换为T*
-                // pointerTo will call calloc to create a new Type,
-                // which will clear the name field, so we need to keep and 
-                // reassign the name
-                Ty2 = pointerTo(Ty2 -> Base);
-                Ty2 -> Name = Name;
-            }
-            else if(Ty2->Kind == TY_FUNC){
-                // 在函数参数中退化函数为指针
-                Ty2 = pointerTo(Ty2);
-                Ty2 -> Name = Name;
-            }
-            // 将类型复制到形参链表一份. why copy?
-            // because we may need to modify(cast) the type in the future.
-            // if not copy, then the original type(say TyInt) will also be changed
-            // which is unacceptable. something like ownership here
-            Cur->Next = copyType(Ty2);
+        Type *Ty2 = declspec(&Tok, Tok, NULL);
+        Ty2 = declarator(&Tok, Tok, Ty2);
+        Token *Name = Ty2->Name;
+        if (Ty2 -> Kind == TY_ARRAY){
+            // T类型的数组或函数被转换为T*
+            // pointerTo will call calloc to create a new Type,
+            // which will clear the name field, so we need to keep and 
+            // reassign the name
+            Ty2 = pointerTo(Ty2 -> Base);
+            Ty2 -> Name = Name;
+        }
+        else if(Ty2->Kind == TY_FUNC){
+            // 在函数参数中退化函数为指针
+            Ty2 = pointerTo(Ty2);
+            Ty2 -> Name = Name;
+        }
+        // 将类型复制到形参链表一份. why copy?
+        // because we may need to modify(cast) the type in the future.
+        // if not copy, then the original type(say TyInt) will also be changed
+        // which is unacceptable. something like ownership here
+        Cur->Next = copyType(Ty2);
             //Cur->Next = Ty2;
             Cur = Cur->Next;
-        }
+    }
 
-        // 设置空参函数调用为可变的
-        if (Cur == &Head)
-            IsVariadic = true;
+    // 设置空参函数调用为可变的
+    if (Cur == &Head)
+        IsVariadic = true;
 
-        // 封装一个函数节点
-        Ty = funcType(Ty);
-        // 传递形参
-        Ty -> Params = Head.Next;
-        // 传递可变参数
-        Ty->IsVariadic = IsVariadic;
-        // skip ")" at the end of function
-        *Rest = Tok->Next;
-        return Ty;
+    // 封装一个函数节点
+    Ty = funcType(Ty);
+    // 传递形参
+    Ty -> Params = Head.Next;
+    // 传递可变参数
+    Ty->IsVariadic = IsVariadic;
+    // skip ")" at the end of function
+    *Rest = Tok->Next;
+    return Ty;
 }
 
 // typeSuffix = ( funcParams?  | "[" arrayDimensions? "] typeSuffix")?

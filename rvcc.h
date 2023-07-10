@@ -115,7 +115,8 @@ struct Obj {
     char *InitData;  // 用于初始化的数据
     Relocation *Rel; // 指向其他全局变量的指针
     Obj *VaArea;     // 可变参数区域
-
+    // 结构体类型
+    bool IsHalfByStack; // 一半用寄存器，一半用栈
 };
 
 // AST的节点种类

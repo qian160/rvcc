@@ -40,10 +40,24 @@ static void usage(int Status) {
 }
 
 static void version() {
-    puts(logo);
-    fprintf(stderr, "\33[1;38m");
-    fprintf(stderr, "[ %s - %s ] rvcc v1.14514\n", __DATE__, __TIME__);
-    fprintf(stderr, "\33[0m");
+    char *str = format("\33[1;38m[ %s - %s] rvcc v1.14514 \33[0m \n", __DATE__, __TIME__);
+    char *hello = format(
+        "%s%s%s%s%s%s%s%s%s%s",
+        color_text("H", 31),
+        color_text("e", 32),
+        color_text("l", 33),
+        color_text("l", 34),
+        color_text("o ",35),
+        color_text("W", 36),
+        color_text("o", 37),
+        color_text("r", 90),
+        color_text("l", 91),
+        color_text("d", 92)
+    );
+
+    fprintf(stderr, "%s", logo);
+    fprintf(stderr, "%s", str);
+    fprintf(stderr, "%s\n", hello);
     exit(0);
 }
 
@@ -453,6 +467,7 @@ static void runLinker(StringArray *Inputs, char *Output) {
         strArrayPush(&Arr, Inputs->Data[I]);
 
     strArrayPush(&Arr, "-lc");
+    strArrayPush(&Arr, "-lm");  // temp
     strArrayPush(&Arr, "-lgcc");
     strArrayPush(&Arr, "--as-needed");
     strArrayPush(&Arr, "-lgcc_s");

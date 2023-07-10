@@ -31,7 +31,7 @@ char* tokenName(Token *Tok) {
     return strndup(Tok->Loc, Tok->Len);
 }
 
-// 消耗掉指定Token
+// 消耗掉指定Token(if has)
 bool consume(Token **Rest, Token *Tok, char *Str) {
     // 存在
     if (equal(Tok, Str)) {
