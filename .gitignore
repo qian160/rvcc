@@ -15,9 +15,12 @@
 # 临时文件，文件夹内以tmp开头的文件
 /tmp*
 
-# debug use temp file
+# playground
 /a
 /b
+/lex
+/lex.yy.c
+/lex.i
 
 # 编译器默认生成的运行文件名
 a.out

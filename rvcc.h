@@ -183,6 +183,7 @@ struct Node {
     Node *Args;         // 函数被调用时代入的实参，可看作是一串表达式链表。 形参则保存在Nd->Ty->Parms中
     Type *FuncType;     // 函数类型
     bool PassByStack;   // 通过栈传递
+    Obj *RetBuffer;     // 返回值缓冲区
     // "if"语句
     Node *Cond;     // 条件内的表达式
     Node *Then;     // 符合条件后的语句(do/while/if代码块内的语句)

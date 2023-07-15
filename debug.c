@@ -64,6 +64,7 @@ void warnTok(Token *Tok, char *Fmt, ...) {
     va_end(VA);
 }
 
+// todo...
 void printFnSignature(Node *Fn){
     trace("%s", tokenName(Fn->Tok));
 }

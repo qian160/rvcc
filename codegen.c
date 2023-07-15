@@ -279,14 +279,16 @@ static void pushArgs2(Node *Args, bool FirstPass) {
 }
 
 // 处理参数后进行压栈
-static int pushArgs(Node *Args) {
+static int pushArgs(Node *Nd) {
     int Stack = 0, GP = 0, FP = 0;
+    // 如果是超过16字节的结构体，则通过第一个寄存器传递结构体的指针
+    if (Nd->RetBuffer && Nd->Ty->Size > 16)
+        GP++;
 
     // 遍历所有参数，优先使用寄存器传递，然后是栈传递
-    for (Node *Arg = Args; Arg; Arg = Arg->Next) {
+    for (Node *Arg = Nd->Args; Arg; Arg = Arg->Next) {
         // 读取实参的类型
         Type *Ty = Arg->Ty;
-
         switch (Ty->Kind) {
             case TY_STRUCT:
             case TY_UNION: {
@@ -356,11 +358,18 @@ static int pushArgs(Node *Args) {
 
     // 进行压栈
     // 开辟大于16字节的结构体的栈空间
-    int BSStack = createBSSpace(Args);
+    int BSStack = createBSSpace(Nd->Args);
     // 第一遍对栈传递的变量进行压栈
-    pushArgs2(Args, true);
+    pushArgs2(Nd->Args, true);
     // 第二遍对寄存器传递的变量进行压栈
-    pushArgs2(Args, false);
+    pushArgs2(Nd->Args, false);
+    if (Nd->RetBuffer && Nd->Ty->Size > 16) {
+        println("  # 返回类型是大于16字节的结构体，指向其的指针，压入栈顶");
+        println("  li t0, %d", Nd->RetBuffer->Offset);
+        println("  add a0, fp, t0");
+        push();
+    }
+
     // 返回栈传递参数的个数
     return Stack + BSStack;
 }
@@ -781,7 +790,14 @@ static void genAddr(Node *Nd) {
             println("  li t0, %d", Nd->Mem->Offset);
             println("  add a0, a0, t0");
             return;
-
+        // 函数调用
+        case ND_FUNCALL:
+            // 如果存在返回值缓冲区
+            if (Nd->RetBuffer) {
+                genExpr(Nd);
+                return;
+            }
+            break;
         default:
             error("%s: not an lvalue", strndup(Nd->Tok->Loc, Nd->Tok->Len));
             break;
@@ -892,16 +908,64 @@ static void assignLVarOffsets(Obj *Prog) {
         Fn->StackSize = alignTo(Offset, 16);
     }
 }
+// 复制结构体返回值到缓冲区中
+static void copyRetBuffer(Obj *Var) {
+    Type *Ty = Var->Ty;
+    int GP = 0, FP = 0;
 
-// sementics: print the asm from an ast whose root node is `Nd`
-// steps: for each node,
-// 1. if it is a leaf node, then directly print the answer and return
-// 2. otherwise:
-//      get the value of its rhs sub-tree first, 
-//      save that answer to the stack. 
-//      then get the lhs sub-tree's value.
-//      now we have both sub-tree's value, 
-//      and how to deal with these two values depends on current root node
+    setFloStMemsTy(&Ty, GP, FP);
+
+    println("  # 拷贝到返回缓冲区");
+    println("  # 加载struct地址到t0");
+    println("  li t0, %d", Var->Offset);
+    println("  add t1, fp, t0");
+
+    // 处理浮点结构体的情况
+    if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+        int Off = 0;
+        Type *RTys[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
+        for (int I = 0; I < 2; ++I) {
+            switch (RTys[I]->Kind) {
+                case TY_FLOAT:
+                    println("  fsw fa%d, %d(t1)", FP++, Off);
+                    Off = 4;
+                    break;
+                case TY_DOUBLE:
+                    println("  fsd fa%d, %d(t1)", FP++, Off);
+                    Off = 8;
+                    break;
+                case TY_VOID:
+                    break;
+                default:
+                    println("  sd a%d, %d(t1)", GP++, Off);
+                    Off = 8;
+                    break;
+            }
+        }
+        return;
+    }
+
+    println("  # 复制整型结构体返回值到缓冲区中");
+    for (int Off = 0; Off < Ty->Size; Off += 8) {
+        switch (Ty->Size - Off) {
+            case 1:
+                println("  sb a%d, %d(t1)", GP++, Off);
+                break;
+            case 2:
+                println("  sh a%d, %d(t1)", GP++, Off);
+                break;
+            case 3:
+            case 4:
+                println("  sw a%d, %d(t1)", GP++, Off);
+                break;
+            default:
+                println("  sd a%d, %d(t1)", GP++, Off);
+                break;
+        }
+    }
+}
+
+
 // 生成表达式. after expr is generated its value will be put to a0
 static void genExpr(Node *Nd) {
     if(!Nd) return;
@@ -1029,7 +1093,7 @@ static void genExpr(Node *Nd) {
         case ND_FUNCALL:{
             // 计算所有参数的值，正向压栈
             // 此处获取到栈传递参数的数量
-            int StackArgs = pushArgs(Nd->Args);
+            int StackArgs = pushArgs(Nd);
             // 将a0的值(fn address)存入t5
             // LHS is an ident(ND_VAR), genExpr
             // will get that ident's address
@@ -1037,6 +1101,11 @@ static void genExpr(Node *Nd) {
             println("  mv t5, a0");
             // 反向弹栈，a0->参数1，a1->参数2...
             int GP = 0, FP = 0;
+            if (Nd->RetBuffer && Nd->Ty->Size > 16) {
+                println("  # 返回结构体大于16字节，那么第一个参数指向返回缓冲区");
+                pop(GP++);
+            }
+
             // 读取函数形参中的参数类型
             Type *CurArg = Nd->FuncType->Params;
             for (Node *Arg = Nd->Args; Arg; Arg = Arg->Next) {
@@ -1070,8 +1139,8 @@ static void genExpr(Node *Nd) {
                                     Depth--;
                                 }
                                 if (Regs[I]->Kind == TY_DOUBLE) {
-                                println("  # %d字节double结构体%d通过fa%d传递", Sz, I, FP);
-                                popF(FP++);
+                                    println("  # %d字节double结构体%d通过fa%d传递", Sz, I, FP);
+                                    popF(FP++);
                                 }
                                 if (isInteger(Regs[I])) {
                                     println("  # %d字节浮点结构体%d通过a%d传递", Sz, I, GP);
@@ -1151,6 +1220,12 @@ static void genExpr(Node *Nd) {
                     }
                     return;
                 default:    break;
+            }
+            // 如果返回的结构体小于16字节，直接使用寄存器返回
+            if (Nd->RetBuffer && Nd->Ty->Size <= 16) {
+                copyRetBuffer(Nd->RetBuffer);
+                println("  li t0, %d", Nd->RetBuffer->Offset);
+                println("  add a0, fp, t0");
             }
             return;
         }

@@ -283,6 +283,22 @@ static char *ContLabel;
 static Node *CurrentSwitch;
 // 记录这些标签名、节点是为了在后续递归解析相关语句的时候能拿来给节点赋值。同时也可以防止stray现象
 
+static char *types[] = {
+    "int",
+    "ptr",
+    "func",
+    "array",
+    "char",
+    "long",
+    "short",
+    "void",
+    "struct",
+    "union",
+    "bool",
+    "enum",
+    "float",
+    "double"
+};
 
 //
 // 生成AST（抽象语法树），语法解析
@@ -338,7 +354,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
         return Tok;
     }
 
-    // this variable will later be used by compoundStmt
+    // this variable will later used by compoundStmt
     CurrentFn = Fn;
     // 清空全局变量Locals
     Locals = (void*)0;
@@ -1867,9 +1883,10 @@ static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
             // simple arg type check
             if(Arg->Ty->Kind != ParamTy->Kind && OptW &&
                 (Arg->Ty->Kind != TY_ARRAY && ParamTy->Kind != TY_PTR))
-                warnTok(Tok, "type mismatch here. expected [%d] but get [%d]\n", ParamTy->Kind, Arg->Ty->Kind);
+                warnTok(Tok, "type mismatch here. expected \"%s\" but get \"%s\"\n", types[ParamTy->Kind], types[Arg->Ty->Kind]);
             if (ParamTy->Kind != TY_STRUCT && ParamTy->Kind != TY_UNION)
                 // 将参数节点的类型进行转换
+                // sometimes -W flag will report a type mismatch, but it will be handled perfectly here
                 Arg = newCast(Arg, ParamTy);
             // 前进到下一个形参类型
             ParamTy = ParamTy->Next;
@@ -1890,6 +1907,11 @@ static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
     Nd->Args = Head.Next;
     Nd->FuncType = Ty;
     Nd->Ty = Ty->ReturnTy;
+
+    // 如果函数返回值是结构体，那么调用者需为返回值开辟一块空间
+    if (Nd->Ty->Kind == TY_STRUCT || Nd->Ty->Kind == TY_UNION)
+        Nd->RetBuffer = newLVar("", Nd->Ty);
+
     return Nd;
     /*  can't do the return value cast here.
         instead we could do it in codegen,

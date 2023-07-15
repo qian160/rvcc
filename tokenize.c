@@ -154,7 +154,6 @@ static Token *readCharLiteral(char *Start, char *Quote) {
     Tok->Ty = TyInt;
     // note: char literal is represented by an 'int'
     // sizeof('\0') == sizeof(0) == sizeof(int) == 4
-    // Tok->Ty = TyChar;
     return Tok;
 }
 
