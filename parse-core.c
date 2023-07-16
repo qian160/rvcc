@@ -361,8 +361,14 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     enterScope();
     // 函数参数
     createParamLVars(Ty->Params);
-    Fn->Params = Locals;
 
+    // 有大于16字节的结构体返回值的函数
+    Type *RTy = Ty->ReturnTy;
+    if ((RTy->Kind == TY_STRUCT || RTy->Kind == TY_UNION) && RTy->Size > 16)
+        // 第一个形参是隐式的，包含了结构体的地址
+        newLVar("", pointerTo(RTy));
+
+    Fn->Params = Locals;
     // 判断是否为可变参数
     if (Ty->IsVariadic)
         Fn->VaArea = newLVar("__va_area__", arrayOf(TyChar, 64));
@@ -1079,7 +1085,6 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 //        | "default" ":" stmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
-    
     if (equal(Tok, "return")) {
         Node *Nd = newNode(ND_RETURN, Tok);
         // 空返回语句
@@ -1089,8 +1094,12 @@ static Node *stmt(Token **Rest, Token *Tok) {
         Node *Exp = expr(&Tok, Tok->Next);
         addType(Exp);
         *Rest = skip(Tok, ";");
-        //  处理返回值的类型转换
-        Nd -> LHS = newCast(Exp, CurrentFn->Ty->ReturnTy);
+        Type *Ty = CurrentFn->Ty->ReturnTy;
+
+        // 对于返回值为结构体时不进行类型转换
+        if (Ty->Kind != TY_STRUCT && Ty->Kind != TY_UNION)
+            Exp = newCast(Exp, CurrentFn->Ty->ReturnTy);
+        Nd->LHS = Exp;
         return Nd;
     }
 
