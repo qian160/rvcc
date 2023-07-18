@@ -21,6 +21,8 @@
 /lex
 /lex.yy.c
 /lex.i
+/lexer.i
+/parse.y
 
 # 编译器默认生成的运行文件名
 a.out

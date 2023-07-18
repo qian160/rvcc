@@ -371,7 +371,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     Fn->Params = Locals;
     // 判断是否为可变参数
     if (Ty->IsVariadic)
-        Fn->VaArea = newLVar("__va_area__", arrayOf(TyChar, 64));
+        Fn->VaArea = newLVar("__va_area__", arrayOf(TyChar, 0));
 
     // __func__被定义为包含当前函数名称的局部?变量
     pushScope("__func__")->Var =
