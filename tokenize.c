@@ -152,14 +152,13 @@ static Token *readCharLiteral(char *Start, char *Quote) {
     Token *Tok = newToken(TK_NUM, Start, End + 1);
     Tok->Val = C;
     Tok->Ty = TyInt;
-    // note: char literal is represented by an 'int'
-    // sizeof('\0') == sizeof(0) == sizeof(int) == 4
     return Tok;
 }
 
+
 // 读取数字字面量
-static Token *readIntLiteral(char *Start) {
-    char *P = Start;
+static bool convertPPInt(Token *Tok) {
+    char *P = Tok->Loc;
 
     // 读取二、八、十、十六进制
     // 默认为十进制
@@ -210,6 +209,10 @@ static Token *readIntLiteral(char *Start) {
         U = true;
     }
 
+    // 不能作为整型进行解析
+    if (P != Tok->Loc + Tok->Len)
+        return false;
+
     // 推断出类型，采用能存下当前数值的类型
     Type *Ty;
     if (Base == 10) {
@@ -239,22 +242,38 @@ static Token *readIntLiteral(char *Start) {
     }
 
     // 构造NUM的终结符
-    Token *Tok = newToken(TK_NUM, Start, P);
+    Tok->Kind = TK_NUM;
     Tok->Val = Val;
     Tok->Ty = Ty;
-    return Tok;
+    return true;
 }
 
-// 读取数字
-static Token *readNumber(char *Start) {
-    // 尝试解析整型常量
-    Token *Tok = readIntLiteral(Start);
-    // 不带e或者f后缀，则为整型
-    if (!strchr(".eEfF", Start[Tok->Len]))
-        return Tok;
-    // 如果不是整型，那么一定是浮点数
+// 判断是否为关键字
+static bool isKeyword(Token *Tok) {
+    // 关键字列表
+    static char *Kw[] = 
+        {   "return", "goto","if", "else", "for", "do","while", 
+            "break", "continue", "switch", "case", "default",
+            "int", "long", "short, void", "char", "_Bool", "float", "double",
+            "struct", "union",  "typedef", "enum", 
+            "extern", "sizeof", "static", "signed", "unsigned",
+            "_Alignof", "_Alignas", "const", "volatile", "auto", "register", 
+            "restrict", "__restrict", "__restrict__", "_Noreturn",
+        };
+
+    return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);
+}
+
+// 预处理阶段的数字字面量比后面阶段的定义更宽泛
+// 因而先将数字字面量标记为pp-number，随后再转为常规数值终结符
+// 转换预处理数值终结符为常规数值终结符
+static void convertPPNumber(Token *Tok) {
+    // 尝试作为整型常量解析
+    if (convertPPInt(Tok))
+        return;
+
     char *End;
-    double Val = strtod(Start, &End);
+    double Val = strtod(Tok->Loc, &End);
     // 处理浮点数后缀
     Type *Ty;
     if (*End == 'f' || *End == 'F') {
@@ -268,10 +287,22 @@ static Token *readNumber(char *Start) {
     }
 
     // 构建浮点数终结符
-    Tok = newToken(TK_NUM, Start, End);
+    if (Tok->Loc + Tok->Len != End)
+        errorTok(Tok, "invalid numeric constant");
+    Tok->Kind = TK_NUM;
     Tok->FVal = Val;
     Tok->Ty = Ty;
-    return Tok;
+}
+
+// 将名为xxx的终结符转为KEYWORD
+void convertPPTokens(Token *Tok) {
+    for (Token *T = Tok; T->Kind != TK_EOF; T = T->Next) {
+        if (isKeyword(T))
+            T->Kind = TK_KEYWORD;
+        else if (T->Kind == TK_PP_NUM)
+            // 转换预处理数值
+            convertPPNumber(T);
+        }
 }
 
 // 读取到字符串字面量结尾
@@ -439,13 +470,16 @@ Token *tokenize(File *FP) {
 
         // 解析整型和浮点数
         if (isdigit(*P) || (*P == '.' && isdigit(P[1]))) {
-            Cur->Next = readNumber(P);
-            // 我们不使用Head来存储信息，仅用来表示链表入口，这样每次都是存储在Cur->Next
-            // 否则下述操作将使第一个Token的地址不在Head中。
-            // 读取数字字面量
-            // 指针前进
-            Cur = Cur->Next;
-            P += Cur->Len;
+            char *Q = P++;
+            while (true) {
+                if (P[0] && P[1] && strchr("eEpP", P[0]) && strchr("+-", P[1]))
+                    P += 2;
+                else if (isalnum(*P) || *P == '.')
+                    P++;
+                else
+                    break;
+            }
+            Cur = Cur->Next = newToken(TK_PP_NUM, Q, P);
             continue;
         }
 

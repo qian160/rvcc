@@ -62,6 +62,7 @@ typedef enum {
     TK_KEYWORD, // 关键字
     TK_NUM,     // 数字
     TK_STR,     // 字符串字面量
+    TK_PP_NUM,  // 预处理数值
     TK_EOF,     // 文件终止符，即文件的最后
 } TokenKind;
 
@@ -304,6 +305,7 @@ extern StringArray IncludePaths;
 /* ---------- tokenize.c ---------- */
 // 词法分析
 Token* tokenizeFile(char* Path);
+void convertPPTokens(Token *tok);
 bool equal(Token *Tok, char *Str);
 bool equal2(Token *Tok, int n, char *kw[]);
 Token *skip(Token *Tok, char *Str);
