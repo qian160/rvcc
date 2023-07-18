@@ -643,6 +643,26 @@ static void defineMacro(char *Name, char *Buf) {
     addMacro(Name, true, Tok);
 }
 
+// 定义宏 -D flag
+void define(char *Str) {
+    char *Eq = strchr(Str, '=');
+    if (Eq)
+        // 存在赋值，使用该值
+        defineMacro(strndup(Str, Eq - Str), Eq + 1);
+    else
+        // 不存在赋值，则设为1
+        defineMacro(Str, "1");
+}
+
+// 取消定义宏 -U flag
+void undefine(char *Name) {
+    // 增加宏
+    Macro *M = addMacro(Name, true, NULL);
+    // 将宏变量设为删除状态
+    M->Deleted = true;
+}
+
+
 // 初始化预定义的宏
 static void initMacros(void) {
     defineMacro("_LP64", "1");
@@ -975,11 +995,7 @@ static Token *preprocess2(Token *Tok) {
             char *Name = tokenName(Tok);
             // 跳到行首
             Tok = skipLine(Tok->Next);
-
-            // 增加宏变量
-            Macro *M = addMacro(Name, true, NULL);
-            // 将宏变量设为删除状态
-            M->Deleted = true;
+            undefine(Name);
             continue;
         }
 

@@ -53,7 +53,7 @@ test: $(TESTS)
 # default run all
 ifeq ($(all),"")
 	@for i in $^; do echo $$i; $(QEMU) -L $(RISCV)/sysroot ./$$i || exit 1; echo; done
-	@test/driver.sh
+	@test/driver.sh ./target/rvcc
 else
 	@$(QEMU) -L $(RISCV)/sysroot ./test/$(all).out || exit 1; echo done
 endif

@@ -176,6 +176,30 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-Dxxx
+        if (!strcmp(Argv[I], "-D")) {
+            define(Argv[++I]);
+            continue;
+        }
+
+        // 解析-D xxx
+        if (!strncmp(Argv[I], "-D", 2)) {
+            define(Argv[I] + 2);
+            continue;
+        }
+
+        // 解析-U
+        if (!strcmp(Argv[I], "-U")) {
+            undefine(Argv[++I]);
+            continue;
+        }
+
+        // 解析-U
+        if (!strncmp(Argv[I], "-U", 2)) {
+            undefine(Argv[I] + 2);
+            continue;
+        }
+
         // 解析-I
         if (!strncmp(Argv[I], "-I", 2)) {
             strArrayPush(&IncludePaths, Argv[I] + 2);

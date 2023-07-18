@@ -319,6 +319,9 @@ Token *tokenize(File *FP);
 /* ---------- preprocess.c ---------- */
 // 预处理器入口函数
 Token *preprocess(Token *Tok);
+// used in -D option
+void define(char *Str);
+void undefine(char *Name);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数

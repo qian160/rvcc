@@ -119,4 +119,19 @@ echo foo > $tmp/dir/i-option-test
 echo "#include \"i-option-test\"" | $rvcc -I$tmp/dir -E - | grep -q foo
 check -I
 
+# [208] 支持-D选项
+# -D
+echo foo | $rvcc -Dfoo -E - | grep -q 1
+check -D
+
+# -D
+echo foo | $rvcc -Dfoo=bar -E - | grep -q bar
+check -D
+
+# [209] 支持-U选项
+# -U
+echo foo | $rvcc -Dfoo=bar -Ufoo -E - | grep -q foo
+check -U
+
+
 printf "$COLOR_GREEN OK $COLOR_NONE\n"
