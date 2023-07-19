@@ -926,10 +926,16 @@ static void assignLVarOffsets(Obj *Prog) {
             // 栈传递的变量的直接跳过
             if (Var->Offset && !Var->IsHalfByStack)
                 continue;
+
+            // 数组超过16字节时，对齐值至少为16字节
+            int Align = (Var->Ty->Kind == TY_ARRAY && Var->Ty->Size >= 16)
+                            ? MAX(16, Var->Align)
+                            : Var->Align;
+
             // the offset here is relevent to fp, which is at top of stack
             // 每个变量分配空间
             Offset += Var->Ty->Size;
-            Offset = alignTo(Offset, Var->Align);
+            Offset = alignTo(Offset, Align);
             // 为每个变量赋一个偏移量，或者说是栈中地址
             Var->Offset = -Offset;
             println(" #  寄存器传递变量%s偏移量%d", Var->Name, Var->Offset);
@@ -1810,7 +1816,12 @@ static void emitData(Obj *Prog) {
 
         if (!Var->Align)
             error("Align can not be 0!");
-        println("  .align %d", simpleLog2(Var->Align));
+
+        // 数组超过16字节时，对齐值至少为16字节
+        int Align = (Var->Ty->Kind == TY_ARRAY && Var->Ty->Size >= 16)
+                        ? MAX(16, Var->Align)
+                        : Var->Align;
+        println("  .align %d", simpleLog2(Align));
 
         if (Var -> InitData){
             println("  .data");
@@ -2054,6 +2065,10 @@ void emitText(Obj *Prog) {
         println("# =====%s段主体===============", Fn->Name);
         genStmt(Fn->Body);
         Assert(Depth == 0, "depth = %d", Depth);
+
+        // main默认返回0
+        if (strcmp(Fn->Name, "main") == 0)
+            println("  li a0, 0");
 
         // Epilogue，后语
         // 输出return段标签
