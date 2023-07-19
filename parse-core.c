@@ -1797,7 +1797,12 @@ static Node *unary(Token **Rest, Token *Tok) {
     }
     // "*" cast. pointer
     if (equal(Tok, "&")) {
-        return newUnary(ND_ADDR, cast(Rest, Tok->Next), Tok);
+        Node *LHS = cast(Rest, Tok->Next);
+        addType(LHS);
+        // 不能够获取位域的地址
+        if (LHS->Kind == ND_MEMBER && LHS->Mem->IsBitfield)
+            errorTok(Tok, "cannot take address of bitfield");
+        return newUnary(ND_ADDR, LHS, Tok);
     }
     if (equal(Tok, "!"))
         return newUnary(ND_NOT, cast(Rest, Tok->Next), Tok);
