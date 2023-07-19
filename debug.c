@@ -36,7 +36,7 @@ void verrorAt(char *Filename, char *Input, int LineNo, char *Loc, char *Fmt, va_
 }
 
 // 字符解析出错
-void errorAt(char *Loc, char *Fmt, ...) {
+noreturn void errorAt(char *Loc, char *Fmt, ...) {
     int LineNo = 1;
     for (char *P = CurrentFile->Contents; P < Loc; P++)
         if (*P == '\n')
@@ -49,7 +49,7 @@ void errorAt(char *Loc, char *Fmt, ...) {
 }
 
 // Tok解析出错
-void errorTok(Token *Tok, char *Fmt, ...) {
+noreturn void errorTok(Token *Tok, char *Fmt, ...) {
     va_list VA;
     va_start(VA, Fmt);
     verrorAt(Tok->File->Name, Tok->File->Contents,  Tok->LineNo, Tok->Loc, Fmt, VA);

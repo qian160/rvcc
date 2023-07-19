@@ -18,6 +18,7 @@
 #include<libgen.h>
 #include<glob.h>
 #include<sys/stat.h>
+#include <stdnoreturn.h>
 /*
 // 使用POSIX.1标准
 // 使用了strndup函数:
