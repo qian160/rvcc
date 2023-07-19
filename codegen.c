@@ -51,6 +51,16 @@ void memcopy(char *reg1, char *reg2, int offset, int size){
     }
 }
 
+// 对齐到Align的整数倍
+int alignTo(int N, int Align) {
+    // (0,Align]返回Align
+    return (N + Align - 1) / Align * Align;
+}
+// 向下对齐值
+// N % Align != 0 , 即 N 未对齐时,  AlignDown(N) = AlignTo(N) - Align
+// N % Align == 0 , 即 N 已对齐时， AlignDown(N) = AlignTo(N)
+static int alignDown(int N, int Align) { return alignTo(N - Align + 1, Align); }
+
 // 代码段计数
 static int count(void) {
     static int I = 1;
@@ -1160,15 +1170,31 @@ static void genExpr(Node *Nd) {
                     return;
             }
         }
-
-        // 变量. note: array also has VAR type
+        // 变量
         case ND_VAR:
-        case ND_MEMBER:
             // 计算出变量的地址, 存入a0
             genAddr(Nd);
             // load a value from the generated address
             load(Nd->Ty);
             return;
+        // 成员变量
+        case ND_MEMBER:{
+            // 计算出成员变量的地址，然后存入a0
+            genAddr(Nd);
+            load(Nd->Ty);
+            Member *Mem = Nd->Mem;
+            if (Mem->IsBitfield) {
+                println("  # 清除位域的成员变量（%d字节）未用到的位", Mem->BitWidth);
+                // 清除位域成员变量未用到的高位
+                println("  slli a0, a0, %d", 64 - Mem->BitWidth - Mem->BitOffset);
+                // 清除位域成员变量未用到的低位
+                if (Mem->Ty->IsUnsigned)
+                    println("  srli a0, a0, %d", 64 - Mem->BitWidth);
+                else
+                    println("  srai a0, a0, %d", 64 - Mem->BitWidth);
+            }
+            return;
+        }
         // 赋值
         case ND_ASSIGN:
             // 左部是左值，保存值到的地址
@@ -1176,6 +1202,40 @@ static void genExpr(Node *Nd) {
             push();
             // 右部是右值，为表达式的值
             genExpr(Nd->RHS);
+
+            // 如果是位域成员变量，需要先从内存中读取当前值，然后合并到新值中
+            if (Nd->LHS->Kind == ND_MEMBER && Nd->LHS->Mem->IsBitfield) {
+                println("\n  # 位域成员变量进行赋值↓");
+                println("  # 计算位域成员变量的新值：");
+                Member *Mem = Nd->LHS->Mem;
+                // 将需要赋的值a0存入t1
+                println("  mv t1, a0");
+                // 构造一个和位域成员长度相同，全为1的二进制数
+                println("  li t0, %ld", (1L << Mem->BitWidth) - 1);
+                // 取交之后，位域长度的低位，存储了我们需要的值，其他位都为0
+                println("  and t1, t1, t0");
+                // 然后将该值左移，相应的位偏移量中
+                // 此时我们所需要的位域数值已经处于正确的位置，且其他位置都为0
+                println("  slli t1, t1, %d", Mem->BitOffset);
+
+                println("  # 读取位域当前值：");
+                // 将位域值保存的地址加载进来
+                println("  ld a0, 0(sp)");
+                // 读取该地址的值
+                load(Mem->Ty);
+
+                println("  # 写入成员变量新值到位域当前值中：");
+                // 位域值对应的掩码，即t1需要写入的位置
+                // 掩码位都为1，其余位为0
+                long Mask = ((1L << Mem->BitWidth) - 1) << Mem->BitOffset;
+                // 对掩码取反，此时，其余位都为1，掩码位都为0
+                println("  li t0, %ld", ~Mask);
+                // 取交，保留除掩码位外所有的位
+                println("  and a0, a0, t0");
+                // 取或，将成员变量的新值写入到掩码位
+                println("  or a0, a0, t1");
+                println("  # 完成位域成员变量的赋值↑\n");
+            }
             store(Nd->Ty);
             return;
         // 解引用. *var

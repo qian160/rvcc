@@ -263,6 +263,12 @@ struct Member {
     int Offset;   // 偏移量
     int Idx;      // 索引值
     int Align;    // 对齐量
+
+    // 位域
+    bool IsBitfield; // 是否为位域
+    int BitOffset;   // 位偏移量
+    int BitWidth;    // 位宽度
+
 };
 
 // 全局变量可被 常量表达式 或者 指向其他全局变量的指针 初始化。
@@ -331,6 +337,7 @@ Obj *parse(Token *Tok);
 /* ---------- codegen.c ---------- */
 // 代码生成入口函数
 void codegen(Obj *Prog, FILE *Out);
+int alignTo(int N, int Align);
 bool OptW;
 
 /* ---------- type.c ---------- */
@@ -384,11 +391,6 @@ uint32_t simpleLog2(uint32_t v);
 //
 
 // stage2 cant recognize them now, so disable them temporarily
-
-
-// 对齐到Align的整数倍
-// (0,Align]返回Align
-#define alignTo(N, Align) ((N + Align - 1) / Align * Align)
 
 #define error(format, ...) \
     do{ \
