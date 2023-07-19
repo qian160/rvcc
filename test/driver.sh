@@ -133,5 +133,11 @@ check -D
 echo foo | $rvcc -Dfoo=bar -Ufoo -E - | grep -q foo
 check -U
 
+# [216] 忽略多个链接器选项
+$rvcc -c -O -Wall -g -std=c11 -ffreestanding -fno-builtin \
+    -fno-omit-frame-pointer -fno-stack-protector -fno-strict-aliasing \
+    -m64 -mno-red-zone -w -o /dev/null $tmp/empty.c
+check 'ignored options'
+
 
 printf "$COLOR_GREEN OK $COLOR_NONE\n"
