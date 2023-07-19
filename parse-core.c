@@ -864,19 +864,23 @@ static Type *structDecl(Token **Rest, Token *Tok) {
     // 计算结构体内成员的偏移量
     int Bits = 0;
     for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
-        if (Mem->IsBitfield) {
-        // 位域成员变量
-        int Sz = Mem->Ty->Size;
-        // Bits此时对应成员最低位，Bits + Mem->BitWidth - 1对应成员最高位
-        // 二者若不相等，则说明当前这个类型剩余的空间存不下，需要新开辟空间
-        if (Bits / (Sz * 8) != (Bits + Mem->BitWidth - 1) / (Sz * 8))
-            // 新开辟一个当前当前类型的空间
-            Bits = alignTo(Bits, Sz * 8);
+        if (Mem->IsBitfield && Mem->BitWidth == 0) {
+            // 零宽度的位域有特殊含义，仅作用于对齐
+            Bits = alignTo(Bits, Mem->Ty->Size * 8);
+        }
+        else if (Mem->IsBitfield){
+            // 位域成员变量
+            int Sz = Mem->Ty->Size;
+            // Bits此时对应成员最低位，Bits + Mem->BitWidth - 1对应成员最高位
+            // 二者若不相等，则说明当前这个类型剩余的空间存不下，需要新开辟空间
+            if (Bits / (Sz * 8) != (Bits + Mem->BitWidth - 1) / (Sz * 8))
+                // 新开辟一个当前当前类型的空间
+                Bits = alignTo(Bits, Sz * 8);
 
-            // 若当前字节能够存下，则向下对齐，得到成员变量的偏移量
-            Mem->Offset = alignDown(Bits / 8, Sz);
-            Mem->BitOffset = Bits % (Sz * 8);
-            Bits += Mem->BitWidth;
+                // 若当前字节能够存下，则向下对齐，得到成员变量的偏移量
+                Mem->Offset = alignDown(Bits / 8, Sz);
+                Mem->BitOffset = Bits % (Sz * 8);
+                Bits += Mem->BitWidth;
         } else {
             // 常规结构体成员变量
             Bits = alignTo(Bits, Mem->Align * 8);
