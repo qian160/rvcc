@@ -1406,7 +1406,6 @@ static Node *expr(Token **Rest, Token *Tok) {
 }
 
 // 转换 A op= B为 TMP = &A, *TMP = *TMP op B
-// let the result be reflected in A
 static Node *toAssign(Node *Binary) {
     // A
     addType(Binary->LHS);
@@ -1414,6 +1413,36 @@ static Node *toAssign(Node *Binary) {
     addType(Binary->RHS);
     Token *Tok = Binary->Tok;
 
+    // 结构体需要特殊处理
+    // 转换 A.X op= B 为 TMP = &A, (*TMP).X = (*TMP).X op B
+    if (Binary->LHS->Kind == ND_MEMBER) {
+        // TMP
+        Obj *Var = newLVar("", pointerTo(Binary->LHS->LHS->Ty));
+
+        // TMP = &A
+        Node *Expr1 = newBinary(ND_ASSIGN, newVarNode(Var, Tok),
+                                newUnary(ND_ADDR, Binary->LHS->LHS, Tok), Tok);
+
+        // (*TMP).X ，op=左边的
+        Node *Expr2 =
+            newUnary(ND_MEMBER, newUnary(ND_DEREF, newVarNode(Var, Tok), Tok), Tok);
+        Expr2->Mem = Binary->LHS->Mem;
+
+        // (*TMP).X ，op=右边的
+        Node *Expr3 =
+            newUnary(ND_MEMBER, newUnary(ND_DEREF, newVarNode(Var, Tok), Tok), Tok);
+        Expr3->Mem = Binary->LHS->Mem;
+
+        // (*TMP).X = (*TMP).X op B
+        Node *Expr4 =
+            newBinary(ND_ASSIGN, Expr2,
+                    newBinary(Binary->Kind, Expr3, Binary->RHS, Tok), Tok);
+
+        // TMP = &A, (*TMP).X = (*TMP).X op B
+        return newBinary(ND_COMMA, Expr1, Expr4, Tok);
+    }
+
+    // 转换 A op= B为 TMP = &A, *TMP = *TMP op B
     // TMP
     Obj *Var = newLVar("", pointerTo(Binary->LHS->Ty));
 

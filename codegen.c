@@ -56,10 +56,6 @@ int alignTo(int N, int Align) {
     // (0,Align]返回Align
     return (N + Align - 1) / Align * Align;
 }
-// 向下对齐值
-// N % Align != 0 , 即 N 未对齐时,  AlignDown(N) = AlignTo(N) - Align
-// N % Align == 0 , 即 N 已对齐时， AlignDown(N) = AlignTo(N)
-static int alignDown(int N, int Align) { return alignTo(N - Align + 1, Align); }
 
 // 代码段计数
 static int count(void) {
@@ -1206,6 +1202,9 @@ static void genExpr(Node *Nd) {
             // 如果是位域成员变量，需要先从内存中读取当前值，然后合并到新值中
             if (Nd->LHS->Kind == ND_MEMBER && Nd->LHS->Mem->IsBitfield) {
                 println("\n  # 位域成员变量进行赋值↓");
+                println("  # 备份需要赋的a0值");
+                println("  mv t2, a0");
+
                 println("  # 计算位域成员变量的新值：");
                 Member *Mem = Nd->LHS->Mem;
                 // 将需要赋的值a0存入t1
@@ -1234,7 +1233,12 @@ static void genExpr(Node *Nd) {
                 println("  and a0, a0, t0");
                 // 取或，将成员变量的新值写入到掩码位
                 println("  or a0, a0, t1");
+
+                store(Nd->Ty);
+                println("  # 恢复需要赋的a0值作为返回值");
+                println("  mv a0, t2");
                 println("  # 完成位域成员变量的赋值↑\n");
+                return;
             }
             store(Nd->Ty);
             return;
