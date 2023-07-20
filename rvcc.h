@@ -389,6 +389,13 @@ int64_t constExpr(Token **Rest, Token *Tok);
 uint32_t simpleLog2(uint32_t v);
 
 //
+// unicode 统一码
+//
+
+// 将unicode字符编码为UTF-8的格式
+int encodeUTF8(char *Buf, uint32_t C);
+
+//
 // macros
 //
 
