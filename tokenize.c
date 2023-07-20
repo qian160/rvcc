@@ -129,7 +129,7 @@ static int readEscapedChar(char **NewPos, char * P) {
 }
 
 // 读取字符字面量
-static Token *readCharLiteral(char *Start, char *Quote) {
+static Token *readCharLiteral(char *Start, char *Quote, Type *Ty) {
     char *P = Quote + 1;
     // 解析字符为 \0 的情况
     if (*P == '\0')
@@ -151,7 +151,7 @@ static Token *readCharLiteral(char *Start, char *Quote) {
     // 构造一个NUM的终结符，值为C的数值
     Token *Tok = newToken(TK_NUM, Start, End + 1);
     Tok->Val = C;
-    Tok->Ty = TyInt;
+    Tok->Ty = Ty;
     return Tok;
 }
 
@@ -454,7 +454,7 @@ Token *tokenize(File *FP) {
 
         // 解析字符字面量
         if (*P == '\'') {
-            Cur->Next = readCharLiteral(P, P);
+            Cur->Next = readCharLiteral(P, P, TyInt);
             // 单字节字符
             Cur->Val = (char)Cur->Val;
             Cur = Cur->Next;
@@ -462,9 +462,19 @@ Token *tokenize(File *FP) {
             continue;
         }
 
-        // 宽字符字面量，占两个字节
+        // UTF-16字符字面量
+        if (startsWith(P, "u'")) {
+            // 使用两个字节
+            Cur = Cur->Next = readCharLiteral(P, P + 1, TyUShort);
+            Cur->Val &= 0xffff;
+            P += Cur->Len;
+            continue;
+        }
+
+
+        // 宽字符字面量，占4个字节
         if (startsWith(P, "L'")) {
-            Cur = Cur->Next = readCharLiteral(P, P + 1);
+            Cur = Cur->Next = readCharLiteral(P, P + 1, TyInt);
             P += Cur->Len;
             continue;
         }

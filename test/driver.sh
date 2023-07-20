@@ -17,9 +17,9 @@ COLOR_NONE="\033[0m"
 # 判断返回值是否为0来判断程序是否成功执行
 check() {
   if [ $? -eq 0 ]; then
-    printf "testing $1 ...$COLOR_GREEN passed $COLOR_NONE\n"
+    printf "testing $1 ...$COLOR_GREEN passed 😀$COLOR_NONE\n"
   else
-    printf "testing $1 ...$COLOR_RED failed $COLOR_NONE\n"
+    printf "testing $1 ...$COLOR_RED failed 😵$COLOR_NONE\n"
     exit 1
   fi
 }

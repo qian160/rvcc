@@ -1,9 +1,5 @@
 #include "rvcc.h"
-/*
-    \u  2 Byte wide char
-    \U  4 Byte wide char
-    
-*/
+
 // 将unicode字符编码为UTF8的格式
 int encodeUTF8(char *Buf, uint32_t C) {
     // 1字节UTF8编码，可用7位，0~127，与ASCII码兼容
