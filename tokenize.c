@@ -471,6 +471,14 @@ Token *tokenize(File *FP) {
             continue;
         }
 
+        // UTF-32 字符字面量
+        if (startsWith(P, "U'")) {
+            // 使用四个字节
+            Cur = Cur->Next = readCharLiteral(P, P + 1, TyUInt);
+            P += Cur->Len;
+            continue;
+        }
+
 
         // 宽字符字面量，占4个字节
         if (startsWith(P, "L'")) {
