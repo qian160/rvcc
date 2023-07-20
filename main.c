@@ -34,7 +34,7 @@ static StringArray TmpFiles;
 // 输出程序的使用说明
 static void usage(int Status) {
     fprintf(stderr, "\33[1;38m");
-    fprintf(stderr, "usage: rvcc [ -o <path> ] <file>\n");
+    fprintf(stderr, "usage: rvcc [ -o <path> ] <file> 🙂\n");
     fprintf(stderr, "\33[0m");
 
     fprintf(stderr, "\n\33[1;92moption flags:\n");
@@ -44,6 +44,8 @@ static void usage(int Status) {
     fprintf(stderr, "-c     compile only(.o)\n");
     fprintf(stderr, "-S     assembly\n");
     fprintf(stderr, "-o     specify output file's name, default a.out\n");
+    fprintf(stderr, "-D     define a macro\n");
+    fprintf(stderr, "-U     undefine a macro\n");
     fprintf(stderr, "-###   show execution steps only\n");
 
 

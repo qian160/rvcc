@@ -31,7 +31,7 @@ void verrorAt(char *Filename, char *Input, int LineNo, char *Loc, char *Fmt, va_
     fprintf(stderr, "%*s", Pos, "");
     fprintf(stderr, "^ ");
     vfprintf(stderr, Fmt, VA);
-    fprintf(stderr, "\n");
+    fprintf(stderr, " 😵\n");
     va_end(VA);
 }
 

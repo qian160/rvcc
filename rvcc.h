@@ -394,7 +394,8 @@ uint32_t simpleLog2(uint32_t v);
 
 // 将unicode字符编码为UTF-8的格式
 int encodeUTF8(char *Buf, uint32_t C);
-
+// 将UTF-8的格式解码为unicode字符
+uint32_t decodeUTF8(char **NewPos, char *P);
 //
 // macros
 //
@@ -403,7 +404,7 @@ int encodeUTF8(char *Buf, uint32_t C);
 
 #define error(format, ...) \
     do{ \
-        printf("\33[1;31m" "[%s:%d %s] " format "\33[0m" "\n", \
+        printf("\33[1;31m" "[%s:%d %s] " format "\33[0m" " 😵\n", \
             __FILE__, __LINE__, __func__, ## __VA_ARGS__);\
         exit(1);\
     }\
