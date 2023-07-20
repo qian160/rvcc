@@ -104,6 +104,25 @@ static Token *copyLine(Token **Rest, Token *Tok) {
     return head.Next;
 }
 
+// 为__DATE__设置为当前日期，例如："May 17 2020"
+static char *formatDate(struct tm *Tm) {
+    static char Mon[][4] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
+
+    // 月，日，年
+    return format("\"%s %2d %d\"", Mon[Tm->tm_mon], Tm->tm_mday,
+                    Tm->tm_year + 1900);
+}
+
+// 为__TIME__设置为当前时间，例如："10:23:45"
+static char *formatTime(struct tm *Tm) {
+    // 时，分，秒
+    return format("\"%02d:%02d:%02d\"", Tm->tm_hour, Tm->tm_min, Tm->tm_sec);
+}
+
+
 // 将给定的字符串用双引号包住
 static char *quoteString(char *Str) {
     // 两个引号，一个\0
@@ -714,6 +733,16 @@ static void initMacros(void) {
 
     addBuiltin("__FILE__", fileMacro);
     addBuiltin("__LINE__", lineMacro);
+
+    // 支持__DATE__和__TIME__
+    time_t Now = time(NULL);
+    // 获取当前的本地时区的时间
+    struct tm *Tm = localtime(&Now);
+    // 定义__DATE__为当前日期
+    defineMacro("__DATE__", formatDate(Tm));
+    // 定义__DATE__为当前时间
+    defineMacro("__TIME__", formatTime(Tm));
+
 }
 
 // 一些预处理器允许#include等指示，在换行前有多余的终结符
