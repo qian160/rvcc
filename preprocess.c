@@ -122,7 +122,6 @@ static char *formatTime(struct tm *Tm) {
     return format("\"%02d:%02d:%02d\"", Tm->tm_hour, Tm->tm_min, Tm->tm_sec);
 }
 
-
 // 将给定的字符串用双引号包住
 static char *quoteString(char *Str) {
     // 两个引号，一个\0
@@ -166,6 +165,12 @@ static Token *newStrToken(char *Str, Token *Tmpl) {
 static Token *newNumToken(int Val, Token *Tmpl) {
     char *Buf = format("%d\n", Val);
     return tokenize(newFile(Tmpl->File->Name, Tmpl->File->FileNo, Buf));
+}
+
+// __COUNTER__被展开为从0开始的连续值
+static Token *counterMacro(Token *Tmpl) {
+    static int I = 0;
+    return newNumToken(I++, Tmpl);
 }
 
 // 将终结符链表中的所有终结符都连接起来，然后返回一个新的字符串
@@ -733,6 +738,7 @@ static void initMacros(void) {
 
     addBuiltin("__FILE__", fileMacro);
     addBuiltin("__LINE__", lineMacro);
+    addBuiltin("__COUNTER__", counterMacro);
 
     // 支持__DATE__和__TIME__
     time_t Now = time(NULL);
