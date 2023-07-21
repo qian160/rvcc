@@ -2166,14 +2166,7 @@ static Node *primary(Token **Rest, Token *Tok) {
             if (S->EnumTy)
                 return newNum(S->EnumVal, Tok);
         }
-/*
-        if(equal2(Tok, 2, stringSet("__func__", "__FUNCTION__"))){
-            int len = strlen(CurrentFn->Name)+1;
-            Type *Ty = arrayOf(TyChar, len);
-            Obj *Var = newStringLiteral(CurrentFn->Name, Ty);
-            return newVarNode(Var, Tok);
-        }
-*/
+
         if(equal(Tok->Next, "(")){
             errorTok(Tok, "implicit declaration of a function");
             errorTok(Tok, "undefined variable");
@@ -2182,7 +2175,7 @@ static Node *primary(Token **Rest, Token *Tok) {
 
     // str, recognized in tokenize
     if (Tok->Kind == TK_STR) {
-        Obj *Var = newStringLiteral(Tok->Str, arrayOf(TyChar, Tok->Ty->ArrayLen));
+        Obj *Var = newStringLiteral(Tok->Str, Tok->Ty);     // use Tok->Ty!
         *Rest = Tok->Next;
         return newVarNode(Var, Tok);
     }

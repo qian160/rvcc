@@ -1,5 +1,5 @@
 # C编译器参数：使用C11标准，生成debug信息，禁止将未初始化的全局变量放入到common段
-CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
+CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch 
 CC=gcc
 RISCV=/home/s081/riscv
 CROSS-CC=$(RISCV)/bin/riscv64-unknown-linux-gnu-gcc

@@ -1,5 +1,5 @@
-#include"rvcc.h"
-
+#include "rvcc.h"
+#include <execinfo.h>
 extern char * CurrentInput;
 extern File * CurrentFile;         // 输入文件
 
@@ -64,9 +64,18 @@ void warnTok(Token *Tok, char *Fmt, ...) {
     va_end(VA);
 }
 
-// todo...
-void printFnSignature(Node *Fn){
-    trace("%s", tokenName(Fn->Tok));
+// not so useful...
+void print_call_stack(int depth)
+{
+    void *call_stack[depth];
+    int num_entries = backtrace(call_stack, depth);
+    char **symbols = backtrace_symbols(call_stack, num_entries);
+
+    fprintf(stderr, "call stack:\n");
+    for (int i = 0; i < num_entries; i++)
+        fprintf(stderr, "%s\n", symbols[i]);
+
+    free(symbols);
 }
 /*
 

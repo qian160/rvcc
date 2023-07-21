@@ -43,6 +43,18 @@ bool consume(Token **Rest, Token *Tok, char *Str) {
     return false;
 }
 
+// 读取到字符串字面量结尾. right quote "
+static char *stringLiteralEnd(char *P) {
+    char *Start = P;
+    for (; *P != '"'; P++) {
+        if (*P == '\n' || *P == '\0')
+            errorAt(Start, "unclosed string literal");
+        if (*P == '\\')
+            P++;
+    }
+    return P;
+}
+
 // 生成新的Token
 Token *newToken(TokenKind Kind, char *Start, char *End) {
     Token *Tok = calloc(1, sizeof(Token));
@@ -126,6 +138,46 @@ static int readEscapedChar(char **NewPos, char * P) {
         default: // 默认将原字符返回
             return *P;
     }
+}
+
+// 解码UTF-8的字符串并将其转码为UTF-16
+//
+// UTF-16 使用2字节或4字节对字符进行编码。
+// 小于U+10000的码点，使用2字节。
+// 大于U+10000的码点，使用4字节（每2个字节被称为代理项，即前导代理和后尾代理）。
+static Token *readUTF16StringLiteral(char *Start, char *Quote) {
+    char *End = stringLiteralEnd(Quote + 1);
+    uint16_t *Buf = calloc(2, End - Start);
+    int Len = 0;
+
+    // 遍历引号内的字符
+    for (char *P = Quote + 1; P < End;) {
+        // 处理转义字符
+        if (*P == '\\') {
+            Buf[Len++] = readEscapedChar(&P, P + 1);
+            continue;
+        }
+
+        // 解码UTF-8的字符串文字
+        uint32_t C = decodeUTF8(&P, P);
+        if (C < 0x10000) {
+            // 用2字节存储码点
+            Buf[Len++] = C;
+        } else {
+            // 用2字节存储码点
+            C -= 0x10000;
+            // 前导代理
+            Buf[Len++] = 0xd800 + ((C >> 10) & 0x3ff);
+            // 后尾代理
+            Buf[Len++] = 0xdc00 + (C & 0x3ff);
+        }
+    }
+
+    // 构建UTF-16编码的字符串终结符
+    Token *Tok = newToken(TK_STR, Start, End + 1);
+    Tok->Ty = arrayOf(TyUShort, Len + 1);
+    Tok->Str = (char *)Buf;
+    return Tok;
 }
 
 // 读取字符字面量
@@ -305,18 +357,6 @@ void convertPPTokens(Token *Tok) {
         }
 }
 
-// 读取到字符串字面量结尾
-static char *stringLiteralEnd(char *P) {
-    char *Start = P;
-    for (; *P != '"'; P++) {
-        if (*P == '\n' || *P == '\0')
-        errorAt(Start, "unclosed string literal");
-        if (*P == '\\')
-        P++;
-    }
-    return P;
-}
-
 // 读取字符串字面量. *quote = "
 static Token *readStringLiteral(char *Start, char *Quote) {
     // 读取到字符串字面量的右引号
@@ -459,6 +499,12 @@ Token *tokenize(File *FP) {
             continue;
         }
 
+        // UTF-16字符串字面量
+        if (startsWith(P, "u\"")) {
+            Cur = Cur->Next = readUTF16StringLiteral(P, P + 1);
+            P += Cur->Len;
+            continue;
+        }
 
         // 解析字符字面量
         if (*P == '\'') {
@@ -487,14 +533,12 @@ Token *tokenize(File *FP) {
             continue;
         }
 
-
         // 宽字符字面量，占4个字节
         if (startsWith(P, "L'")) {
             Cur = Cur->Next = readCharLiteral(P, P + 1, TyInt);
             P += Cur->Len;
             continue;
         }
-
 
         // 解析整型和浮点数
         if (isdigit(*P) || (*P == '.' && isdigit(P[1]))) {

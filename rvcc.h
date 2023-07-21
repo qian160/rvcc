@@ -379,6 +379,7 @@ void errorTok(Token *Tok, char *Fmt, ...);
 void errorAt(char *Loc, char *Fmt, ...);
 //void error(char *fmt, ...);
 void warnTok(Token *Tok, char *Fmt, ...);
+void print_call_stack(int depth);
 //void Assert(int cond, char *fmt, ...);
 
 /* ---------- parse-util.c ---------- */

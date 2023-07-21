@@ -236,7 +236,7 @@ void addType(Node *Nd) {
             if(Ty -> Kind == TY_ARRAY)
                 Nd -> Ty = pointerTo(Ty -> Base);
             else
-                Nd->Ty = pointerTo(Nd->LHS->Ty);
+                Nd->Ty = pointerTo(Ty);
             return;
         }
         case ND_DEREF:

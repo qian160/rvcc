@@ -22,8 +22,6 @@ static bool OptS;
 static bool OptC;
 // -E选项
 static bool OptE;
-// -V选项
-static bool OptV;
 // -W选项
 bool OptW;
 extern const char logo[];   // don't use char *
@@ -33,27 +31,28 @@ static StringArray TmpFiles;
 
 // 输出程序的使用说明
 static void usage(int Status) {
-    fprintf(stderr, "\33[1;38m");
-    fprintf(stderr, "usage: rvcc [ -o <path> ] <file> 🙂\n");
+    fprintf(stderr, "\33[1;98m" "usage: rvcc [ -o <path> ] <file> 🙂\n" "\33[3m");
+
+    fprintf(stderr, "\33[1;92m\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "--help Display this information.\n");
+    fprintf(stderr, "-E     Expand only.\n");
+    fprintf(stderr, "-W     Print warning info(with some bugs maybe...).\n");
+    fprintf(stderr, "-I     Add include path.\n");
+    fprintf(stderr, "-c     Compile and assemble(.o).\n");
+    fprintf(stderr, "-S     Compile only(.S).\n");
+    fprintf(stderr, "-o     Specify the output file's name, default a.out.\n");
+    fprintf(stderr, "-D     Define a macro.\n");
+    fprintf(stderr, "-U     Undefine a macro.\n");
+    fprintf(stderr, "-v     Display the programs invoked by the compiler.\n");
+    fprintf(stderr, "-###   Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "\33[0m");
-
-    fprintf(stderr, "\n\33[1;92moption flags:\n");
-    fprintf(stderr, "-E     expand only\n");
-    fprintf(stderr, "-W     print warning info(with some bugs maybe...)\n");
-    fprintf(stderr, "-I     add include path\n");
-    fprintf(stderr, "-c     compile only(.o)\n");
-    fprintf(stderr, "-S     assembly\n");
-    fprintf(stderr, "-o     specify output file's name, default a.out\n");
-    fprintf(stderr, "-D     define a macro\n");
-    fprintf(stderr, "-U     undefine a macro\n");
-    fprintf(stderr, "-###   show execution steps only\n");
-
 
     exit(Status);
 }
 
 static void version() {
-    char *str = format("\33[1;38m[ %s - %s] rvcc v1.14514 \33[0m \n", __DATE__, __TIME__);
+    char *str = format("\33[1;38m" "[ %s - %s] rvcc v1.14514 " "\33[0m \n", __DATE__, __TIME__);
     char *hello = format(
         "%s%s%s%s%s%s%s%s%s%s",
         color_text("H", 31),
@@ -111,6 +110,9 @@ static void parseArgs(int Argc, char **Argv) {
         if (!strcmp(Argv[I], "--help"))
             usage(0);
 
+        if (!strcmp(Argv[I], "--version"))
+            version();
+
         // 解析-o XXX的参数
         if (!strcmp(Argv[I], "-o")) {
             OptO = Argv[++I];
@@ -151,12 +153,6 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-E
         if (!strcmp(Argv[I], "-E")) {
             OptE = true;
-            continue;
-        }
-
-        // 解析-V
-        if (!strcmp(Argv[I], "-v")) {
-            OptV = true;
             continue;
         }
 
@@ -229,7 +225,7 @@ static void parseArgs(int Argc, char **Argv) {
     }
 
     // 不存在输入文件时报错
-    if (!OptV && InputPaths.Len == 0 && !BaseFile)
+    if (InputPaths.Len == 0 && !BaseFile)
         error("no input files");
 }
 
@@ -553,8 +549,6 @@ int main(int Argc, char **Argv) {
         cc1();
         return 0;
     }
-    if (OptV)
-        version();
 
     // 当前不能指定-c、-S、-E后，将多个输入文件，输出到一个文件中
     if (InputPaths.Len > 1 && OptO && (OptC || OptS || OptE))
