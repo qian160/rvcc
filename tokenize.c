@@ -538,6 +538,13 @@ Token *tokenize(File *FP) {
             continue;
         }
 
+        // 宽字符串字面量
+        if (startsWith(P, "L\"")) {
+            Cur = Cur->Next = readUTF32StringLiteral(P, P + 1, TyInt);
+            P += Cur->Len;
+            continue;
+        }
+
         // 解析字符字面量
         if (*P == '\'') {
             Cur->Next = readCharLiteral(P, P, TyInt);

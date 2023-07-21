@@ -3,6 +3,9 @@
 // [226] 支持UTF-16字符字面量
 #define STR(x) #x
 
+// [232] 支持UTF-16字符串字面量初始化器
+typedef unsigned short char16_t;
+
 int main() {
   printf("[224] 支持\\u和\\U转义序列\n");
   ASSERT(4, sizeof(L'\0'));
@@ -75,6 +78,25 @@ int main() {
   ASSERT(1, U"\xffffffff"[0] >> 31);
 
   ASSERT(0, strcmp(STR(U"a"), "U\"a\""));
+
+  printf("[231] 支持宽字符串字面量\n");
+  ASSERT(4, sizeof(L""));
+  ASSERT(20, sizeof(L"\xffzzz"));
+  ASSERT(0, memcmp(L"", "\0\0\0\0", 4));
+  ASSERT(0, memcmp(L"abc", "a\0\0\0b\0\0\0c\0\0\0\0\0\0\0", 16));
+  ASSERT(0, memcmp(L"日本語", "\345e\0\0,g\0\0\236\212\0\0\0\0\0\0", 16));
+  ASSERT(0, memcmp(L"🍣", "c\363\001\0\0\0\0\0", 8));
+  ASSERT(u'β', L"βb"[0]);
+  ASSERT(u'b', L"βb"[1]);
+  ASSERT(0, L"βb"[2]);
+  ASSERT(-1, L"\xffffffff"[0] >> 31);
+
+  ASSERT(0, strcmp(STR(L"a"), "L\"a\""));
+
+  printf("[232] 支持UTF-16字符串字面量初始化器\n");
+  ASSERT(u'α', ({ char16_t x[] = u"αβ"; x[0]; }));
+  ASSERT(u'β', ({ char16_t x[] = u"αβ"; x[1]; }));
+  ASSERT(6, ({ char16_t x[] = u"αβ"; sizeof(x); }));
 
   printf("OK\n");
   return 0;
