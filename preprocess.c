@@ -736,6 +736,10 @@ static void initMacros(void) {
     defineMacro("__riscv_float_abi_double", "1");
     defineMacro("__riscv_flen", "64");
 
+    defineMacro("__STDC_UTF_16__", "1");
+    defineMacro("__STDC_UTF_32__", "1");
+
+
     addBuiltin("__FILE__", fileMacro);
     addBuiltin("__LINE__", lineMacro);
     addBuiltin("__COUNTER__", counterMacro);
