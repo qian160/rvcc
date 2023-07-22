@@ -322,6 +322,8 @@ char* tokenName(Token *Tok);
 File **getInputFiles(void);
 File *newFile(char *Name, int FileNo, char *Contents);
 Token *tokenize(File *FP);
+bool isIdent1_1(uint32_t C);
+bool isIdent2_1(uint32_t C);
 
 
 /* ---------- preprocess.c ---------- */
