@@ -238,7 +238,7 @@ static void arrayInitializer2(Token **Rest, Token *Tok, Initializer *Init, int I
     *Rest = Tok;
 }
 
-// designation = ("[" const-expr "]")* "=" initializer
+// designation = ("[" const-expr "]")* "="? initializer
 // 进行指派
 static void designation(Token **Rest, Token *Tok, Initializer *Init) {
     // 多层[索引]的解析
@@ -253,8 +253,7 @@ static void designation(Token **Rest, Token *Tok, Initializer *Init) {
         arrayInitializer2(Rest, Tok, Init, I + 1);
         return;
     }
-
-    Tok = skip(Tok, "=");
+    consume(&Tok, Tok, "=");
     // 对该位置进行初始化
     initializer2(Rest, Tok, Init);
 }
