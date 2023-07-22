@@ -139,5 +139,9 @@ $rvcc -c -O -Wall -g -std=c11 -ffreestanding -fno-builtin \
     -m64 -mno-red-zone -w -o /dev/null $tmp/empty.c
 check 'ignored options'
 
+# [238] 跳过UTF-8 BOM标记
+printf '\xef\xbb\xbfxyz\n' | $rvcc -E -o- - | grep -q '^xyz'
+check 'BOM marker'
+
 
 printf "$COLOR_GREEN OK $COLOR_NONE\n"
