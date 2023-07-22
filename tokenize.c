@@ -817,6 +817,19 @@ static void convertUniversalChars(char *P) {
     *Q = '\0';
 }
 
+// 词法解析字符串字面量
+Token *tokenizeStringLiteral(Token *Tok, Type *BaseTy) {
+    Token *T;
+    if (BaseTy->Size == 2)
+        // UTF-16
+        T = readUTF16StringLiteral(Tok->Loc, Tok->Loc);
+    else
+        // UTF-32
+        T = readUTF32StringLiteral(Tok->Loc, Tok->Loc, BaseTy);
+    T->Next = Tok->Next;
+    return T;
+}
+
 // 词法分析文件
 Token *tokenizeFile(char *Path) {
     // 读取文件内容

@@ -313,6 +313,8 @@ extern StringArray IncludePaths;
 /* ---------- tokenize.c ---------- */
 // 词法分析
 Token* tokenizeFile(char* Path);
+// 词法解析字符串字面量
+Token *tokenizeStringLiteral(Token *Tok, Type *BaseTy);
 void convertPPTokens(Token *tok);
 bool equal(Token *Tok, char *Str);
 bool equal2(Token *Tok, int n, char *kw[]);
