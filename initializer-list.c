@@ -67,7 +67,7 @@
 
 
 extern Node *assign(Token **Rest, Token *Tok);
-static void _initializer(Token **Rest, Token *Tok, Initializer *Init);
+static void initializer2(Token **Rest, Token *Tok, Initializer *Init);
 static void designation(Token **Rest, Token *Tok, Initializer *Init);
 
 // 跳过多余的元素
@@ -148,17 +148,34 @@ static int arrayDesignator(Token **Rest, Token *Tok, Type *Ty) {
 
 // 计算数组初始化元素个数
 static int countArrayInitElements(Token *Tok, Type *Ty) {
-    Initializer *Dummy = newInitializer(Ty->Base, false);
-    // 项数
-    int I = 0;
+    bool First = true;
+    Initializer *Dummy = newInitializer(Ty->Base, true);
+
+    // 项数，最大项数
+    int I = 0, Max = 0;
 
     // 遍历所有匹配的项
-    for (; !consumeEnd(&Tok, Tok); I++) {
-        if (I > 0)
-            Tok = skip(Tok, ",");
-        _initializer(&Tok, Tok, Dummy);
+    while (!consumeEnd(&Tok, Tok)) {
+        if (!First)
+        Tok = skip(Tok, ",");
+        First = false;
+
+        // 处理指派
+        if (equal(Tok, "[")) {
+            I = constExpr(&Tok, Tok->Next);
+            if (equal(Tok, "..."))
+                I = constExpr(&Tok, Tok->Next);
+            Tok = skip(Tok, "]");
+            designation(&Tok, Tok, Dummy);
+        } else {
+            initializer2(&Tok, Tok, Dummy);
+        }
+
+        I++;
+        // 当前项数与之前最大项数取最大数
+        Max = MAX(Max, I);
     }
-    return I;
+    return Max;
 }
 
 // arrayInitializer1 = "{" initializer ("," initializer)* ","? "}"
@@ -190,7 +207,7 @@ static void arrayInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
 
         // 正常解析元素
         if (I < Init->Ty->ArrayLen)
-            _initializer(&Tok, Tok, Init->Children[I]);
+            initializer2(&Tok, Tok, Init->Children[I]);
         // 跳过多余的元素
         else
             Tok = skipExcessElement(Tok);
@@ -216,7 +233,7 @@ static void arrayInitializer2(Token **Rest, Token *Tok, Initializer *Init, int I
             return;
         }
 
-        _initializer(&Tok, Tok, Init->Children[I]);
+        initializer2(&Tok, Tok, Init->Children[I]);
     }
     *Rest = Tok;
 }
@@ -239,7 +256,7 @@ static void designation(Token **Rest, Token *Tok, Initializer *Init) {
 
     Tok = skip(Tok, "=");
     // 对该位置进行初始化
-    _initializer(Rest, Tok, Init);
+    initializer2(Rest, Tok, Init);
 }
 
 // structInitializer1 = "{" initializer ("," initializer)* ","? }"
@@ -256,7 +273,7 @@ static void structInitializer1(Token **Rest, Token *Tok, Initializer *Init) {
 
         if (Mem) {
             // 处理成员
-            _initializer(&Tok, Tok, Init->Children[Mem->Idx]);
+            initializer2(&Tok, Tok, Init->Children[Mem->Idx]);
             Mem = Mem->Next;
         } else {
         // 处理多余的成员
@@ -274,7 +291,7 @@ static void structInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
         if (!First)
             Tok = skip(Tok, ",");
         First = false;
-        _initializer(&Tok, Tok, Init->Children[Mem->Idx]);
+        initializer2(&Tok, Tok, Init->Children[Mem->Idx]);
     }
     *Rest = Tok;
 }
@@ -284,13 +301,13 @@ static void structInitializer2(Token **Rest, Token *Tok, Initializer *Init) {
 static void unionInitializer(Token **Rest, Token *Tok, Initializer *Init) {
     if (equal(Tok, "{")) {
         // 存在括号的情况
-        _initializer(&Tok, Tok->Next, Init->Children[0]);
+        initializer2(&Tok, Tok->Next, Init->Children[0]);
         // ","?
         consume(&Tok, Tok, ",");
         *Rest = skip(Tok, "}");
     } else {
         // 不存在括号的情况
-        _initializer(Rest, Tok, Init->Children[0]);
+        initializer2(Rest, Tok, Init->Children[0]);
     }
 }
 
@@ -380,7 +397,7 @@ static void writeBuf(char *Buf, uint64_t Val, int Sz) {
 // unionInitializer = "{" initializer "}"
 
 // 这里往框架结构上面添加了叶子节点(assign语句)
-static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
+static void initializer2(Token **Rest, Token *Tok, Initializer *Init) {
     // 字符串字面量的初始化
     if (Init->Ty->Kind == TY_ARRAY && Tok->Kind == TK_STR) {
         stringInitializer(Rest, Tok, Init);
@@ -424,7 +441,7 @@ static void _initializer(Token **Rest, Token *Tok, Initializer *Init) {
 
     // 处理标量外的大括号，例如：int x = {3};
     if (equal(Tok, "{")) {
-        _initializer(&Tok, Tok->Next, Init);
+        initializer2(&Tok, Tok->Next, Init);
         *Rest = skip(Tok, "}");
         return;
     }
@@ -439,7 +456,7 @@ static Initializer *initializer(Token **Rest, Token *Tok, Type *Ty, Type **NewTy
     // 新建一个解析了类型的初始化器
     Initializer *Init = newInitializer(Ty, true);
     // 解析需要赋值到Init中
-    _initializer(Rest, Tok, Init);
+    initializer2(Rest, Tok, Init);
 
     // struct {char a, b[];} T;
     if ((Ty->Kind == TY_STRUCT || Ty->Kind == TY_UNION) && Ty->IsFlexible) {
