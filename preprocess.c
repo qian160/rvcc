@@ -305,8 +305,8 @@ static Token *paste(Token *LHS, Token *RHS) {
 
     // 词法解析生成的字符串，转换为相应的终结符
     Token *Tok = tokenize(newFile(LHS->File->Name, LHS->File->FileNo, Buf));
-    if (Tok->Next->Kind != TK_EOF)
-        errorTok(LHS, "pasting forms '%s', an invalid token", Buf);
+    //if (Tok->Next->Kind != TK_EOF)
+    //    errorTok(LHS, "pasting forms '%s', an invalid token", Buf);
     return Tok;
 }
 
