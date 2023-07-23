@@ -315,6 +315,21 @@ static void structInitializer2(Token **Rest, Token *Tok, Initializer *Init, Memb
 
 // unionInitializer = "{" initializer "}"
 static void unionInitializer(Token **Rest, Token *Tok, Initializer *Init) {
+    // 联合体只接受一个成员用来初始化，默认为第一个
+    // 可以通过指派，使用其他成员进行初始化
+    if (equal(Tok, "{") && equal(Tok->Next, ".")) {
+        // 获取成员
+        Member *Mem = structDesignator(&Tok, Tok->Next, Init->Ty);
+        Init->Mem = Mem;
+        // 进行指派
+        designation(&Tok, Tok, Init->Children[Mem->Idx]);
+        *Rest = skip(Tok, "}");
+        return;
+    }
+
+    // 默认将第一个成员存入初始化器的Mem
+    Init->Mem = Init->Ty->Mems;
+
     if (equal(Tok, "{")) {
         // 存在括号的情况
         initializer2(&Tok, Tok->Next, Init->Children[0]);
@@ -395,6 +410,16 @@ static void designation(Token **Rest, Token *Tok, Initializer *Init) {
         Init->Expr = NULL;
         // 进行后续初始化
         structInitializer2(Rest, Tok, Init, Mem->Next);
+        return;
+    }
+
+    // 多层联合体的解析
+    if (equal(Tok, ".") && Init->Ty->Kind == TY_UNION) {
+        // 获取成员
+        Member *Mem = structDesignator(&Tok, Tok, Init->Ty);
+        Init->Mem = Mem;
+        // 递归指派
+        designation(Rest, Tok, Init->Children[Mem->Idx]);
         return;
     }
 
@@ -591,10 +616,12 @@ static Node *createLVarInit(Initializer *Init, Type *Ty, InitDesig *Desig, Token
     }
 
     if (Ty->Kind == TY_UNION) {
+        // 存在指派初始化的成员则使用，否则默认为第一个成员
+        Member *Mem = Init->Mem ? Init->Mem : Ty->Mems;
         // Desig2存储了成员变量
-        InitDesig Desig2 = {Desig, .Mem = Ty->Mems};
+        InitDesig Desig2 = {Desig, 0, .Mem = Mem};
         // 只处理第一个成员变量
-        return createLVarInit(Init->Children[0], Ty->Mems->Ty, &Desig2, Tok);
+        return createLVarInit(Init->Children[Mem->Idx], Mem->Ty, &Desig2, Tok);
     }
 
     // 如果需要作为右值的表达式为空，则设为空表达式
@@ -651,7 +678,9 @@ static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
 
     // 处理联合体
     if (Ty->Kind == TY_UNION) {
-        return writeGVarData(Cur, Init->Children[0], Ty->Mems->Ty, Buf, Offset);
+        if (!Init->Mem)
+            return Cur;
+        return writeGVarData(Cur, Init->Children[Init->Mem->Idx], Init->Mem->Ty, Buf, Offset);
     }
 
     // 处理单精度浮点数

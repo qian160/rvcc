@@ -69,6 +69,9 @@ struct Initializer {
     // 如果是聚合类型（如数组或结构体），Children有子节点的初始化器
     // array of pointers
     Initializer **Children;
+
+    // 联合体中只有一个成员能被初始化，此处用来标记是哪个成员被初始化
+    Member *Mem;
 };
 
 // 指派初始化，用于局部变量的初始化器
