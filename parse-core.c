@@ -929,7 +929,7 @@ static Type *unionDecl(Token **Rest, Token *Tok) {
 }
 
 // 获取结构体成员
-static Member *getStructMember(Type *Ty, Token *Tok) {
+Member *getStructMember(Type *Ty, Token *Tok) {
     for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next){
         // 匿名结构体成员，可以由上一级的结构体进行访问
         if ((Mem->Ty->Kind == TY_STRUCT || Mem->Ty->Kind == TY_UNION) && !Mem->Name) {

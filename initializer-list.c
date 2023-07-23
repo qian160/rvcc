@@ -69,7 +69,7 @@
 extern Node *assign(Token **Rest, Token *Tok);
 static void initializer2(Token **Rest, Token *Tok, Initializer *Init);
 static void designation(Token **Rest, Token *Tok, Initializer *Init);
-
+extern Member *getStructMember(Type *Ty, Token *Tok);
 // 跳过多余的元素
 static Token *skipExcessElement(Token *Tok) {
     if (equal(Tok, "{")) {
@@ -241,12 +241,22 @@ static void arrayInitializer2(Token **Rest, Token *Tok, Initializer *Init, int I
 // struct-designator = "." ident
 // 结构体指派器
 static Member *structDesignator(Token **Rest, Token *Tok, Type *Ty) {
+    Token *Start = Tok;
     Tok = skip(Tok, ".");
     if (Tok->Kind != TK_IDENT)
         errorTok(Tok, "expected a field designator");
 
     // 返回所匹配的成员信息
     for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
+        // 匿名结构体成员
+        if (Mem->Ty->Kind == TY_STRUCT && !Mem->Name) {
+            if (getStructMember(Mem->Ty, Tok)) {
+                *Rest = Start;
+                return Mem;
+            }
+            continue;
+        }
+        // 常规结构体成员
         if (Mem->Name->Len == Tok->Len &&
             !strncmp(Mem->Name->Loc, Tok->Loc, Tok->Len)) {
             *Rest = Tok->Next;
