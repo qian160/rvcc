@@ -66,6 +66,7 @@ Token *newToken(TokenKind Kind, char *Start, char *End) {
     Tok->HasSpace = HasSpace;
     HasSpace = false;
     Tok->File = CurrentFile;
+    Tok->Filename = CurrentFile->DisplayName;
     return Tok;
 }
 
@@ -701,6 +702,7 @@ File *newFile(char *Name, int FileNo, char *Contents) {
     FP->Name = Name;
     FP->FileNo = FileNo;
     FP->Contents = Contents;
+    FP->DisplayName = FP->Name;
     return FP;
 }
 

@@ -78,12 +78,16 @@ struct Token {
     int Len;        // 长度
     Type *Ty;       // TK_NUM或TK_STR使用
     char *Str;      // 字符串字面量，包括'\0'
-    File *File;     // 源文件位置
-    int LineNo;     // 行号
-    bool AtBOL;     // 终结符在行首(begin of line)
-    bool HasSpace;    // 终结符前是否有空格
-    Hideset *Hideset; // 用于宏展开时的隐藏集
-    Token *Origin;    // 宏展开前的原始终结符
+
+    File *File;         // 源文件位置
+    int LineNo;         // 行号
+    char *Filename;     // 标记的文件名
+    int LineDelta;      // 标记的行号差值
+    bool AtBOL;         // 终结符在行首(begin of line)
+    bool HasSpace;      // 终结符前是否有空格
+
+    Hideset *Hideset;   // 用于宏展开时的隐藏集
+    Token *Origin;      // 宏展开前的原始终结符
 };
 
 // 文件
@@ -91,6 +95,10 @@ typedef struct File{
     char *Name;     // 文件名
     int FileNo;     // 文件编号，从1开始
     char *Contents; // 文件内容
+
+    // 用于#line指示
+    char *DisplayName; // 标记的文件名
+    int LineDelta;     // 标记的行号差值
 } File;
 
 //
