@@ -544,6 +544,15 @@ static MacroArg *findArg(MacroArg *Args, Token *Tok) {
     return NULL;
 }
 
+// 判断是否具有预处理的可变参数
+static bool hasVarArgs(MacroArg *Args) {
+    for (MacroArg *AP = Args; AP; AP = AP->Next)
+        // 判断是否存在__VA_ARGS__
+        if (!strcmp(AP->Name, "__VA_ARGS__"))
+            // 判断可变参数是否为空
+            return AP->Tok->Kind != TK_EOF;
+    return false;
+}
 
 // 将宏函数形参替换为指定的实参
 static Token *subst(Token *Tok, MacroArg *Args) {
@@ -625,6 +634,20 @@ static Token *subst(Token *Tok, MacroArg *Args) {
             *Cur = *paste(Cur, Tok->Next);
             Tok = Tok->Next->Next;
             continue;
+        }
+
+        // 如果__VA_ARGS__为空，则__VA_OPT__(x)也为空
+        // 如果__VA_ARGS__不为空，则__VA_OPT__(x)展开为x
+        if (equal(Tok, "__VA_OPT__") && equal(Tok->Next, "(")) {
+            // 读取__VA_OPT__(x)的参数x
+            MacroArg *Arg = readMacroArgOne(&Tok, Tok->Next->Next, true);
+            // 如果预处理的可变参数不为空
+            if (hasVarArgs(Args))
+                // 则__VA_OPT__(x)展开为x
+                for (Token *T = Arg->Tok; T->Kind != TK_EOF; T = T->Next)
+                    Cur = Cur->Next = T;
+                Tok = skip(Tok, ")");
+                continue;
         }
 
         // 处理宏终结符，宏实参在被替换之前已经被展开了
