@@ -326,7 +326,8 @@ File *newFile(char *Name, int FileNo, char *Contents);
 Token *tokenize(File *FP);
 bool isIdent1_1(uint32_t C);
 bool isIdent2_1(uint32_t C);
-
+// 返回在固定宽度字体中需要多少列来显示给定字符串
+int displayWidth(char *P, int Len);
 
 /* ---------- preprocess.c ---------- */
 // 预处理器入口函数

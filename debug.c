@@ -25,7 +25,7 @@ void verrorAt(char *Filename, char *Input, int LineNo, char *Loc, char *Fmt, va_
     fprintf(stderr, "%.*s\n", (int)(End - Line), Line);
 
     // 计算错误信息位置，在当前行内的偏移量+前面输出了多少个字符
-    int Pos = Loc - Line + Indent;
+    int Pos = displayWidth(Line, Loc - Line) + Indent;
 
     // 将字符串补齐为Pos位，因为是空字符串，所以填充Pos个空格。
     fprintf(stderr, "%*s", Pos, "");
