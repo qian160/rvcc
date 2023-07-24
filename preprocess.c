@@ -337,6 +337,10 @@ static Macro *addBuiltin(char *Name, macroHandlerFn *Fn) {
     return M;
 }
 
+//
+// builtins**
+//
+
 // 文件标号函数
 static Token *fileMacro(Token *Tmpl) {
     // 如果存在原始的宏，则遍历后使用原始的宏
@@ -370,6 +374,12 @@ static Token *timestampMacro(Token *Tmpl) {
     ctime_r(&St.st_mtime, Buf);
     Buf[24] = '\0';
     return newStrToken(Buf, Tmpl);
+}
+
+// 主输入文件名
+static Token *baseFileMacro(Token *Tmpl) {
+    // 将输入文件的名称进行返回
+    return newStrToken(BaseFile, Tmpl);
 }
 
 
@@ -790,6 +800,7 @@ static void initMacros(void) {
     addBuiltin("__LINE__", lineMacro);
     addBuiltin("__COUNTER__", counterMacro);
     addBuiltin("__TIMESTAMP__", timestampMacro);
+    addBuiltin("__BASE_FILE__", baseFileMacro);
 
     // 支持__DATE__和__TIME__
     time_t Now = time(NULL);
