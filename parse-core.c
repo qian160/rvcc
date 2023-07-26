@@ -211,11 +211,16 @@
 //         | "sizeof" unary
 //         | ident funcArgs?
 //         | "__builtin_types_compatible_p" "(" typeName, typeName, ")"
+//         | "_Generic" genericSelection
 //         | str
 //         | num
 //         | "sizeof" "(typeName)"
 //         | "_Alignof" unary
 //         | "_Alignof" "(" typeName ")"
+//
+// genericSelection = "(" assign "," genericAssoc ("," genericAssoc)* ")"
+// genericAssoc = typeName ":" assign
+//              | "default" ":" assign
 
 // typeName = declspec abstractDeclarator
 // abstractDeclarator = "*"* ("(" abstractDeclarator ")")? typeSuffix
@@ -2101,12 +2106,71 @@ static Type *typename(Token **Rest, Token *Tok) {
     return abstractDeclarator(Rest, Tok, Ty);
 }
 
+// genericSelection = "(" assign "," genericAssoc ("," genericAssoc)* ")"
+//
+// genericAssoc = typeName ":" assign
+//              | "default" ":" assign
+// 泛型选择
+static Node *genericSelection(Token **Rest, Token *Tok) {
+    Token *Start = Tok;
+    // "("
+    Tok = skip(Tok, "(");
+
+    // assign
+    // 泛型控制选择的值
+    Node *Ctrl = assign(&Tok, Tok);
+    addType(Ctrl);
+
+    // 获取控制选择的值类型
+    Type *T1 = Ctrl->Ty;
+    // 函数转换为函数指针
+    if (T1->Kind == TY_FUNC)
+        T1 = pointerTo(T1);
+    // 数组转换为数组指针
+    else if (T1->Kind == TY_ARRAY)
+        T1 = pointerTo(T1->Base);
+
+    // 泛型返回的结果值
+    Node *Ret = NULL;
+
+    // "," genericAssoc ("," genericAssoc)*
+    while (!consume(Rest, Tok, ")")) {
+        Tok = skip(Tok, ",");
+
+        // 默认类型及其对应的值
+        // "default" ":" assign
+        if (equal(Tok, "default")) {
+            Tok = skip(Tok->Next, ":");
+            Node *Nd = assign(&Tok, Tok);
+            if (!Ret)
+                Ret = Nd;
+            continue;
+        }
+
+        // 各个类型及其对应的值
+        // typeName ":" assign
+        Type *T2 = typename(&Tok, Tok);
+        Tok = skip(Tok, ":");
+        Node *Nd = assign(&Tok, Tok);
+        // 判断类型是否与控制选择的值类型相同
+        if (isCompatible(T1, T2))
+            Ret = Nd;
+    }
+
+    if (!Ret)
+        errorTok(Start, "controlling expression type not compatible with"
+                        " any generic association type");
+    // 返回泛型最后的值
+    return Ret;
+}
+
 
 // 解析括号、数字
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" unary
 //         | "__builtin_types_compatible_p" "(" typeName, typeName, ")"
+//         | "_Generic" genericSelection
 //         | ident
 //         | str
 //         | num
@@ -2193,6 +2257,11 @@ static Node *primary(Token **Rest, Token *Tok) {
         // 返回二者兼容检查函数的结果
         return newNum(isCompatible(T1, T2), Start);
     }
+
+    // "_Generic" genericSelection
+    // 进入到泛型的解析
+    if (equal(Tok, "_Generic"))
+        return genericSelection(Rest, Tok->Next);
 
     // ident
     if (Tok->Kind == TK_IDENT) {
