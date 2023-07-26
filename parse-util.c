@@ -159,7 +159,7 @@ bool isTypename(Token *Tok)
         {"typedef", "char", "int", "struct", "union", 
             "long", "short", "void", "_Bool", "enum", "float", "double",
             "static", "extern", "_Alignas", "signed", "unsigned",
-            "const", "volatile", "auto", "register", 
+            "const", "volatile", "auto", "register", "typeof",
             "restrict", "__restrict", "__restrict__", "_Noreturn",
         };
 

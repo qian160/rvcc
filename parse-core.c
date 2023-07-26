@@ -133,7 +133,7 @@
 //              | "typedef" | "static"
 //              | "signed" | "unsigned"
 //              | structDecl | unionDecl | typedefName
-//              | enumSpecifier
+//              | enumSpecifier | typeofSpecifier
 //              | "const" | "volatile" | "auto" | "register" | "restrict"
 //              | "__restrict" | "__restrict__" | "_Noreturn")+
 
@@ -226,6 +226,7 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy, VarAttr *Attr);
 static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr);
 static Type *typename(Token **Rest, Token *Tok);
 static Type *enumSpecifier(Token **Rest, Token *Tok);
+static Type *typeofSpecifier(Token **Rest, Token *Tok);
 static Type *structDecl(Token **Rest, Token *Tok);
 static Type *unionDecl(Token **Rest, Token *Tok);
 /*  */ Type *declarator(Token **Rest, Token *Tok, Type *Ty);   // used in parse-util...
@@ -401,7 +402,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 //              | "signed" | "unsigned"
 //              | "_Alignas" ("(" typeName | constExpr ")")
 //              | structDecl | unionDecl | typedefName
-//              | enumSpecifier
+//              | enumSpecifier | typeofSpecifier
 //              | "const" | "volatile" | "auto" | "register" | "restrict"
 //              | "__restrict" | "__restrict__" | "_Noreturn")+
 // 声明的 基础类型. declaration specifiers
@@ -473,7 +474,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
 
         // 处理用户定义的类型
         Type *Ty2 = findTypedef(Tok);
-        if (equal2(Tok, 3, stringSet("struct", "union", "enum")) || Ty2) {
+        if (equal2(Tok, 4, stringSet("struct", "union", "enum", "typeof")) || Ty2) {
             if (Counter)
                 break;
 
@@ -485,6 +486,9 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
             }
             else if(equal(Tok, "enum")){
                 Ty = enumSpecifier(&Tok, Tok->Next);
+            }
+            else if (equal(Tok, "typeof")) {
+                Ty = typeofSpecifier(&Tok, Tok->Next);
             }
             else {
                 // 将类型设为类型别名指向的类型
@@ -975,6 +979,30 @@ static Node *structRef(Node *Nd, Token *Tok) {
             Ty = Mem->Ty;
     }
     return Nd;
+}
+
+// typeofSpecifier = "(" (expr | typename) ")"
+// typeof 获取对应的类型
+static Type *typeofSpecifier(Token **Rest, Token *Tok) {
+    // "("
+    Tok = skip(Tok, "(");
+
+    Type *Ty;
+    if (isTypename(Tok)) {
+        // typename
+        // 匹配到相应的类型
+        Ty = typename(&Tok, Tok);
+    } else {
+        // expr
+        // 计算表达式，然后获取表达式的类型
+        Node *Nd = expr(&Tok, Tok);
+        addType(Nd);
+        Ty = Nd->Ty;
+    }
+    // ")"
+    *Rest = skip(Tok, ")");
+    // 将获取的类型进行返回
+    return Ty;
 }
 
 // 获取枚举类型信息

@@ -336,7 +336,7 @@ static bool isKeyword(Token *Tok) {
             "struct", "union",  "typedef", "enum", 
             "extern", "sizeof", "static", "signed", "unsigned",
             "_Alignof", "_Alignas", "const", "volatile", "auto", "register", 
-            "restrict", "__restrict", "__restrict__", "_Noreturn",
+            "restrict", "__restrict", "__restrict__", "_Noreturn", "typeof",
         };
 
     return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);
