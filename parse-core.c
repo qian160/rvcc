@@ -210,10 +210,12 @@
 //         | "(" expr ")"
 //         | "sizeof" unary
 //         | ident funcArgs?
+//         | "__builtin_types_compatible_p" "(" typeName, typeName, ")"
 //         | str
 //         | num
 //         | "sizeof" "(typeName)"
 //         | "_Alignof" unary
+//         | "_Alignof" "(" typeName ")"
 
 // typeName = declspec abstractDeclarator
 // abstractDeclarator = "*"* ("(" abstractDeclarator ")")? typeSuffix
@@ -2028,8 +2030,7 @@ static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
         addType(Arg);
         if (ParamTy) {
             // simple arg type check
-            if(Arg->Ty->Kind != ParamTy->Kind && OptW &&
-                (Arg->Ty->Kind != TY_ARRAY && ParamTy->Kind != TY_PTR))
+            if (OptW && !isCompatible(Arg->Ty, ParamTy))
                 warnTok(Tok, "type mismatch here. expected \"%s\" but get \"%s\"\n", types[ParamTy->Kind], types[Arg->Ty->Kind]);
             if (ParamTy->Kind != TY_STRUCT && ParamTy->Kind != TY_UNION)
                 // 将参数节点的类型进行转换
@@ -2105,6 +2106,7 @@ static Type *typename(Token **Rest, Token *Tok) {
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
 //         | "sizeof" unary
+//         | "__builtin_types_compatible_p" "(" typeName, typeName, ")"
 //         | ident
 //         | str
 //         | num
@@ -2114,6 +2116,7 @@ static Type *typename(Token **Rest, Token *Tok) {
 static Node *primary(Token **Rest, Token *Tok) {
     // this needs to be parsed before "(" expr ")", otherwise the "(" will be consumed
     // "(" "{" stmt+ "}" ")"
+    Token *Start = Tok;
     if (equal(Tok, "(") && equal(Tok->Next, "{")) {
         // This is a GNU statement expresssion.
         Node *Nd = newNode(ND_STMT_EXPR, Tok);
@@ -2132,7 +2135,6 @@ static Node *primary(Token **Rest, Token *Tok) {
     // "sizeof" "(" typeName ")"
     // sizeof (int **(*[6])[6])[6][6]
     if (equal(Tok, "sizeof") && equal(Tok->Next, "(") && isTypename(Tok->Next->Next)) {
-        Token *Start = Tok;
         Type *Ty = typename(&Tok, Tok->Next->Next);
         *Rest = skip(Tok, ")");
         return newULong(Ty->Size, Start);
@@ -2176,6 +2178,20 @@ static Node *primary(Token **Rest, Token *Tok) {
         Node *Nd = unary(Rest, Tok->Next);
         addType(Nd);
         return newULong(Nd->Ty->Align, Tok);
+    }
+
+    // "__builtin_types_compatible_p" "(" typeName, typeName, ")"
+    // 匹配内建的类型兼容性函数
+    if (equal(Tok, "__builtin_types_compatible_p")) {
+        Tok = skip(Tok->Next, "(");
+        // 类型1
+        Type *T1 = typename(&Tok, Tok);
+        Tok = skip(Tok, ",");
+        // 类型2
+        Type *T2 = typename(&Tok, Tok);
+        *Rest = skip(Tok, ")");
+        // 返回二者兼容检查函数的结果
+        return newNum(isCompatible(T1, T2), Start);
     }
 
     // ident

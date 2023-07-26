@@ -243,19 +243,20 @@ typedef enum {
 } TypeKind;
 
 struct Type {
-    TypeKind Kind; // 种类
-    int Size;      // 大小, sizeof返回的值
-    int Align;     // 对齐
-    bool IsUnsigned; // 是否为无符号的
-    Type *Base;    // 基类, 指向的类型(only in effect for pointer)
-    Token *Name;   // 类型对应名称，如：变量名、函数名
-    Token *NamePos; // 名称位置
+    TypeKind Kind;      // 种类
+    int Size;           // 大小, sizeof返回的值
+    int Align;          // 对齐
+    bool IsUnsigned;    // 是否为无符号的
+    Type *Base;         // 基类, 指向的类型(only in effect for pointer)
+    Token *Name;        // 类型对应名称，如：变量名、函数名
+    Type *Origin;       // 原始类型，用于兼容性检查
+    Token *NamePos;     // 名称位置
     // 函数类型
-    Type *ReturnTy; // 函数返回的类型
-    Type *Params;   // 存储形参的链表. head.
-    Type *Next;     // 下一类型
-    int ArrayLen;   // 数组长度, 元素总个数
-    bool IsVariadic; // 是否为可变参数
+    Type *ReturnTy;     // 函数返回的类型
+    Type *Params;       // 存储形参的链表. head.
+    Type *Next;         // 下一类型
+    int ArrayLen;       // 数组长度, 元素总个数
+    bool IsVariadic;    // 是否为可变参数
     // 结构体
     Member *Mems;
     bool IsFlexible; // 是否为灵活的
@@ -377,7 +378,8 @@ Type *arrayOf(Type *Base, int Len);
 
 Type *enumType(void);
 Type *structType(void);
-
+// 判断类型是否兼容
+bool isCompatible(Type *T1, Type *T2);
 
 /* ---------- string.c ---------- */
 // 格式化后返回字符串

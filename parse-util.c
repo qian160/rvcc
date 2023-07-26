@@ -8,8 +8,6 @@ extern Obj *Globals;   // 全局变量
 // 当前函数内的goto和标签列表
 extern Node *Gotos;
 extern Node *Labels;
-// note: it is allowed to have an variable defined both in global
-// and local. on this occasion, we will use the local variable
 
 // 所有的域的链表
 extern Scope *Scp;
