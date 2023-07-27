@@ -174,6 +174,7 @@ typedef enum {
     ND_COND,        // ?:，条件运算符
     ND_NULL_EXPR,   // 空表达式
     ND_MEMZERO,     // 栈中变量清零
+    ND_ASM,         // "asm"汇编
 } NodeKind;
 
 // AST中二叉树节点
@@ -215,7 +216,8 @@ struct Node {
     // switch和case
     Node *CaseNext;
     Node *DefaultCase;
-
+    // "asm" 字符串字面量
+    char *AsmStr;
 };
 
 

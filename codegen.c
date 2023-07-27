@@ -1634,6 +1634,10 @@ static void genStmt(Node *Nd) {
             // node of type EXPR_STMT is unary
             genExpr(Nd->LHS);
             return;
+        case ND_ASM:
+            println("  # 插入的ASM代码片段");
+            println("  %s", Nd->AsmStr);
+            return;
         case ND_RETURN:
             if(Nd->LHS){
                 genExpr(Nd->LHS);

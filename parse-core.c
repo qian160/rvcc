@@ -165,6 +165,7 @@
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | compoundStmt
 //        | exprStmt
+//        | asmStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
 //        | "do" stmt "while" "(" expr ")" ";"
@@ -174,6 +175,8 @@
 //        | "switch" "(" expr ")" stmt
 //        | "case" constExpr ":" stmt
 //        | "default" ":" stmt
+
+// asmStmt = "asm" ("volatile" | "inline")* "(" stringLiteral ")"
 
 // exprStmt = expr? ";"
 // expr = assign ("," expr)?
@@ -1175,11 +1178,32 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
     return Nd;
 }
 
+// asmStmt = "asm" ("volatile" | "inline")* "(" stringLiteral ")"
+static Node *asmStmt(Token **Rest, Token *Tok) {
+    Node *Nd = newNode(ND_ASM, Tok);
+    Tok = Tok->Next;
+
+    // ("volatile" | "inline")*
+    while (equal(Tok, "volatile") || equal(Tok, "inline"))
+        Tok = Tok->Next;
+
+    // "("
+    Tok = skip(Tok, "(");
+    // stringLiteral
+    if (Tok->Kind != TK_STR || Tok->Ty->Base->Kind != TY_CHAR)
+        errorTok(Tok, "expected string literal");
+    Nd->AsmStr = Tok->Str;
+    // ")"
+    *Rest = skip(Tok->Next, ")");
+    return Nd;
+}
+
 // 解析语句
 // stmt = "return" expr? ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | compoundStmt
 //        | exprStmt
+//        | asmStmt
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "do" stmt "while" "(" expr ")" ";"
 //        | "while" "(" expr ")" stmt
@@ -1426,7 +1450,9 @@ static Node *stmt(Token **Rest, Token *Tok) {
         return Nd;
     }
 
-
+    // asmStmt
+    if (equal2(Tok, 2, stringSet("asm", "__asm__")))
+        return asmStmt(Rest, Tok);
 
     // ident ":" stmt
     // labels

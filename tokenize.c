@@ -333,7 +333,7 @@ static bool isKeyword(Token *Tok) {
         {   "return", "goto","if", "else", "for", "do","while", 
             "break", "continue", "switch", "case", "default",
             "int", "long", "short, void", "char", "_Bool", "float", "double",
-            "struct", "union",  "typedef", "enum", 
+            "struct", "union",  "typedef", "enum", "asm", "__asm__",
             "extern", "sizeof", "static", "signed", "unsigned",
             "_Alignof", "_Alignas", "const", "volatile", "auto", "register", 
             "restrict", "__restrict", "__restrict__", "_Noreturn", "typeof",
