@@ -1874,6 +1874,10 @@ void emitText(Obj *Prog) {
         if (!Fn->Body)
             continue;
 
+        // 如果未存活，就不生成static inline函数
+        if (!Fn->IsLive)
+        continue;
+
         if (Fn->IsStatic)
             println("  .local %s", Fn->Name);
         else

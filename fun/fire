@@ -1,6 +1,6 @@
 #include<stdio.h>
 #include<stdlib.h>
-// failed to compile yet, since this program will use the keyword "inline" which is not supported now
+// failed to compile yet, for some implicit declarations
 b[2080];main(j){for(;;){printf("\x1b[H");for(j=1;j<2080;j++)b[j]=j<
 2000?(b[j+79]+b[j+80]+b[j]+b[j-1]+b[j+81])/5:rand()%4?0:512,j<1840?
 putchar((j%80)==79?'\n':" .:*#$H@"[b[j]>>5]):0;usleep(20000);}}

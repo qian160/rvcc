@@ -129,6 +129,11 @@ struct Obj {
     Obj *VaArea;     // 可变参数区域
     // 结构体类型
     bool IsHalfByStack; // 一半用寄存器，一半用栈
+    // 静态内联函数
+    bool IsLive;        // 函数是否存活
+    bool IsRoot;        // 是否为根函数
+    StringArray Refs;   // 引用的函数记录
+
 };
 
 // AST的节点种类
