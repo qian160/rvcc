@@ -46,6 +46,7 @@ typedef struct {
     bool IsTypedef; // 是否为类型别名
     bool IsStatic;  // 是否为文件域内
     bool IsExtern;  // 是否为外部变量
+    bool IsInline;  // 是否为内联
     int Align;      // 对齐量, 通过_Alignas手动设置
 } VarAttr;
 

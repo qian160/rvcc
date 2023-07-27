@@ -130,7 +130,7 @@
 // program = (functionDefination | global-variables)*
 // functionDefinition = declspec declarator compoundStmt*
 // declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
-//              | "typedef" | "static"
+//              | "typedef" | "static" | "extern" | "inline"
 //              | "signed" | "unsigned"
 //              | structDecl | unionDecl | typedefName
 //              | enumSpecifier | typeofSpecifier
@@ -347,7 +347,8 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
         errorTok(Ty->NamePos, "function name omitted");
     // functions are also global variables
     Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
-    Fn->IsStatic = Attr->IsStatic;
+    Fn->IsStatic = Attr->IsStatic || (Attr->IsInline && !Attr->IsExtern);
+    Fn->IsInline = Attr->IsInline;
     Fn->IsDefinition = consume(&Tok, Tok, ";");
     // no function body, just a defination
     if(Fn->IsDefinition)
@@ -408,7 +409,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 
 
 // declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
-//              | "typedef" | "static" | "extern"
+//              | "typedef" | "static" | "extern" | "inline"
 //              | "signed" | "unsigned"
 //              | "_Alignas" ("(" typeName | constExpr ")")
 //              | structDecl | unionDecl | typedefName
@@ -439,19 +440,21 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 遍历所有类型名的Tok
     while (isTypename(Tok)) {
         // 处理typedef等关键字
-        if (equal2(Tok, 3, stringSet("static", "typedef", "extern"))) {
+        if (equal2(Tok, 4, stringSet("static", "typedef", "extern", "inline"))) {
             if (!Attr)
                 errorTok(Tok, "storage class specifier is not allowed in this context");
             if (equal(Tok, "typedef"))
                 Attr->IsTypedef = true;
             else if(equal(Tok, "static"))
                 Attr->IsStatic = true;
-            else
+            else if(equal(Tok, "extern"))
                 Attr->IsExtern = true;
+            else
+                Attr->IsInline = true;
 
-            // typedef不应与static/extern一起使用
-            if (Attr->IsTypedef && (Attr->IsStatic || Attr->IsExtern))
-                errorTok(Tok, "typedef and static/extern may not be used together");
+            // typedef不应与static/extern/inline一起使用
+            if (Attr->IsTypedef && (Attr->IsStatic || Attr->IsExtern || Attr->IsInline))
+                errorTok(Tok, "typedef and static/extern/inline may not be used together");
 
             Tok = Tok->Next;
             continue;

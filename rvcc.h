@@ -122,6 +122,7 @@ struct Obj {
     Node *Body;     // 函数体
     Obj *Locals;    // 本地变量
     int StackSize;  // 栈大小
+    bool IsInline;  // 内联
     // 全局变量
     char *InitData;  // 用于初始化的数据
     Relocation *Rel; // 指向其他全局变量的指针
