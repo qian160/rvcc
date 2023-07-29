@@ -26,6 +26,9 @@ static bool OptE;
 static bool OptV;
 // -W选项
 bool OptW;
+// common块默认生成
+bool OptFCommon = true;
+
 extern const char logo[];   // don't use char *
 
 // 临时文件区
@@ -219,6 +222,18 @@ static void parseArgs(int Argc, char **Argv) {
         // 将参数存入Idirafter
         if (!strcmp(Argv[I], "-idirafter")) {
             strArrayPush(&Idirafter, Argv[I++]);
+            continue;
+        }
+
+        // // 解析-fcommon
+        if (!strcmp(Argv[I], "-fcommon")) {
+            OptFCommon = true;
+            continue;
+        }
+
+        // 解析-fno-common
+        if (!strcmp(Argv[I], "-fno-common")) {
+            OptFCommon = false;
             continue;
         }
 

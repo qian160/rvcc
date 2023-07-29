@@ -7,6 +7,8 @@
 // some helper functions
 //
 
+// 标记是否生成common块
+extern bool OptFCommon;
 // 记录栈深度
 static int Depth;
 // 当前的函数
@@ -1828,7 +1830,7 @@ static void emitData(Obj *Prog) {
         println("  .align %d", simpleLog2(Align));
 
         // 为试探性的全局变量生成指示
-        if (Var->IsTentative) {
+        if (OptFCommon && Var->IsTentative) {
             println("  .comm %s, %d, %d", Var->Name, Var->Ty->Size, Align);
             continue;
         }
