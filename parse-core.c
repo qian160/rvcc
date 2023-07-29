@@ -124,7 +124,7 @@
 
 // ↓↑
 
-// note: a single number can match almost all the cases.
+// recursive descent
 // 越往下优先级越高
 
 // program = (functionDefination | global-variables)*
@@ -144,7 +144,7 @@
 
 // declarator = pointers ("(" ident ")" | "(" declarator ")" | ident) typeSuffix
 // pointers = ("*" ("const" | "volatile" | "restrict")*)*
-// typeSuffix = ( funcParams  | "[" arrayDimensions? "]"  typeSuffix)?
+// typeSuffix = ( funcParams  | "[" arrayDimensions? "]"  typeSuffix)? | ε
 // arrayDimensions = ("static" | "restrict")* constExpr?  typeSuffix
 
 // funcParams =  "(" "void" | (param ("," param)* "," "..." ? )? ")"
@@ -311,6 +311,7 @@ static char *types[] = {
     "double"
 };
 
+extern bool OptW;
 // 向下对齐值
 // N % Align != 0 , 即 N 未对齐时,  AlignDown(N) = AlignTo(N) - Align
 // N % Align == 0 , 即 N 已对齐时， AlignDown(N) = AlignTo(N)

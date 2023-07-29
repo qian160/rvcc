@@ -16,20 +16,12 @@ struct VarScope {
     int EnumVal;    // 枚举的值
 };
 
-__attribute__((unused))
-enum {
-    STRUCT_TAG,
-    UNION_TAG,
-    ENUM_TAG
-}tagType;
-
 // 结构体和联合体标签的域
 typedef struct TagScope TagScope;
 struct TagScope {
     TagScope *Next; // 下一标签域
     char *Name;     // struct's name
     Type *Ty;       // 域类型
-    //tagType type;
 };
 
 // 表示一个块域

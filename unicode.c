@@ -95,7 +95,7 @@ static bool inRange(uint32_t *Range, uint32_t C) {
 // C是否可以为 标识符的首字符
 bool isIdent1_1(uint32_t C) {
     // C11允许除ASCII字符外的一些字符用于标识符
-    static uint32_t Range[] = {
+    static uint32_t Range1[] = {
         '_',     '_',     'a',     'z',     'A',     'Z',     '$',     '$',
         0x00A8,  0x00A8,  0x00AA,  0x00AA,  0x00AD,  0x00AD,  0x00AF,  0x00AF,
         0x00B2,  0x00B5,  0x00B7,  0x00BA,  0x00BC,  0x00BE,  0x00C0,  0x00D6,
@@ -112,24 +112,24 @@ bool isIdent1_1(uint32_t C) {
         0xE0000, 0xEFFFD, -1,
     };
 
-    return inRange(Range, C);
+    return inRange(Range1, C);
 }
 
 // C是否可以为 标识符的非首字符
 bool isIdent2_1(uint32_t C) {
     // 这里是用于非首位的字符
-    static uint32_t Range[] = {
+    static uint32_t Range2[] = {
         '0',    '9',    '$',    '$',    0x0300, 0x036F, 0x1DC0,
         0x1DFF, 0x20D0, 0x20FF, 0xFE20, 0xFE2F, -1,
     };
 
-    return isIdent1_1(C) || inRange(Range, C);
+    return isIdent1_1(C) || inRange(Range2, C);
 }
 
 // 返回在固定宽度字体中需要多少列来显示给定字符
 static int charWidth(uint32_t C) {
     // 此范围内的字符具有零个列宽
-    static uint32_t Range1[] = {
+    static uint32_t Range3[] = {
         0x0000,  0x001F,  0x007f,  0x00a0,  0x0300,  0x036F,  0x0483,  0x0486,
         0x0488,  0x0489,  0x0591,  0x05BD,  0x05BF,  0x05BF,  0x05C1,  0x05C2,
         0x05C4,  0x05C5,  0x05C7,  0x05C7,  0x0600,  0x0603,  0x0610,  0x0615,
@@ -170,11 +170,11 @@ static int charWidth(uint32_t C) {
     };    
 
     //    若为零列宽字符则返回0
-    if (inRange(Range1, C))
+    if (inRange(Range3, C))
         return 0;
 
     // 此范围内的字符具有两个列宽
-    static uint32_t Range2[] = {
+    static uint32_t Range4[] = {
         0x1100,  0x115F,  0x2329,  0x2329,  0x232A, 0x232A, 0x2E80,  0x303E,
         0x3040,  0xA4CF,  0xAC00,  0xD7A3,  0xF900, 0xFAFF, 0xFE10,  0xFE19,
         0xFE30,  0xFE6F,  0xFF00,  0xFF60,  0xFFE0, 0xFFE6, 0x1F000, 0x1F644,
@@ -182,7 +182,7 @@ static int charWidth(uint32_t C) {
     };
 
     // 若为二列宽字符则返回2
-    if (inRange(Range2, C))
+    if (inRange(Range4, C))
         return 2;
     // 其他作为一列宽字符返回1
     return 1;

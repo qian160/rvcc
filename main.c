@@ -22,6 +22,8 @@ static bool OptS;
 static bool OptC;
 // -E选项
 static bool OptE;
+// -v选项
+static bool OptV;
 // -W选项
 bool OptW;
 extern const char logo[];   // don't use char *
@@ -44,7 +46,7 @@ static void usage(int Status) {
     fprintf(stderr, "-o     Specify the output file's name, default a.out.\n");
     fprintf(stderr, "-D     Define a macro.\n");
     fprintf(stderr, "-U     Undefine a macro.\n");
-    fprintf(stderr, "-v     Display the programs invoked by the compiler.\n");
+    fprintf(stderr, "-v     Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###   Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "\33[0m");
 
@@ -53,6 +55,7 @@ static void usage(int Status) {
 
 static void version() {
     char *str = format("\33[1;38m" "[ %s - %s] rvcc v1.14514 " "\33[0m \n", __DATE__, __TIME__);
+/*
     char *hello = format(
         "%s%s%s%s%s%s%s%s%s%s",
         color_text("H", 31),
@@ -66,10 +69,10 @@ static void version() {
         color_text("l", 91),
         color_text("d", 92)
     );
-
+    fprintf(stderr, "%s\n", hello);
+*/
     fprintf(stderr, "%s", logo);
     fprintf(stderr, "%s", str);
-    fprintf(stderr, "%s\n", hello);
     exit(0);
 }
 
@@ -144,6 +147,12 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-S
+        if (!strcmp(Argv[I], "-v")) {
+            OptV = true;
+            continue;
+        }
+
         // 解析-c
         if (!strcmp(Argv[I], "-c")) {
             OptC = true;
@@ -156,7 +165,7 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
-        // 解析-V
+        // 解析-W
         if (!strcmp(Argv[I], "-W")) {
             OptW = true;
             continue;
@@ -363,7 +372,9 @@ static char *createTmpFile(void) {
     return Path;
 }
 
+static void cc1(void);
 // 开辟子进程
+// stage2 has some problems in running sub process yet...
 static void runSubprocess(char **Argv) {
     // 打印出子进程所有的命令行参数
     if (OptHashHashHash) {
@@ -379,6 +390,54 @@ static void runSubprocess(char **Argv) {
     // Fork–exec
     if (fork() == 0) {
         // 执行文件rvcc，没有斜杠时搜索环境变量，此时会替换子进程
+
+// it seems that the fork-exec model doesn't apply to stage2/rvcc, maybe it will kill qemu
+// and try to run stage2/rvcc as a new process directly on our x86 machine , which then print some wierd messages
+
+/* small test:
+    // test.c                               // foo.c
+    int main(int argc, char **argv)         int main() 
+    {                                       {
+        execvp(argv[1], argv);                  printf("ok\n");
+        printf("unreachable");              }
+    }
+    
+    test steps:
+        riscv64-linux-gnu-gcc test.c -o test.out
+        riscv64-linux-gnu-gcc foo.c -o foo.out
+        qemu-riscv64 test.out ./a.out
+    then:
+./a.out: 1: ELF��@�8: not found
+./a.out: 1: {�iLNU: not found
+./a.out: 2: : not found
+./a.out: 3: Syntax error: "(" unexpected
+
+        */
+#ifdef _STAGE2_
+        error("todo");
+        Token *Tok = tokenizeFile(BaseFile);    // basefile = null...
+        printTokens(Tok);
+        exit(0);
+        char *name = basename(Argv[0]);
+        StringArray arr = {};
+        strArrayPush(&arr, format("%s/qemu-riscv64", RVPath));
+        strArrayPush(&arr, "-L /home/s081/riscv/sysroot");
+        strArrayPush(&arr, "stage2/rvcc");
+        int i = 0;
+        if (strncmp(name, "rvcc", 4) == 0)
+            i = i + 1;
+        while(Argv && Argv[i]){
+            strArrayPush(&arr, Argv[i++]);
+        }
+        strArrayPush(&arr, NULL);
+        trace("exec %s\n", arr.Data[0]);
+        if (strncmp(name, "rvcc", 4) == 0){
+            for(int i = 0; i < arr.Len; i++)
+                trace("%s", arr.Data[i]);
+            execvp(arr.Data[0], arr.Data);
+        }
+
+#endif
         execvp(Argv[0], Argv);
         // 如果exec函数返回，表明没有正常执行命令
         fprintf(stderr, "exec failed: %s: %s\n", Argv[0], strerror(errno));

@@ -63,7 +63,7 @@ void warnTok(Token *Tok, char *Fmt, ...) {
     verrorAt(Tok->File->Name, Tok->File->Contents, Tok->LineNo, Tok->Loc, Fmt, VA);
     va_end(VA);
 }
-
+/*
 // not so useful...
 void print_call_stack(int depth)
 {
@@ -77,7 +77,6 @@ void print_call_stack(int depth)
 
     free(symbols);
 }
-/*
 
 void error(char *fmt, ...) {
     va_list va;

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-rvcc=./target/rvcc
+rvcc=$1
 RISCV="/home/s081/riscv"
 # 创建一个临时文件夹，XXXXXX会被替换为随机字符串
 tmp=`mktemp -d /tmp/rvcc-test-XXXXXX`

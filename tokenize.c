@@ -445,7 +445,7 @@ static int readIdent(char *Start) {
 // 读取操作符, return the length
 static int readPunct(char *Ptr) {
     // 判断多字节的操作符. note: "<<=" need to be checked before <<
-    static char *Kw[] = {
+    static char *Puncts[] = {
         "<<=", ">>=", "...",    // ... is not true punct in fact. just let it to be read
         "==", "!=", "<=", ">=", "->", 
         "+=", "-=", "*=", "/=", "++", "--", 
@@ -454,9 +454,9 @@ static int readPunct(char *Ptr) {
     };
 
     // 遍历列表匹配Ptr字符串
-    for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); ++I) {
-        if (startsWith(Ptr, Kw[I]))
-            return strlen(Kw[I]);
+    for (int I = 0; I < sizeof(Puncts) / sizeof(*Puncts); ++I) {
+        if (startsWith(Ptr, Puncts[I]))
+            return strlen(Puncts[I]);
     }
 
     // 判断1字节的操作符.

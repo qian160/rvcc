@@ -14,6 +14,7 @@ objs=$(SRCS:.c=.o)
 OBJS=$(addprefix $(DST_DIR)/, $(objs))
 DEPS=$(addprefix $(DST_DIR)/, $(SRCS:.c=.d))
 LOGO=$(DST_DIR)/logo.o
+STAGE2_LOGO=stage2/logo.o
 $(shell mkdir -p $(DST_DIR))
 
 TEST_SRCS=$(wildcard test/*.c)
@@ -30,6 +31,9 @@ $(DST_DIR)/rvcc: $(OBJS) $(LOGO)
 $(LOGO): logo.S
 	@as $< -o $@
 
+$(STAGE2_LOGO): logo.S
+	@riscv64-unknown-elf-as $< -o $@
+
 (OBJS): rvcc.h
 	@echo [CC] $(basename $@)
 	@$(CC) -c $*.c -g -o $@
@@ -38,13 +42,7 @@ $(DST_DIR)/%.o: %.c rvcc.h
 	@echo [CC] $(basename $@)
 	@$(CC) -c $*.c -g -o $@
 
-# 编译测试中的每个.c文件 由于现在的rvcc功能还较弱，所以借助了一些现有编译器的功能
-# 做法是先使用系统cc预处理一遍，再把这个预处理结果交给rvcc
-# 最后再使用系统cc把刚刚产生的东西和common这个文件链接起来. 参数说明：
-# -o-将结果打印出来，-E只进行预处理，-P不输出行号信息，-C预处理时不会删除注释
 test/%.out: $(DST_DIR)/rvcc test/%.c
-#	$(CROSS-CC) -o- -E -P -C test/$*.c | $(RVCC) -c -o test/$*.o -
-#	$(CROSS-CC) -static -o $@ test/$*.o -xc test/common
 	$(RVCC) -Itest -Iinclude -c test/$*.c -o test/$*.o
 	$(CROSS-CC) -o $@ test/$*.o -xc test/common
 
@@ -53,7 +51,7 @@ test: $(TESTS)
 # default run all
 ifeq ($(all),"")
 	@for i in $^; do echo $$i; $(QEMU) -L $(RISCV)/sysroot ./$$i || exit 1; echo; done
-	@test/driver.sh ./target/rvcc
+	@test/driver.sh target/rvcc
 else
 	@$(QEMU) -L $(RISCV)/sysroot ./test/$(all).out || exit 1; echo done
 endif
@@ -63,30 +61,27 @@ test-all: test test-stage2
 
 # Stage 2
 
-# 此时构建的stage2/rvcc是RISC-V版本的，跟平台无关
-stage2/rvcc: $(objs:%=stage2/%)
-	$(CROSS-CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-# 利用stage1的rvcc去将rvcc的源代码编译为stage2的汇编文件
+# 利用stage1的rvcc去将rvcc的源代码编译为stage2的可重定位文件
 stage2/%.o: $(DST_DIR)/rvcc %.c
-	mkdir -p stage2/test
-	$(RVCC) -Itest -Iinclude -c -o $(@D)/$*.o $*.c
+	@mkdir -p stage2/test
+	@echo [RVCC] $*
+	@$(RVCC) -Itest -Iinclude -c -o $(@D)/$*.o $*.c -D_STAGE2_
 
-# stage2的汇编编译为可重定位文件
-stage2/%.o: stage2/%.s
-	$(CROSS-CC) -c stage2/$*.s -o stage2/$*.o
+# 此时构建的stage2/rvcc是RISC-V版本的，跟平台无关
+# to exec stage2/rvcc we will have to use qemu
+stage2/rvcc: $(objs:%=stage2/%) $(STAGE2_LOGO)
+	@$(CROSS-CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -D_STAGE2_
+	@echo [LD] $@
 
-# 利用stage2的rvcc去进行测试
+# 利用stage2的rvcc去进行测试. bug...
 stage2/test/%.out: stage2/rvcc test/%.c
 	mkdir -p stage2/test
-#	$(CROSS-CC) -o- -E -P -C test/$*.c | ./stage2/rvcc -c -o stage2/test/$*.o -
-	./stage2/rvcc -c -o stage2/test/$*.o test/$*.c
+	$(QEMU) -L $(RISCV)/sysroot stage2/rvcc -Itest -Iinclude -c -o stage2/test/$*.o test/$*.c
 	$(CROSS-CC) -o $@ stage2/test/$*.o -xc test/common
 
 test-stage2: $(TESTS:test/%=stage2/test/%)
-	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./stage2/rvcc
-
+	for i in $^; do echo $$i; $(QEMU) -L $(RISCV)/sysroot ./$$i || exit 1; echo; done
+	test/driver.sh stage2/rvcc $(QEMU) -L $(RISCV)/sysroot ./stage2/rvcc
 
 count:
 	@ls | grep "\.[ch]" | xargs cat | wc -l

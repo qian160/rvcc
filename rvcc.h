@@ -2,6 +2,10 @@
 
 #define __RVCC__H__ 
 
+#ifndef __GNUC__
+#define __attribute__(x)
+#endif
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -362,7 +366,6 @@ Obj *parse(Token *Tok);
 // 代码生成入口函数
 void codegen(Obj *Prog, FILE *Out);
 int alignTo(int N, int Align);
-bool OptW;
 
 /* ---------- type.c ---------- */
 // 判断是否为整型
@@ -391,17 +394,17 @@ bool isCompatible(Type *T1, Type *T2);
 
 /* ---------- string.c ---------- */
 // 格式化后返回字符串
-char *format(char *Fmt, ...);
+char *format(char *Fmt, ...) __attribute__((format(printf, 1, 2)));
 void strArrayPush(StringArray *Arr, char *S);
 // 判断字符串P是否以字符串Q结尾
 bool endsWith(char *P, char *Q);
 
 /* ---------- debug.c ---------- */
 
-void errorTok(Token *Tok, char *Fmt, ...);
-void errorAt(char *Loc, char *Fmt, ...);
+void errorTok(Token *Tok, char *Fmt, ...) __attribute__((format(printf, 2, 3)));
+void errorAt(char *Loc, char *Fmt, ...) __attribute__((format(printf, 2, 3)));;
 //void error(char *fmt, ...);
-void warnTok(Token *Tok, char *Fmt, ...);
+void warnTok(Token *Tok, char *Fmt, ...) __attribute__((format(printf, 2, 3)));
 void print_call_stack(int depth);
 //void Assert(int cond, char *fmt, ...);
 
