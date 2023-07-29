@@ -781,6 +781,14 @@ static void genAddr(Node *Nd) {
     switch (Nd->Kind){
         // 变量
         case ND_VAR:
+            // 线程局部变量
+            if (Nd->Var->IsTLS) {
+                // 计算TLS高20位地址
+                println("  lui a0, %%tprel_hi(%s)", Nd->Var->Name);
+                // 计算TLS低12位地址
+                println("  addi a0, a0, %%tprel_lo(%s)", Nd->Var->Name);
+                return;
+            }
             // 局部变量的偏移量是相对于fp的, 栈内
             if (Nd->Var->IsLocal) {
                 // li is pseudo inst for sequence of lui/addi, which
@@ -799,6 +807,7 @@ static void genAddr(Node *Nd) {
                 println("  la a0, %s", Nd->Var->Name);
             }
             return;
+
         // 解引用*
         case ND_DEREF:
             genExpr(Nd -> LHS);
@@ -1835,8 +1844,17 @@ static void emitData(Obj *Prog) {
             continue;
         }
 
+        // .data 或 .tdata 段
         if (Var -> InitData){
-            println("  .data");
+            if (Var->IsTLS) {
+                // a：可加载执行
+                // w：可写
+                // T：线程局部的
+                // progbits：包含程序数据
+                println("  .section .tdata,\"awT\",@progbits");
+            } else {
+                println("  .data");
+            }
             println("%s:", Var->Name);
             Relocation *Rel = Var->Rel;
             int Pos = 0;
@@ -1863,8 +1881,16 @@ static void emitData(Obj *Prog) {
         }
         else{
             // bss段未给数据分配空间，只记录数据所需空间的大小
-            println("  # 未初始化的全局变量");
-            println("  .bss");
+            // .bss 或 .tbss 段
+            if (Var->IsTLS) {
+                // nobits：不含数据
+                println("\n  # TLS未初始化的全局变量");
+                println("  .section .tbss,\"awT\",@nobits");
+            } else {
+                println("\n  # 未初始化的全局变量");
+                println("  .bss");
+            }
+
             println("%s:", Var->Name);
             println("  # 全局变量零填充%d位", Var->Ty->Size);
             println("  .zero %d", Var->Ty->Size);

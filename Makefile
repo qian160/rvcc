@@ -43,8 +43,8 @@ $(DST_DIR)/%.o: %.c rvcc.h
 	@$(CC) -c $*.c -g -o $@
 
 test/%.out: $(DST_DIR)/rvcc test/%.c
-	$(RVCC) -Itest -Iinclude -c test/$*.c -o test/$*.o
-	$(CROSS-CC) -o $@ test/$*.o -xc test/common
+	$(RVCC) -Itest -Iinclude -I$(RISCV)/sysroot/usr/include -c test/$*.c -o test/$*.o
+	$(CROSS-CC) -pthread -o $@ test/$*.o -xc test/common
 
 # usage: make test -jx all=xx
 test: $(TESTS)
@@ -77,7 +77,7 @@ stage2/rvcc: $(objs:%=stage2/%) $(STAGE2_LOGO)
 stage2/test/%.out: stage2/rvcc test/%.c
 	mkdir -p stage2/test
 	$(QEMU) -L $(RISCV)/sysroot stage2/rvcc -Itest -Iinclude -c -o stage2/test/$*.o test/$*.c
-	$(CROSS-CC) -o $@ stage2/test/$*.o -xc test/common
+	$(CROSS-CC) -pthread -o $@ stage2/test/$*.o -xc test/common
 
 test-stage2: $(TESTS:test/%=stage2/test/%)
 	for i in $^; do echo $$i; $(QEMU) -L $(RISCV)/sysroot ./$$i || exit 1; echo; done

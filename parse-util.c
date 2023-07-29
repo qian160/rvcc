@@ -159,6 +159,7 @@ bool isTypename(Token *Tok)
             "static", "extern", "_Alignas", "signed", "unsigned",
             "const", "volatile", "auto", "register", "typeof", "inline",
             "restrict", "__restrict", "__restrict__", "_Noreturn",
+            "__thread", "_Thread_local",
         };
 
     return equal2(Tok, sizeof(types) / sizeof(*types), types) || findTypedef(Tok);
@@ -302,16 +303,16 @@ Token *globalVariable(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 
         // 全局变量初始化
         Obj *Var = newGVar(getIdent(Ty->Name), Ty);
-        // 是否具有定义
         Var->IsDefinition = !Attr->IsExtern;
         Var->IsStatic = Attr->IsStatic;
+        Var->IsTLS = Attr->IsTLS;
         // 若有设置，则覆盖全局变量的对齐值
         if (Attr->Align)
             Var->Align = Attr->Align;
 
         if (equal(Tok, "="))
             GVarInitializer(&Tok, Tok->Next, Var);
-        else if (!Attr->IsExtern)
+        else if (!Attr->IsExtern && !Attr->IsTLS)
             // 没有初始化器的全局变量设为试探性的
             Var->IsTentative = true;
 

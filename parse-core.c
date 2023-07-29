@@ -131,6 +131,7 @@
 // functionDefinition = declspec declarator compoundStmt*
 // declspec = ("int" | "char" | "long" | "short" | "void" | "_Bool"
 //              | "typedef" | "static" | "extern" | "inline"
+//              | "_Thread_local" | "__thread"
 //              | "signed" | "unsigned"
 //              | structDecl | unionDecl | typedefName
 //              | enumSpecifier | typeofSpecifier
@@ -443,6 +444,7 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 
 // declspec = ("int" | "char" | "long" | "short" | "void"  | "_Bool"
 //              | "typedef" | "static" | "extern" | "inline"
+//              | "_Thread_local" | "__thread"
 //              | "signed" | "unsigned"
 //              | "_Alignas" ("(" typeName | constExpr ")")
 //              | structDecl | unionDecl | typedefName
@@ -473,7 +475,7 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
     // 遍历所有类型名的Tok
     while (isTypename(Tok)) {
         // 处理typedef等关键字
-        if (equal2(Tok, 4, stringSet("static", "typedef", "extern", "inline"))) {
+        if (equal2(Tok, 6, stringSet("static", "typedef", "extern", "inline", "__thread", "_Thread_local"))) {
             if (!Attr)
                 errorTok(Tok, "storage class specifier is not allowed in this context");
             if (equal(Tok, "typedef"))
@@ -482,12 +484,14 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
                 Attr->IsStatic = true;
             else if(equal(Tok, "extern"))
                 Attr->IsExtern = true;
-            else
+            else if(equal(Tok, "inline"))
                 Attr->IsInline = true;
+            else
+                Attr->IsTLS = true;
 
-            // typedef不应与static/extern/inline一起使用
-            if (Attr->IsTypedef && (Attr->IsStatic || Attr->IsExtern || Attr->IsInline))
-                errorTok(Tok, "typedef and static/extern/inline may not be used together");
+            // typedef不应与static/extern/inline/__thread/_Thread_local一起使用
+            if (Attr->IsTypedef && (Attr->IsStatic || Attr->IsExtern || Attr->IsInline || Attr->IsTLS))
+                errorTok(Tok, "typedef and static/extern/inline/__thread/_Thread_local may not be used together");
 
             Tok = Tok->Next;
             continue;

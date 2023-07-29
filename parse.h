@@ -39,6 +39,7 @@ typedef struct {
     bool IsStatic;  // 是否为文件域内
     bool IsExtern;  // 是否为外部变量
     bool IsInline;  // 是否为内联
+    bool IsTLS;     // 是否为线程局部存储，Thread Local Storage
     int Align;      // 对齐量, 通过_Alignas手动设置
 } VarAttr;
 

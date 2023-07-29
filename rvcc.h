@@ -132,6 +132,7 @@ struct Obj {
     Relocation *Rel;    // 指向其他全局变量的指针
     Obj *VaArea;        // 可变参数区域
     bool IsTentative;   // 是否为试探性的变量
+    bool IsTLS;         // 是否为线程局部存储，Thread Local Storage
     // 结构体类型
     bool IsHalfByStack; // 一半用寄存器，一半用栈
     // 静态内联函数

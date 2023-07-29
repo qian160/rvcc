@@ -337,6 +337,7 @@ static bool isKeyword(Token *Tok) {
             "extern", "sizeof", "static", "signed", "unsigned",
             "_Alignof", "_Alignas", "const", "volatile", "auto", "register", 
             "restrict", "__restrict", "__restrict__", "_Noreturn", "typeof",
+            "_Thread_local", "__thread",
         };
 
     return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);
