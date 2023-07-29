@@ -234,4 +234,8 @@ echo 'int x;' > $tmp/foo.c
 $rvcc -c -x assembler -x none -o $tmp/foo.o $tmp/foo.c
 check '-x none'
 
+# [270] 使-E包含-xc
+echo foo | $rvcc -E - | grep -q foo
+check -E
+
 printf "$COLOR_GREEN OK $COLOR_NONE\n"
