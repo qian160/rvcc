@@ -358,6 +358,8 @@ Token *preprocess(Token *Tok);
 // used in -D option
 void define(char *Str);
 void undefine(char *Name);
+// 搜索引入路径区
+char *searchIncludePaths(char *Filename);
 
 /* ---------- parse.c ---------- */
 // 语法解析入口函数
