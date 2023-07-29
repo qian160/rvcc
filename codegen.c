@@ -1827,6 +1827,12 @@ static void emitData(Obj *Prog) {
                         : Var->Align;
         println("  .align %d", simpleLog2(Align));
 
+        // 为试探性的全局变量生成指示
+        if (Var->IsTentative) {
+            println("  .comm %s, %d, %d", Var->Name, Var->Ty->Size, Align);
+            continue;
+        }
+
         if (Var -> InitData){
             println("  .data");
             println("%s:", Var->Name);
@@ -1862,7 +1868,6 @@ static void emitData(Obj *Prog) {
             println("  .zero %d", Var->Ty->Size);
         }
     }
-
 }
 
 

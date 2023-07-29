@@ -311,6 +311,10 @@ Token *globalVariable(Token *Tok, Type *BaseTy, VarAttr *Attr) {
 
         if (equal(Tok, "="))
             GVarInitializer(&Tok, Tok->Next, Var);
+        else if (!Attr->IsExtern)
+            // 没有初始化器的全局变量设为试探性的
+            Var->IsTentative = true;
+
     }
     return Tok;
 }

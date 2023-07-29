@@ -128,9 +128,10 @@ struct Obj {
     int StackSize;  // 栈大小
     bool IsInline;  // 内联
     // 全局变量
-    char *InitData;  // 用于初始化的数据
-    Relocation *Rel; // 指向其他全局变量的指针
-    Obj *VaArea;     // 可变参数区域
+    char *InitData;     // 用于初始化的数据
+    Relocation *Rel;    // 指向其他全局变量的指针
+    Obj *VaArea;        // 可变参数区域
+    bool IsTentative;   // 是否为试探性的变量
     // 结构体类型
     bool IsHalfByStack; // 一半用寄存器，一半用栈
     // 静态内联函数
