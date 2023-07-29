@@ -36,6 +36,17 @@ extern const char logo[];   // don't use char *
 // 临时文件区
 static StringArray TmpFiles;
 
+// 文件类型
+typedef enum {
+    FILE_NONE, // 空类型
+    FILE_C,    // C语言源代码类型
+    FILE_ASM,  // 汇编代码类型
+    FILE_OBJ   // 可重定位文件类型
+} FileType;
+
+// -x选项
+static FileType OptX;
+
 // 输出程序的使用说明
 static void usage(int Status) {
     fprintf(stderr, "\33[1;98m" "usage: rvcc [ -o <path> ] <file> 🙂\n" "\33[3m");
@@ -94,7 +105,7 @@ static void addDefaultIncludePaths(char *Argv0) {
 
 // 判断需要一个参数的选项，是否具有一个参数
 static bool takeArg(char *Arg) {
-    char *X[] = {"-o", "-I", "-idirafter", "-include"};
+    char *X[] = {"-o", "-I", "-idirafter", "-include", "-x"};
 
     for (int I = 0; I < sizeof(X) / sizeof(*X); I++)
         if (!strcmp(Arg, X[I]))
@@ -102,6 +113,19 @@ static bool takeArg(char *Arg) {
     return false;
 }
 
+// 解析-x选项
+static FileType parseOptX(char *S) {
+    // -xc，解析为C语言源代码
+    if (!strcmp(S, "c"))
+        return FILE_C;
+    // -xassembler，解析为汇编源代码
+    if (!strcmp(S, "assembler"))
+        return FILE_ASM;
+    // -xnone，解析为空类型
+    if (!strcmp(S, "none"))
+        return FILE_NONE;
+    error("<command line>: unknown argument for -x: %s", S);
+}
 // 解析传入程序的参数
 static void parseArgs(int Argc, char **Argv) {
     // 确保需要一个参数的选项，存在一个参数
@@ -181,6 +205,18 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-W
         if (!strcmp(Argv[I], "-W")) {
             OptW = true;
+            continue;
+        }
+
+        // 解析-x
+        if (!strcmp(Argv[I], "-x")) {
+            OptX = parseOptX(Argv[++I]);
+            continue;
+        }
+
+        // 解析-x
+        if (!strncmp(Argv[I], "-x", 2)) {
+            OptX = parseOptX(Argv[I] + 2);
             continue;
         }
 
@@ -678,6 +714,26 @@ static void runLinker(StringArray *Inputs, char *Output) {
     runSubprocess(Arr.Data);
 }
 
+// 获取文件的类型
+static FileType getFileType(char *Filename) {
+    // 以.o结尾的文件，解析为空重定位文件类型
+    if (endsWith(Filename, ".o"))
+        return FILE_OBJ;
+
+    // 若-x指定了不为空的类型，使用该类型
+    if (OptX != FILE_NONE)
+        return OptX;
+
+    // 以.c结尾的文件，解析为C语言源代码类型
+    if (endsWith(Filename, ".c"))
+        return FILE_C;
+    // 以.s结尾的文件，解析为汇编类型
+    if (endsWith(Filename, ".s"))
+        return FILE_ASM;
+
+    error("<command line>: unknown file extension: %s", Filename);
+}
+
 int main(int Argc, char **Argv) {
     // 在程序退出时，执行cleanup函数
     atexit(cleanup);
@@ -712,15 +768,17 @@ int main(int Argc, char **Argv) {
         else
             Output = replaceExtn(Input, ".o");
 
+        FileType Ty = getFileType(Input);
+
         // 处理.o文件
-        if (endsWith(Input, ".o")) {
+        if (Ty == FILE_OBJ) {
             // 存入链接器选项中
             strArrayPush(&LdArgs, Input);
             continue;
         }
 
         // 处理.s文件
-        if (endsWith(Input, ".s")) {
+        if (Ty == FILE_ASM) {
             // 如果没有指定-S，那么需要进行汇编
             if (!OptS)
                 assemble(Input, Output);
@@ -728,8 +786,7 @@ int main(int Argc, char **Argv) {
         }
 
         // 处理.c文件
-//        if (!endsWith(Input, ".c") && strcmp(Input, "-"))
-//            error("unknown file extension: %s", Input);
+        Assert(Ty == FILE_C, "unknown file extension: %s", Input);
 
         // 只进行解析
         if (OptE) {
