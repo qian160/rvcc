@@ -120,7 +120,7 @@ Node *newVarNode(Obj* Var, Token *Tok);
 Node *newCast(Node *Expr, Type *Ty);
 Node *newLong(int64_t Val, Token *Tok);
 Node *newULong(long Val, Token *Tok);
-
+Node *newAlloca(Node *Sz);
 // ---------- initializer-list ----------
 
 Node *LVarInitializer(Token **Rest, Token *Tok, Obj *Var);
@@ -130,3 +130,6 @@ void GVarInitializer(Token **Rest, Token *Tok, Obj *Var);
 void resolveGotoLabels(void);
 bool isEnd(Token *Tok);
 bool consumeEnd(Token **Rest, Token *Tok);
+Node *computeVLASize(Type *Ty, Token *Tok);
+bool isConstExpr(Node *Nd);
+void declareBuiltinFunctions(void);

@@ -12,6 +12,8 @@ extern Node *Labels;
 // 所有的域的链表
 extern Scope *Scp;
 
+static Obj *BuiltinAlloca;
+
 // 进入域
 // insert from head，后来加入的会先被移除出去。 其实也就是越深的作用域存活时间越短
 void enterScope(void) {
@@ -383,7 +385,6 @@ bool consumeEnd(Token **Rest, Token *Tok) {
 }
 
 static int64_t evalRVal(Node *Nd, char **Label);
-
 int64_t eval2(Node *Nd, char **Label);
 
 // 解析浮点表达式
@@ -568,6 +569,52 @@ int64_t constExpr(Token **Rest, Token *Tok) {
     return eval(Nd);
 }
 
+// 判断是否为常量表达式
+bool isConstExpr(Node *Nd) {
+    addType(Nd);
+
+    switch (Nd->Kind) {
+        case ND_ADD:
+        case ND_SUB:
+        case ND_MUL:
+        case ND_DIV:
+        case ND_BITAND:
+        case ND_BITOR:
+        case ND_BITXOR:
+        case ND_SHL:
+        case ND_SHR:
+        case ND_EQ:
+        case ND_NE:
+        case ND_LT:
+        case ND_LE:
+        case ND_LOGAND:
+        case ND_LOGOR:
+            // 左部右部 都为常量表达式时 为真
+            return isConstExpr(Nd->LHS) && isConstExpr(Nd->RHS);
+        case ND_COND:
+            // 条件不为常量表达式时 为假
+            if (!isConstExpr(Nd->Cond))
+                return false;
+            // 条件为常量表达式时，判断相应分支语句是否为真
+            return isConstExpr(eval(Nd->Cond) ? Nd->Then : Nd->Els);
+        case ND_COMMA:
+            // 判断逗号最右表达式是否为 常量表达式
+            return isConstExpr(Nd->RHS);
+        case ND_NEG:
+        case ND_NOT:
+        case ND_BITNOT:
+        case ND_CAST:
+            // 判断左部是否为常量表达式
+            return isConstExpr(Nd->LHS);
+        case ND_NUM:
+            // 数字恒为常量表达式
+            return true;
+        default:
+            // 其他情况默认为假
+            return false;
+    }
+}
+
 uint32_t simpleLog2(uint32_t v){ 
     Assert((v & (v-1)) == 0, "wrong value: %d", v);
     static const uint32_t b[] = {0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0, 0xFF00FF00, 0xFFFF0000}; 
@@ -576,4 +623,52 @@ uint32_t simpleLog2(uint32_t v){
     // unroll for speed... 
             r |= ((v & b[i]) != 0) << i;
     return r;
+}
+
+// 生成代码计算VLA的大小
+Node *computeVLASize(Type *Ty, Token *Tok) {
+    // 空表达式
+    Node *Nd = newNode(ND_NULL_EXPR, Tok);
+
+    // 处理指针的基部
+    if (Ty->Base)
+        Nd = newBinary(ND_COMMA, Nd, computeVLASize(Ty->Base, Tok), Tok);
+
+    // 如果都不是VLA，则返回空表达式
+    if (Ty->Kind != TY_VLA)
+        return Nd;
+
+    // 基类的大小
+    Node *BaseSz;
+    if (Ty->Base->Kind == TY_VLA)
+        // 指向的是VLA
+        BaseSz = newVarNode(Ty->Base->VLASize, Tok);
+    else
+        // 本身是VLA
+        BaseSz = newNum(Ty->Base->Size, Tok);
+
+    Ty->VLASize = newLVar("", TyULong);
+    // VLASize=VLALen*BaseSz，VLA大小=基类个数*基类大小
+    Node *Expr = newBinary(ND_ASSIGN, newVarNode(Ty->VLASize, Tok),
+                            newBinary(ND_MUL, Ty->VLALen, BaseSz, Tok), Tok);
+    return newBinary(ND_COMMA, Nd, Expr, Tok);
+}
+
+// 声明内建函数
+void declareBuiltinFunctions(void) {
+    // 处理alloca函数
+    Type *Ty = funcType(pointerTo(TyVoid));
+    Ty->Params = copyType(TyInt);
+    BuiltinAlloca = newGVar("alloca", Ty);
+    BuiltinAlloca->IsDefinition = false;
+}
+
+// 根据相应Sz，新建一个Alloca函数
+Node *newAlloca(Node *Sz) {
+    Node *Nd = newUnary(ND_FUNCALL, newVarNode(BuiltinAlloca, Sz->Tok), Sz->Tok);
+    Nd->FuncType = BuiltinAlloca->Ty;
+    Nd->Ty = BuiltinAlloca->Ty->ReturnTy;
+    Nd->Args = Sz;
+    addType(Sz);
+    return Nd;
 }

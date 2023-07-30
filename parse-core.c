@@ -295,6 +295,7 @@ static char *ContLabel;
 static Node *CurrentSwitch;
 // 记录这些标签名、节点是为了在后续递归解析相关语句的时候能拿来给节点赋值。同时也可以防止stray现象
 
+
 static char *types[] = {
     "int",
     "ptr",
@@ -309,7 +310,8 @@ static char *types[] = {
     "bool",
     "enum",
     "float",
-    "double"
+    "double",
+    "VLA",
 };
 
 extern bool OptW;
@@ -799,10 +801,15 @@ static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
         }
         // 有数组维数的情况
         else{
-            int64_t Sz = constExpr(&Tok, Tok);  // array size
+            Node *Expr = conditional(&Tok, Tok);
             Tok = skip(Tok, "]");
             Ty = typeSuffix(Rest, Tok, Ty);
-            return arrayOf(Ty, Sz);         // recursion 
+            // 处理可变长度数组
+            if (Ty->Kind == TY_VLA || !isConstExpr(Expr))
+                return VLAOf(Ty, Expr);
+            // 处理固定长度数组
+
+            return arrayOf(Ty, eval(Expr));         // recursion 
         }
     }
 
@@ -1147,6 +1154,33 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy, VarAttr *Attr) 
                 GVarInitializer(&Tok, Tok->Next, Var);
             continue;
         }       
+
+        // 生成代码计算VLA的大小
+        // 在此生成是因为，即使Ty不是VLA，但也可能是一个指向VLA的指针
+        Cur->Next = newUnary(ND_EXPR_STMT, computeVLASize(Ty, Tok), Tok);
+        Cur = Cur->Next;
+
+        // 处理可变长度数组
+        if (Ty->Kind == TY_VLA) {
+            if (equal(Tok, "="))
+                errorTok(Tok, "variable-sized object may not be initialized");
+
+            // VLA被改写为alloca()调用
+            // 例如：`int X[N]`被改写为`Tmp = N, X = alloca(Tmp)`
+
+            // X
+            Obj *Var = newLVar(getIdent(Ty->Name), Ty);
+            // X的类型名
+            Token *Tok = Ty->Name;
+            // X = alloca(Tmp)，VLASize对应N
+            Node *Expr = newBinary(ND_ASSIGN, newVarNode(Var, Tok),
+                                    newAlloca(newVarNode(Ty->VLASize, Tok)), Tok);
+
+            // 存放在表达式语句中
+            Cur->Next = newUnary(ND_EXPR_STMT, Expr, Tok);
+            Cur = Cur->Next;
+            continue;
+        }
 
         Obj *Var = newLVar(getIdent(Ty->Name), Ty);
         // 读取是否存在变量的对齐值
@@ -2284,10 +2318,12 @@ static Node *primary(Token **Rest, Token *Tok) {
     }
 
     // "sizeof" "(" typeName ")"
-    // sizeof (int **(*[6])[6])[6][6]
     if (equal(Tok, "sizeof") && equal(Tok->Next, "(") && isTypename(Tok->Next->Next)) {
         Type *Ty = typename(&Tok, Tok->Next->Next);
         *Rest = skip(Tok, ")");
+        // sizeof 可变长度数组的大小
+        if (Ty->Kind == TY_VLA)
+            return newVarNode(Ty->VLASize, Tok);
         return newULong(Ty->Size, Start);
     }
 
@@ -2295,6 +2331,9 @@ static Node *primary(Token **Rest, Token *Tok) {
     if (equal(Tok, "sizeof")) {
         Node *Nd = unary(Rest, Tok->Next);
         addType(Nd);
+        // sizeof 可变长度数组的大小
+        if (Nd->Ty->Kind == TY_VLA)
+            return newVarNode(Nd->Ty->VLASize, Tok);
         return newULong(Nd->Ty->Size, Tok);
     }
 
@@ -2433,15 +2472,6 @@ static void scanGlobals(void) {
     // 替换为新的全局变量链表
     Cur->Next = NULL;
     Globals = Head.Next;
-}
-
-// 声明内建函数
-static void declareBuiltinFunctions(void) {
-    // 处理alloca函数
-    Type *Ty = funcType(pointerTo(TyVoid));
-    Ty->Params = copyType(TyInt);
-    Obj *BuiltinAlloca = newGVar("alloca", Ty);
-    BuiltinAlloca->IsDefinition = false;
 }
 
 // 语法解析入口函数

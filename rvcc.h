@@ -254,6 +254,7 @@ typedef enum {
     TY_ENUM,       // 枚举类型
     TY_FLOAT,      // float类型
     TY_DOUBLE,     // double类型
+    TY_VLA,        // 可变长度数组，Variable Length Array
 
 } TypeKind;
 
@@ -274,11 +275,13 @@ struct Type {
     bool IsVariadic;    // 是否为可变参数
     // 结构体
     Member *Mems;
-    bool IsFlexible; // 是否为灵活的
-    Token *Tok;      // 用于报错信息
-    Type *FSReg1Ty;  // 浮点结构体的对应寄存器
-    Type *FSReg2Ty;  // 浮点结构体的对应寄存器
-
+    bool IsFlexible;    // 是否为灵活的
+    Token *Tok;         // 用于报错信息
+    Type *FSReg1Ty;     // 浮点结构体的对应寄存器
+    Type *FSReg2Ty;     // 浮点结构体的对应寄存器
+    // 可变长度数组
+    Node *VLALen;       // VLA数组长度, 元素总个数
+    Obj *VLASize;       // VLA大小, sizeof返回的值
 };
 
 // 结构体成员
@@ -391,7 +394,8 @@ Type *copyType(Type *Ty);
 Type *copyStructType(Type *Ty);
 // 构造数组类型, 传入 数组基类, 元素个数
 Type *arrayOf(Type *Base, int Len);
-
+// 构造可变长数组类型
+Type *VLAOf(Type *Base, Node *Expr);
 Type *enumType(void);
 Type *structType(void);
 // 判断类型是否兼容
