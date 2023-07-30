@@ -1943,7 +1943,6 @@ static void emitData(Obj *Prog) {
         int Align = (Var->Ty->Kind == TY_ARRAY && Var->Ty->Size >= 16)
                         ? MAX(16, Var->Align)
                         : Var->Align;
-        println("  .align %d", simpleLog2(Align));
 
         // 为试探性的全局变量生成指示
         if (OptFCommon && Var->IsTentative) {
@@ -1962,6 +1961,11 @@ static void emitData(Obj *Prog) {
             } else {
                 println("  .data");
             }
+
+            println("  .type %s, @object", Var->Name);
+            println("  .size %s, %d", Var->Name, Var->Ty->Size);
+            println("  .align %d", simpleLog2(Align));
+
             println("%s:", Var->Name);
             Relocation *Rel = Var->Rel;
             int Pos = 0;
@@ -1998,6 +2002,7 @@ static void emitData(Obj *Prog) {
                 println("  .bss");
             }
 
+            println("  .align %d", simpleLog2(Align));
             println("%s:", Var->Name);
             println("  # 全局变量零填充%d位", Var->Ty->Size);
             println("  .zero %d", Var->Ty->Size);
@@ -2025,6 +2030,7 @@ void emitText(Obj *Prog) {
 
         println("  .text");
         println("# =====%s段开始===============", Fn->Name);
+        println("  .type %s, @function", Fn->Name);
         println("%s:", Fn->Name);
         CurrentFn = Fn;
 
