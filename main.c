@@ -11,6 +11,8 @@ static char *OutputFile;
 static StringArray InputPaths;
 // 引入路径区
 StringArray IncludePaths;
+// 链接器额外参数
+static StringArray LdExtraArgs;
 // cc1选项
 static bool OptCC1;
 // ###选项
@@ -53,17 +55,21 @@ static void usage(int Status) {
 
     fprintf(stderr, "\33[1;92m\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "--help Display this information.\n");
-    fprintf(stderr, "-E     Expand only.\n");
-    fprintf(stderr, "-W     Print warning info(with some bugs maybe...).\n");
-    fprintf(stderr, "-I     Add include path.\n");
-    fprintf(stderr, "-c     Compile and assemble(.o).\n");
-    fprintf(stderr, "-S     Compile only(.S).\n");
-    fprintf(stderr, "-o     Specify the output file's name, default a.out.\n");
-    fprintf(stderr, "-D     Define a macro.\n");
-    fprintf(stderr, "-U     Undefine a macro.\n");
-    fprintf(stderr, "-v     Display the programs invoked by the compiler.(not supported yet...)\n");
-    fprintf(stderr, "-###   Like -v but options quoted and commands not executed.\n");
+    fprintf(stderr, "--help     Display this information.\n");
+    fprintf(stderr, "-E         Expand only.\n");
+    fprintf(stderr, "-Wall      Enable all the warnings.\n");
+    fprintf(stderr, "-I         Add include path(high priority).\n");
+    fprintf(stderr, "-idirafter like -I but the priority is low.\n");
+    fprintf(stderr, "-c         Compile and assemble(.o).\n");
+    fprintf(stderr, "-S         compile only(.S).\n");
+    fprintf(stderr, "-s         Remove all symbol table and relocation information from the executable.\n");
+    fprintf(stderr, "-o         Place output in the specified file.\n");
+    fprintf(stderr, "-D         Define a macro.\n");
+    fprintf(stderr, "-U         Undefine a macro.\n");
+    fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
+    fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
+    fprintf(stderr, "-l         Search the given library when linking.\n");
+    fprintf(stderr, "-x         Specify explicitly the language for the following input files.\n");
     fprintf(stderr, "\33[0m");
 
     exit(Status);
@@ -190,6 +196,12 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-s
+        if (!strcmp(Argv[I], "-s")) {
+            strArrayPush(&LdExtraArgs, "-s");
+            continue;
+        }
+
         // 解析-c
         if (!strcmp(Argv[I], "-c")) {
             OptC = true;
@@ -203,7 +215,7 @@ static void parseArgs(int Argc, char **Argv) {
         }
 
         // 解析-W
-        if (!strcmp(Argv[I], "-W")) {
+        if (!strcmp(Argv[I], "-Wall")) {
             OptW = true;
             continue;
         }
@@ -706,6 +718,10 @@ static void runLinker(StringArray *Inputs, char *Output) {
         strArrayPush(&Arr, "-L/usr/lib");
         strArrayPush(&Arr, "-L/lib");
     }
+
+    // 链接器额外参数存入到链接器参数中
+    for (int I = 0; I < LdExtraArgs.Len; I++)
+        strArrayPush(&Arr, LdExtraArgs.Data[I]);
 
     // 输入文件，存入到链接器参数中
     for (int I = 0; I < Inputs->Len; I++)
