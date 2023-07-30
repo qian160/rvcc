@@ -262,6 +262,12 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-l
+        if (!strncmp(Argv[I], "-l", 2)) {
+            strArrayPush(&InputPaths, Argv[I]);
+            continue;
+        }
+
         // 解析-idirafter
         // 将参数存入Idirafter
         if (!strcmp(Argv[I], "-idirafter")) {
@@ -706,7 +712,6 @@ static void runLinker(StringArray *Inputs, char *Output) {
         strArrayPush(&Arr, Inputs->Data[I]);
 
     strArrayPush(&Arr, "-lc");
-    strArrayPush(&Arr, "-lm");  // temp
     strArrayPush(&Arr, "-lgcc");
     strArrayPush(&Arr, "--as-needed");
     strArrayPush(&Arr, "-lgcc_s");
@@ -761,6 +766,13 @@ int main(int Argc, char **Argv) {
     // 遍历每个输入文件
     for (int I = 0; I < InputPaths.Len; I++) {
         char *Input = InputPaths.Data[I];
+
+        // 链接时搜索指定的库文件
+        if (!strncmp(Input, "-l", 2)) {
+            strArrayPush(&LdArgs, Input);
+            continue;
+        }
+
         // 输出文件
         char *Output;
         // 如果指定了输出文件，则直接使用
