@@ -156,6 +156,7 @@ typedef enum {
     ND_LE,          // <=
     ND_EXPR_STMT,   // 表达式语句
     ND_STMT_EXPR,   // 语句表达式
+    ND_VLA_PTR,     // VLA指派器
     ND_VAR,         // 变量
     ND_ASSIGN,      // 赋值
     ND_NUM,         // 整形

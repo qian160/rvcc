@@ -1173,7 +1173,7 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy, VarAttr *Attr) 
             // X的类型名
             Token *Tok = Ty->Name;
             // X = alloca(Tmp)，VLASize对应N
-            Node *Expr = newBinary(ND_ASSIGN, newVarNode(Var, Tok),
+            Node *Expr = newBinary(ND_ASSIGN, newVLAPtr(Var, Tok),
                                     newAlloca(newVarNode(Ty->VLASize, Tok)), Tok);
 
             // 存放在表达式语句中

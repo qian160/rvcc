@@ -500,6 +500,7 @@ static void load(Type *Ty) {
     case TY_STRUCT:
     case TY_UNION:
     case TY_FUNC:
+    case TY_VLA:
         return;
     case TY_FLOAT:
         // 访问a0中存放的地址，取得的值存入fa0
@@ -781,6 +782,15 @@ static void genAddr(Node *Nd) {
     switch (Nd->Kind){
         // 变量
         case ND_VAR:
+            // VLA可变长度数组是局部变量
+            if (Nd->Var->Ty->Kind == TY_VLA) {
+                println("  # 为VLA生成局部变量");
+                println("  li t0, %d", Nd->Var->Offset);
+                println("  add t0, t0, fp");
+                println("  ld a0, 0(t0)");
+                return;
+            }
+
             // 线程局部变量
             if (Nd->Var->IsTLS) {
                 // 计算TLS高20位地址
@@ -833,6 +843,12 @@ static void genAddr(Node *Nd) {
                 return;
             }
             break;
+        case ND_VLA_PTR:
+            // VLA的指针
+            println("  # 生成VLA的指针");
+            println("  li t0, %d", Nd->Var->Offset);
+            println("  add a0, t0, fp");
+            return;
         default:
             error("%s: not an lvalue", strndup(Nd->Tok->Loc, Nd->Tok->Len));
             break;

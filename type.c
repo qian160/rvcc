@@ -291,6 +291,7 @@ void addType(Node *Nd) {
             return;
         // 将节点类型设为 变量的类型
         case ND_VAR:
+        case ND_VLA_PTR:
             Nd->Ty = Nd->Var->Ty;
             return;
         // 将节点类型设为 指针，并指向左部的类型

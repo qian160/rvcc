@@ -243,6 +243,13 @@ Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
         RHS = Tmp;
     }
 
+    // VLA + num
+    // 指针加法，需要num×VLASize操作
+    if (LHS->Ty->Base->Kind == TY_VLA) {
+        RHS = newBinary(ND_MUL, RHS, newVarNode(LHS->Ty->Base->VLASize, Tok), Tok);
+        return newBinary(ND_ADD, LHS, RHS, Tok);
+    }
+
     // ptr + num
     // 指针加法，ptr+1，这里的1不是1个字节，而是1个元素的空间，所以需要 ×size 操作
     // 指针用long类型存储
@@ -285,6 +292,13 @@ Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
 // 新变量
 Node *newVarNode(Obj* Var, Token *Tok) {
     Node *Nd = newNode(ND_VAR, Tok);
+    Nd->Var = Var;
+    return Nd;
+}
+
+// VLA指针
+Node *newVLAPtr(Obj *Var, Token *Tok) {
+    Node *Nd = newNode(ND_VLA_PTR, Tok);
     Nd->Var = Var;
     return Nd;
 }
