@@ -425,6 +425,10 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     if (Ty->IsVariadic)
         Fn->VaArea = newLVar("__va_area__", arrayOf(TyChar, 0));
 
+    // 记录Alloca区域底部
+    Fn->AllocaBottom = newLVar("__alloca_size__", pointerTo(TyChar));
+
+
     // __func__被定义为包含当前函数名称的局部?变量
     pushScope("__func__")->Var =
         newStringLiteral(Fn->Name, arrayOf(TyChar, strlen(Fn->Name) + 1));
@@ -2431,11 +2435,21 @@ static void scanGlobals(void) {
     Globals = Head.Next;
 }
 
+// 声明内建函数
+static void declareBuiltinFunctions(void) {
+    // 处理alloca函数
+    Type *Ty = funcType(pointerTo(TyVoid));
+    Ty->Params = copyType(TyInt);
+    Obj *BuiltinAlloca = newGVar("alloca", Ty);
+    BuiltinAlloca->IsDefinition = false;
+}
+
 // 语法解析入口函数
 // program = ( typedef | functionDefinition* | global-variable)*
 Obj *parse(Token *Tok) {
     Globals = NULL;
-
+    // 声明内建函数
+    declareBuiltinFunctions();
     // fn or gv?
     // int *** fn(){},  int**** a;
     while (Tok->Kind != TK_EOF) {

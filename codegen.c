@@ -1087,6 +1087,87 @@ static void copyStructMem(void) {
     }
 }
 
+// 开辟Alloca空间
+static void builtinAlloca(void) {
+    // 对齐需要的空间t1到16字节
+    //
+    // 加上15，然后去除最低位的十六进制数
+    println("  addi t1, t1, 15");
+    println("  andi t1, t1, -16");
+
+    // 注意t2与t1大小不定，仅为示例
+    // ----------------------------- 旧sp（AllocaBottom所存的sp）
+    // - - - - - - - - - - - - - - -
+    //  需要在此开辟大小为t1的Alloca区域
+    // - - - - - - - - - - - - - - -
+    //            ↑
+    //    t2（旧sp和新sp间的距离）
+    //            ↓
+    // ----------------------------- 新sp ← sp
+
+    // 根据t1的值，提升临时区域
+    //
+    // 加载 旧sp 到t2中
+    println("  li t0, %d", CurrentFn->AllocaBottom->Offset);
+    println("  add t0, fp, t0");
+    println("  ld t2, 0(t0)");
+    // t2=旧sp-新sp，将二者的距离存入t2
+    println("  sub t2, t2, sp");
+
+    // 保存 新sp 存入a0
+    println("  mv a0, sp");
+    // 新sp 开辟（减去）所需要的空间数，结果存入 sp
+    // 并将 新sp开辟空间后的栈顶 同时存入t3
+    println("  sub sp, sp, t1");
+    println("  mv t3, sp");
+
+    // 注意t2与t1大小不定，仅为示例
+    // ----------------------------- 旧sp（AllocaBottom所存的sp）
+    //              ↑
+    //      t2（旧sp和新sp间的距离）
+    //              ↓
+    // ----------------------------- 新sp  ← a0
+    //              ↑
+    //     t1（Alloca所需要的空间数）
+    //              ↓
+    // ----------------------------- 新新sp ← sp,t3
+
+    // 将 新sp内（底部和顶部间的）数据，复制到 新sp的顶部之上
+    println("1:");
+    // t2为0时跳转到标签2，结束复制
+    println("beqz t2, 2f");
+    // 将 新sp底部 内容复制到 新sp顶部之上
+    println("  lb t0, 0(a0)");
+    println("  sb t0, 0(t3)");
+    println("  addi a0, a0, 1");
+    println("  addi t3, t3, 1");
+    println("  addi t2, t2, -1");
+    println("  j 1b");
+    println("2:");
+
+    // 注意t2与t1大小不定，仅为示例
+    // ------------------------------ 旧sp   a0
+    //             ↑                         ↓
+    //       t1（Alloca区域）
+    //             ↓
+    // ------------------------------ 新sp ← a0
+    //             ↑
+    //  t2（旧sp和新sp间的内容，复制到此）
+    //             ↓
+    // ------------------------------ 新新sp ← sp
+
+    // 移动alloca_bottom指针
+    //
+    // 加载 旧sp 到 a0
+    println("  li t0, %d", CurrentFn->AllocaBottom->Offset);
+    println("  add t0, fp, t0");
+    println("  ld a0, 0(t0)");
+    // 旧sp 减去开辟的空间 t1
+    println("  sub a0, a0, t1");
+    // 存储a0到alloca底部地址
+    println("sd a0, 0(t0)");
+}
+
 
 // 生成表达式. after expr is generated its value will be put to a0
 static void genExpr(Node *Nd) {
@@ -1271,6 +1352,16 @@ static void genExpr(Node *Nd) {
             return;
         // 函数调用
         case ND_FUNCALL:{
+            // 对alloca函数进行处理
+            if (Nd->LHS->Kind == ND_VAR && !strcmp(Nd->LHS->Var->Name, "alloca")) {
+                // 解析alloca函数的参数，确定开辟空间的字节数
+                genExpr(Nd->Args);
+                // 将需要的字节数存入t1
+                println("  mv t1, a0");
+                // 生成Alloca函数汇编
+                builtinAlloca();
+                return;
+            }
             // 计算所有参数的值，正向压栈
             // 此处获取到栈传递参数的数量
             int StackArgs = pushArgs(Nd);
@@ -1942,7 +2033,6 @@ void emitText(Obj *Prog) {
         if (Fn->VaArea) {
             // 遍历正常参数所使用的浮点、整型寄存器
             int GPs = 0, FPs = 0;
-
             // 可变参数函数，非可变的参数使用寄存器
             for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
                 // 计算所有类型所使用的寄存器数量
@@ -2000,95 +2090,101 @@ void emitText(Obj *Prog) {
             println("  addi sp, sp, -%d", Fn->StackSize);
         else{
             println("  li t0, -%d", Fn->StackSize);
-        println("  add sp, sp, t0");
-    }
-    // map (actual params) -> (formal params)
-    // this needs to be done before entering the fn body
-    // then in the fn body we can use its formal params
-    // in stack as if they were passed from outside
+            println("  add sp, sp, t0");
+        }
 
-    // 记录整型寄存器，浮点寄存器使用的数量
-    int GP = 0, FP = 0;
-    for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
-        // 不处理栈传递的形参，栈传递一半的结构体除外
-        if (Var->Offset > 0 && !Var->IsHalfByStack)
-            continue;
-        Type *Ty = Var->Ty;
+        // Alloca函数
+        println("  # 将当前的sp值，存入到Alloca区域的底部");
+        println("  li t0, %d", Fn->AllocaBottom->Offset);
+        println("  add t0, t0, fp");
+        println("  sd sp, 0(t0)");
+        // map (actual params) -> (formal params)
+        // this needs to be done before entering the fn body
+        // then in the fn body we can use its formal params
+        // in stack as if they were passed from outside
 
-        // 正常传递的形参
-        switch (Ty->Kind) {
-            case TY_STRUCT:
-            case TY_UNION:
-                println("  # 对寄存器传递的结构体进行压栈");
-                // 处理浮点结构体
-                if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
-                    println("  # 浮点结构体的第一部分进行压栈");
-                    // 浮点结构体的第一部分，偏移量为0
-                    int Sz1 = Var->Ty->FSReg1Ty->Size;
-                    if (isFloNum(Ty->FSReg1Ty))
-                        storeFloat(FP++, Var->Offset, Sz1);
-                    else
-                        storeGeneral(GP++, Var->Offset, Sz1);
+        // 记录整型寄存器，浮点寄存器使用的数量
+        int GP = 0, FP = 0;
+        for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
+            // 不处理栈传递的形参，栈传递一半的结构体除外
+            if (Var->Offset > 0 && !Var->IsHalfByStack)
+                continue;
+            Type *Ty = Var->Ty;
 
-                    // 浮点结构体的第二部分
-                    if (Ty->FSReg2Ty->Kind != TY_VOID) {
-                        println("  # 浮点结构体的第二部分进行压栈");
-                        int Sz2 = Ty->FSReg2Ty->Size;
-                        // 结构体内偏移量为两个成员间的最大尺寸
-                        int Off = MAX(Sz1, Sz2);
-
-                        if (isFloNum(Ty->FSReg2Ty))
-                            storeFloat(FP++, Var->Offset + Off, Sz2);
+            // 正常传递的形参
+            switch (Ty->Kind) {
+                case TY_STRUCT:
+                case TY_UNION:
+                    println("  # 对寄存器传递的结构体进行压栈");
+                    // 处理浮点结构体
+                    if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                        println("  # 浮点结构体的第一部分进行压栈");
+                        // 浮点结构体的第一部分，偏移量为0
+                        int Sz1 = Var->Ty->FSReg1Ty->Size;
+                        if (isFloNum(Ty->FSReg1Ty))
+                            storeFloat(FP++, Var->Offset, Sz1);
                         else
-                            storeGeneral(GP++, Var->Offset + Off, Sz2);
+                            storeGeneral(GP++, Var->Offset, Sz1);
+
+                        // 浮点结构体的第二部分
+                        if (Ty->FSReg2Ty->Kind != TY_VOID) {
+                            println("  # 浮点结构体的第二部分进行压栈");
+                            int Sz2 = Ty->FSReg2Ty->Size;
+                            // 结构体内偏移量为两个成员间的最大尺寸
+                            int Off = MAX(Sz1, Sz2);
+
+                            if (isFloNum(Ty->FSReg2Ty))
+                                storeFloat(FP++, Var->Offset + Off, Sz2);
+                            else
+                                storeGeneral(GP++, Var->Offset + Off, Sz2);
+                        }
+                        break;
+                    }
+
+                    // 大于16字节的结构体参数，通过访问它的地址，
+                    // 将原来位置的结构体复制到栈中
+                    if (Ty->Size > 16) {
+                        println("  # 大于16字节的结构体进行压栈");
+                        storeStruct(GP++, Var->Offset, Ty->Size);
+                        break;
+                    }
+
+                    // 一半寄存器、一半栈传递的结构体
+                    if (Var->IsHalfByStack) {
+                        println("  # 一半寄存器、一半栈传递结构体进行压栈");
+                        storeGeneral(GP++, Var->Offset, 8);
+                        // 拷贝栈传递的一半结构体到当前栈中
+                        for (int I = 0; I != Var->Ty->Size - 8; ++I) {
+                            println("  lb t0, %d(fp)", 16 + I);
+                            println("  li t1, %d", Var->Offset + 8 + I);
+                            println("  add t1, fp, t1");
+                            println("  sb t0, 0(t1)");
+                        }
+                        break;
+                    }
+                    // 处理小于16字节的结构体
+                    if (Ty->Size <= 16)
+                        storeGeneral(GP++, Var->Offset, MIN(8, Ty->Size));
+                    if (Ty->Size > 8)
+                        storeGeneral(GP++, Var->Offset + 8, Ty->Size - 8);
+                    break;
+
+                case TY_FLOAT:
+                case TY_DOUBLE:
+                    // 正常传递的浮点形参
+                    if (FP < FP_MAX) {
+                        println("  # 将浮点形参%s的寄存器fa%d的值压栈", Var->Name, FP);
+                        storeFloat(FP++, Var->Offset, Var->Ty->Size);
+                    } else {
+                        println("  # 将浮点形参%s的寄存器a%d的值压栈", Var->Name, GP);
+                        storeGeneral(GP++, Var->Offset, Var->Ty->Size);
                     }
                     break;
-                }
-
-                // 大于16字节的结构体参数，通过访问它的地址，
-                // 将原来位置的结构体复制到栈中
-                if (Ty->Size > 16) {
-                    println("  # 大于16字节的结构体进行压栈");
-                    storeStruct(GP++, Var->Offset, Ty->Size);
-                    break;
-                }
-
-                // 一半寄存器、一半栈传递的结构体
-                if (Var->IsHalfByStack) {
-                    println("  # 一半寄存器、一半栈传递结构体进行压栈");
-                    storeGeneral(GP++, Var->Offset, 8);
-                    // 拷贝栈传递的一半结构体到当前栈中
-                    for (int I = 0; I != Var->Ty->Size - 8; ++I) {
-                        println("  lb t0, %d(fp)", 16 + I);
-                        println("  li t1, %d", Var->Offset + 8 + I);
-                        println("  add t1, fp, t1");
-                        println("  sb t0, 0(t1)");
-                    }
-                    break;
-                }
-                // 处理小于16字节的结构体
-                if (Ty->Size <= 16)
-                    storeGeneral(GP++, Var->Offset, MIN(8, Ty->Size));
-                if (Ty->Size > 8)
-                    storeGeneral(GP++, Var->Offset + 8, Ty->Size - 8);
-                break;
-
-            case TY_FLOAT:
-            case TY_DOUBLE:
-                // 正常传递的浮点形参
-                if (FP < FP_MAX) {
-                    println("  # 将浮点形参%s的寄存器fa%d的值压栈", Var->Name, FP);
-                    storeFloat(FP++, Var->Offset, Var->Ty->Size);
-                } else {
-                    println("  # 将浮点形参%s的寄存器a%d的值压栈", Var->Name, GP);
+                default:
+                    // 正常传递的整型形参
+                    println("  # 将整型形参%s的寄存器a%d的值压栈", Var->Name, GP);
                     storeGeneral(GP++, Var->Offset, Var->Ty->Size);
-                }
-                break;
-            default:
-                // 正常传递的整型形参
-                println("  # 将整型形参%s的寄存器a%d的值压栈", Var->Name, GP);
-                storeGeneral(GP++, Var->Offset, Var->Ty->Size);
-                break;
+                    break;
             }
         }
         // 可变参数
