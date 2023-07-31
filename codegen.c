@@ -17,6 +17,10 @@ static Obj *CurrentFn;
 static FILE *OutputFile;
 // 记录大结构体的深度
 static int BSDepth;
+// 我们将fs0～fs11两两组对形成6个寄存器对
+// 用于long double类型的存储，每次+2
+static int LDSP;
+
 /*
 void println(char *fmt, ...) {
     va_list va;
@@ -94,6 +98,27 @@ static void popF(int Reg) {
     Depth--;
 }
 
+// 对于long double类型进行压栈
+static void pushLD(void) {
+    println("  # LD压栈，将a0,a1的值存入LD栈顶");
+    println("  fmv.d.x fs%d, a1", LDSP + 1);
+    println("  fmv.d.x fs%d, a0", LDSP);
+    LDSP += 2;
+    if (LDSP > 10)
+        error("LDSP can't be larger than 10!");
+}
+
+// 对于long double类型进行弹栈
+static void popLD(int Reg) {
+    LDSP -= 2;
+    if (LDSP < 0)
+        error("LDSP can't be less than 0!");
+    println("  # LD弹栈，将LD栈顶的值存入a%d,a%d", Reg, Reg + 1);
+    println("  fmv.x.d a%d, fs%d", Reg + 1, LDSP + 1);
+    println("  fmv.x.d a%d, fs%d", Reg, LDSP);
+}
+
+
 static void genExpr(Node *Nd);
 static void genStmt(Node *Nd);
 
@@ -114,6 +139,10 @@ void getFloStMemsTy(Type *Ty, Type **RegsTy, int *Idx) {
             // 遍历数组的成员，计算是否为浮点结构体
             for (int I = 0; I < Ty->ArrayLen; ++I)
             getFloStMemsTy(Ty->Base, RegsTy, Idx);
+            return;
+        case TY_LDOUBLE:
+            // long double不是浮点结构体
+            *Idx += 2;
             return;
         default:
             // 若为基础类型，且存在可用寄存器时，填充成员的类型
@@ -146,12 +175,12 @@ void setFloStMemsTy(Type **Ty, int GP, int FP) {
         return;
 
     if ( // 只有一个浮点成员的结构体，使用1个FP
-        (isFloNum(RTy[0]) && RTy[1] == TyVoid && FP < FP_MAX) ||
+        (isSFloNum(RTy[0]) && RTy[1] == TyVoid && FP < FP_MAX) ||
         // 一个浮点成员和一个整型成员的结构体，使用1个FP和1个GP
-        (isFloNum(RTy[0]) && isInteger(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
-        (isInteger(RTy[0]) && isFloNum(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
+        (isSFloNum(RTy[0]) && isInteger(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
+        (isInteger(RTy[0]) && isSFloNum(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
         // 两个浮点成员的结构体，使用2个FP
-        (isFloNum(RTy[0]) && isFloNum(RTy[1]) && FP + 1 < FP_MAX))
+        (isSFloNum(RTy[0]) && isSFloNum(RTy[1]) && FP + 1 < FP_MAX))
     {
             T->FSReg1Ty = RTy[0];
             T->FSReg2Ty = RTy[1];
@@ -208,8 +237,8 @@ static void pushStruct(Type *Ty) {
 
     // 含有两个成员（含浮点）的结构体
     // 展开到栈内的两个8字节的空间
-    if ((isFloNum(Ty->FSReg1Ty) && Ty->FSReg2Ty != TyVoid) ||
-        isFloNum(Ty->FSReg2Ty)) {
+    if ((isSFloNum(Ty->FSReg1Ty) && Ty->FSReg2Ty != TyVoid) ||
+        isSFloNum(Ty->FSReg2Ty)) {
         println("  # 对含有两个成员（含浮点）结构体进行压栈");
         println("  addi sp, sp, -16");
         Depth += 2;
@@ -226,7 +255,7 @@ static void pushStruct(Type *Ty) {
     }
     // 处理只有一个浮点成员的结构体
     // 或者是小于16字节的结构体
-    char *Str = isFloNum(Ty->FSReg1Ty) ? "只有一个浮点" : "小于16字节";
+    char *Str = isSFloNum(Ty->FSReg1Ty) ? "只有一个浮点" : "小于16字节";
     int Sz = alignTo(Ty->Size, 8);
     println("  # 为%s的结构体开辟%d字节的空间，", Str, Sz);
     println("  addi sp, sp, -%d", Sz);
@@ -279,6 +308,14 @@ static void pushArgs2(Node *Args, bool FirstPass) {
         case TY_DOUBLE:
             pushF();
             break;
+        case TY_LDOUBLE:
+            println("  # 对long double参数表达式进行计算后压栈");
+            LDSP -= 2;
+            println("  addi sp, sp, -16");
+            println("  fsd fs%d, 8(sp)", LDSP + 1);
+            println("  fsd fs%d, 0(sp)", LDSP);
+            Depth += 2;
+            break;
         default:
             push();
             break;
@@ -321,10 +358,10 @@ static int pushArgs(Node *Nd) {
                 // 判断结构体的类型
                 setFloStMemsTy(&Ty, GP, FP);
                 // 处理一或两个浮点成员变量的结构体
-                if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                if (isSFloNum(Ty->FSReg1Ty) || isSFloNum(Ty->FSReg2Ty)) {
                     Type *Regs[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
                     for (int I = 0; I < 2; ++I) {
-                    if (isFloNum(Regs[I]))
+                    if (isSFloNum(Regs[I]))
                         FP++;
                     if (isInteger(Regs[I]))
                         GP++;
@@ -349,15 +386,26 @@ static int pushArgs(Node *Nd) {
             case TY_DOUBLE:
                 // 浮点优先使用FP，而后是GP，最后是栈传递
                 if (FP < FP_MAX) {
-                    println("  # 浮点%f值通过fa%d传递", Arg->FVal, FP);
+                    println("  # 浮点%Lf值通过fa%d传递", Arg->FVal, FP);
                     FP++;
                 } else if (GP < GP_MAX) {
-                    println("  # 浮点%f值通过a%d传递", Arg->FVal, GP);
+                    println("  # 浮点%Lf值通过a%d传递", Arg->FVal, GP);
                     GP++;
                 } else {
-                    println("  # 浮点%f值通过栈传递", Arg->FVal);
+                    println("  # 浮点%Lf值通过栈传递", Arg->FVal);
                     Arg->PassByStack = true;
                     Stack++;
+                }
+                break;
+            case TY_LDOUBLE:
+                for (int I = 1; I <= 2; ++I) {
+                    if (GP < GP_MAX) {
+                        println("  # LD的第%d部分%Lf值通过a%d传递", I, Arg->FVal, GP);
+                        GP++;
+                    } else {
+                        println("  # LD的第%d部分%Lf值通过栈传递", I, Arg->FVal);
+                        Stack++;
+                    }
                 }
                 break;
             default:
@@ -510,6 +558,12 @@ static void load(Type *Ty) {
         // 访问a0中存放的地址，取得的值存入fa0"
         println("  fld fa0, 0(a0)");
         return;
+    case TY_LDOUBLE:
+        println("  # 访问a0中存放的地址，取得的值存入LD栈当中");
+        println("  fld fs%d, 8(a0)", LDSP + 1);
+        println("  fld fs%d, 0(a0)", LDSP);
+        LDSP += 2;
+        return;
     default:
         break;
     }
@@ -551,6 +605,12 @@ static void store(Type *Ty) {
             // 将fa0的值，写入到a1中存放的地址
             println("  fsd fa0, 0(a1)");
             return;
+        case TY_LDOUBLE:
+            println("  # 将LD栈顶值，写入到a1中存放地址");
+            LDSP -= 2;
+            println("  fsd fs%d, 8(a1)", LDSP + 1);
+            println("  fsd fs%d, 0(a1)", LDSP);
+            return;
         default:
             break;
     }
@@ -575,7 +635,6 @@ static void store(Type *Ty) {
 }
 
 // 与0进行比较，不等于0则置1
-// call this before a cond branch to deal with float values
 static void notZero(Type *Ty) {
     switch (Ty->Kind) {
         case TY_FLOAT:
@@ -588,6 +647,14 @@ static void notZero(Type *Ty) {
             println("  feq.d a0, fa0, fa1");
             println("  xori a0, a0, 1");
             return;
+        case TY_LDOUBLE:
+            println("  # 判断fa1是否不为0，为0置0，非0置1");
+            popLD(0);
+            println("  mv a2, zero");
+            println("  mv a3, zero");
+            println("  call __netf2@plt");
+            println("  snez a0, a0");
+            return;
         default:
             return;
     }
@@ -596,7 +663,7 @@ static void notZero(Type *Ty) {
 
 // 类型枚举
 // note: don't modify their order. these are used as index in castTable
-enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64 };
+enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, F128 };
 
 // 获取类型对应的枚举值
 static int getTypeId(Type *Ty) {
@@ -613,6 +680,8 @@ static int getTypeId(Type *Ty) {
         return F32;
     case TY_DOUBLE:
         return F64;
+    case TY_LDOUBLE:
+        return F128;
     default:
         return U64;
     }
@@ -650,21 +719,29 @@ static char i32f32[] =  "  # i32转换为f32类型\n"
                         "  fcvt.s.w fa0, a0";
 static char i32f64[] =  "  # i32转换为f64类型\n"
                         "  fcvt.d.w fa0, a0";
+static char i32f128[] = "  # i32转换为f128类型\n"
+                        "  call __floatsitf@plt";
 
 static char i64f32[] =  "  # i64转换为f32类型\n"
                         "  fcvt.s.l fa0, a0";
 static char i64f64[] =  "  # i64转换为f64类型\n"
                         "  fcvt.d.l fa0, a0";
+static char i64f128[] = "  # i64转换为f128类型\n"
+                        "  call __floatditf@plt";
 
 static char u32f32[] =  "  # u32转换为f32类型\n"
                         "  fcvt.s.wu fa0, a0";
 static char u32f64[] =  "  # u32转换为f64类型\n"
                         "  fcvt.d.wu fa0, a0";
+static char u32f128[] = "  # u32转换为f128类型\n"
+                        "  call __floatunsitf@plt";
 
 static char u64f32[] =  "  # u64转换为f32类型\n"
                         "  fcvt.s.lu fa0, a0";
 static char u64f64[] =  "  # u64转换为f64类型\n"
                         "  fcvt.d.lu fa0, a0";
+static char u64f128[] = "  # u64转换为f128类型\n"
+                        "  call __floatunditf@plt";
 
 // 单精度浮点数转换为整型
 static char f32i8[] =   "  # f32转换为i8类型\n"
@@ -696,9 +773,10 @@ static char f32u32[] =  "  # f32转换为u32类型\n"
                         "  srai a0, a0, 32";
 static char f32u64[] =  "  # f32转换为u64类型\n"
                         "  fcvt.lu.s a0, fa0, rtz";
-
 static char f32f64[] =  "  # f32转换为f64类型\n"
                         "  fcvt.d.s fa0, fa0";
+static char f32f128[] = "  # f32转换为f128类型\n"
+                        "  call __extendsftf2@plt";
 
 static char f64i8[] =   "  # f64转换为i8类型\n"
                         "  fcvt.w.d a0, fa0, rtz\n"
@@ -732,25 +810,71 @@ static char f64u64[] =  "  # f64转换为u64类型\n"
 
 static char f64f32[] =  "  # f64转换为f32类型\n"
                         "  fcvt.s.d fa0, fa0";
+static char f64f128[] = "  # f64转换为f128类型\n"
+                        "  call __extenddftf2@plt";
 
+
+// long double转换
+static char f128i8[] =  "  # f128转换为i8类型\n"
+                        "  call __fixtfsi@plt\n"
+                        "  slli a0, a0, 56\n"
+                        "  srai a0, a0, 56";
+
+static char f128i16[] = "  # f128转换为i16类型\n"
+                        "  call __fixtfsi@plt\n"
+                        "  slli a0, a0, 48\n"
+                        "  srai a0, a0, 48";
+
+static char f128i32[] = "  # f128转换为i32类型\n"
+                        "  call __fixtfsi@plt\n"
+                        "  slli a0, a0, 32\n"
+                        "  srai a0, a0, 32";
+
+static char f128i64[] = "  # f128转换为i64类型\n"
+                        "  call __fixtfdi@plt";
+
+static char f128u8[] =  "  # f128转换为u8类型\n"
+                        "  call __fixunstfsi@plt\n"
+                        "  slli a0, a0, 56\n"
+                        "  srli a0, a0, 56";
+
+static char f128u16[] = "  # f128转换为u16类型\n"
+                        "  call __fixunstfsi@plt\n"
+                        "  slli a0, a0, 48\n"
+                        "  srli a0, a0, 48";
+
+static char f128u32[] = "  # f128转换为u32类型\n"
+                        "  call __fixunstfsi@plt\n"
+                        "  slli a0, a0, 32\n"
+                        "  srai a0, a0, 32";
+
+static char f128u64[] = "  # f128转换为u64类型\n"
+                        "  call __fixunstfdi@plt";
+
+static char f128f32[] = "  # f128转换为f32类型\n"
+                        "  call __trunctfsf2@plt";
+
+static char f128f64[] = "  # f128转换为f64类型\n"
+                        "  call __trunctfdf2@plt";
 
 
 // 所有类型转换表
 static char *castTable[11][11] = {
     // 被映射到
-    // {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64,     f32,     f64}
-    {NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // 从i8转换
-    {i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // 从i16转换
-    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64}, // 从i32转换
-    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    i64f32,  i64f64}, // 从i64转换
+    // {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64,     f32,     f64,     f128}
+    {NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // 从i8转换
+    {i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // 从i16转换
+    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // 从i32转换
+    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    i64f32,  i64f64,  i64f128}, // 从i64转换
 
-    {i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL,    u32f32,  u32f64}, // 从u8转换
-    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL,    u32f32,  u32f64}, // 从u16转换
-    {i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64,  u32f32,  u32f64}, // 从u32转换
-    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    u64f32,  u64f64}, // 从u64转换
+    {i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL,    u32f32,  u32f64,  u32f128}, // 从u8转换
+    {i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL,    u32f32,  u32f64,  u32f128}, // 从u16转换
+    {i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64,  u32f32,  u32f64,  u32f128}, // 从u32转换
+    {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    u64f32,  u64f64,  u64f128}, // 从u64转换
 
-    {f32i8,  f32i16,  f32i32,  f32i64,  f32u8,  f32u16,  f32u32,  f32u64,  NULL,    f32f64}, // 从f32转换
-    {f64i8,  f64i16,  f64i32,  f64i64,  f64u8,  f64u16,  f64u32,  f64u64,  f64f32,  NULL},   // 从f64转换
+    {f32i8,  f32i16,  f32i32,  f32i64,  f32u8,  f32u16,  f32u32,  f32u64,  NULL,    f32f64,  f32f128}, // 从f32转换
+    {f64i8,  f64i16,  f64i32,  f64i64,  f64u8,  f64u16,  f64u32,  f64u64,  f64f32,  NULL,    f64f128}, // 从f64转换
+    {f128i8, f128i16, f128i32, f128i64, f128u8, f128u16, f128u32, f128u64, f128f32, f128f64, NULL},    // 从f128转换
 };
 
 
@@ -767,8 +891,12 @@ static void cast(Type *From, Type *To) {
     // 获取类型的枚举值
     int T1 = getTypeId(From);
     int T2 = getTypeId(To);
-    if (castTable[T1][T2])
+
+    if (castTable[T1][T2]){
+        if (T1 == F128) popLD(0);
         println("%s", castTable[T1][T2]);
+        if (T2 == F128) pushLD();
+    }
 }
 
 
@@ -881,13 +1009,12 @@ static void assignLVarOffsets(Obj *Prog) {
                 case TY_STRUCT:
                 case TY_UNION:
                     setFloStMemsTy(&Ty, GP, FP);
-
                     // 计算浮点结构体所使用的寄存器
                     // 这里一定寄存器可用，所以不判定是否超过寄存器最大值
-                    if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                    if (isSFloNum(Ty->FSReg1Ty) || isSFloNum(Ty->FSReg2Ty)) {
                         Type *Regs[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
                         for (int I = 0; I < 2; ++I) {
-                            if (isFloNum(Regs[I]))
+                            if (isSFloNum(Regs[I]))
                                 FP++;
                             if (isInteger(Regs[I]))
                                 GP++;
@@ -916,8 +1043,23 @@ static void assignLVarOffsets(Obj *Prog) {
                         println(" #  FP%d传递浮点变量%s", FP, Var->Name);
                         FP++;
                         continue;
-                    } else if (GP < GP_MAX) {
+                    } 
+                    else if (GP < GP_MAX) {
                         println(" #  GP%d传递浮点变量%s", GP, Var->Name);
+                        GP++;
+                        continue;
+                    }
+                    break;
+                case TY_LDOUBLE:
+                    if (GP == GP_MAX - 1) {
+                        println(" #  GP%d传递一半浮点变量%s，另一半栈传递", GP, Var->Name);
+                        Var->IsHalfByStack = true;
+                        GP++;
+                        break;
+                    }
+                    if (GP < GP_MAX - 1) {
+                        println(" #  GP%d传递浮点变量%s", GP, Var->Name);
+                        GP++;
                         GP++;
                         continue;
                     }
@@ -985,7 +1127,7 @@ static void copyRetBuffer(Obj *Var) {
     println("  add t1, fp, t0");
 
     // 处理浮点结构体的情况
-    if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+    if (isSFloNum(Ty->FSReg1Ty) || isSFloNum(Ty->FSReg2Ty)) {
         int Off = 0;
         Type *RTys[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
         for (int I = 0; I < 2; ++I) {
@@ -1040,7 +1182,7 @@ static void copyStructReg(void) {
 
     setFloStMemsTy(&Ty, GP, FP);
 
-    if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+    if (isSFloNum(Ty->FSReg1Ty) || isSFloNum(Ty->FSReg2Ty)) {
         int Off = 0;
         Type *RTys[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
         for (int I = 0; I < 2; ++I) {
@@ -1251,12 +1393,16 @@ static void genExpr(Node *Nd) {
                 case TY_DOUBLE:
                     println("  fneg.d fa0, fa0");
                     return;
+                case TY_LDOUBLE:
+                    println("  li t0, -1");
+                    println("  slli t0, t0, 63");
+                    println("  xor a%d, a%d, t0", LDSP + 1, LDSP + 1);
+                    return;
                 default:
                     // neg a0, a0是sub a0, x0, a0的别名, 即a0=0-a0
                     println("  neg%s a0, a0", Nd->Ty->Size <= 4 ? "w" : "");
                     return;
             }
-    // others. general op
         case ND_NUM: {
             switch (Nd->Ty->Kind) {
                 case TY_FLOAT:{
@@ -1266,20 +1412,55 @@ static void genExpr(Node *Nd) {
                     // and we wish things like (_Bool)0.1l to be "true".
                     // we need to reinterpret the bits here
                     float f = Nd->FVal;
-                    println("  li a0, %u  # float %f", *(uint32_t*)&f, Nd->FVal);
+                    println("  li a0, %u  # float %Lf", *(uint32_t*)&f, Nd->FVal);
                     println("  fmv.w.x fa0, a0");
                     return;
                 }
-                case TY_DOUBLE:
+                case TY_DOUBLE:{
                     // 将a0转换到double类型值为%f的fa0中
-                    println("  li a0, %lu  # double %f", *(uint64_t*)&Nd->FVal, Nd->FVal);
+                    double d = Nd->FVal;
+                    println("  li a0, %lu  # double %Lf", *(uint64_t*)&d, Nd->FVal);
                     println("  fmv.d.x fa0, a0");
                     return;
+                }
+                case TY_LDOUBLE: {
+#ifdef __riscv
+                    union {
+                        long double F128;
+                        uint64_t U64[2];
+                    } U;
+                    memset(&U, 0, sizeof(U));
+                    U.F128 = Nd->FVal;
+                    println("  # 将long double类型的%Lf值，压入LD栈中", Nd->FVal);
+                    println("  li a0, 0x%016lx  # long double %Lf", U.U64[0], Nd->FVal);
+                    println("  fmv.d.x fs%d, a0", LDSP);
+
+                    println("  li a0, 0x%016lx", U.U64[1]);
+                    println("  fmv.d.x fs%d, a0", LDSP + 1);
+                    LDSP += 2;
+                    return;
+#endif // __riscv
+#ifdef __x86_64
+                    // 【注意】交叉环境当中，x86_64的long double是f80而非f128
+                    // 因而此处的支持仅供交叉测试，存在f80->f64的精度的丢失！
+                    union {
+                        double F64;
+                        uint64_t U64;
+                    } U = {Nd->FVal};
+                    println("  # 【注意】此处存在f80->f64的精度丢失！！！");
+                    println("  # 将long double类型的%Lf值，压入LD栈中", Nd->FVal);
+                    println("  li a0, %lu  # double %Lf", U.U64, Nd->FVal);
+                    println("  fmv.d.x fa0, a0");
+                    println("  call __extenddftf2@plt");
+                    pushLD();
+                    return;
+#endif // __x86_64
+                }
                 default:
                     println("  li a0, %ld", Nd->Val);
                     return;
             }
-        }
+        }   // ND_NUM
         // 变量
         case ND_VAR:
             // 计算出变量的地址, 存入a0
@@ -1400,8 +1581,19 @@ static void genExpr(Node *Nd) {
                 // 匹配到空参数（最后一个）的时候，将剩余的整型寄存器弹栈
                 if (Nd->FuncType->IsVariadic && CurArg == NULL) {
                     if (GP < GP_MAX) {
-                        println("  # a%d传递可变实参", GP);
-                        pop(GP++);
+                        if (Arg->Ty->Kind == TY_LDOUBLE) {
+                            // 在可变参数函数的调用中
+                            // LD的第一个寄存器必须是偶数下标，即a0,a2,a4,a6
+                            if (GP % 2 == 1)
+                                GP++;
+                            println("  # long double通过a%d,a%d传递可变实参", GP, GP + 1);
+                            pop(GP++);
+                            if (GP < GP_MAX)
+                                pop(GP++);
+                        } else {
+                            println("  # a%d传递可变实参", GP);
+                            pop(GP++);
+                        }
                     }
                     continue;
                 }
@@ -1415,7 +1607,7 @@ static void genExpr(Node *Nd) {
                         // 结构体的大小
                         int Sz = Ty->Size;
                         // 处理一或两个浮点成员变量的结构体
-                        if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                        if (isSFloNum(Ty->FSReg1Ty) || isSFloNum(Ty->FSReg2Ty)) {
                             Type *Regs[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
                             for (int I = 0; I < 2; ++I) {
                                 if (Regs[I]->Kind == TY_FLOAT) {
@@ -1458,6 +1650,17 @@ static void genExpr(Node *Nd) {
                             pop(GP++);
                         }
                         break;
+                    case TY_LDOUBLE:
+                        if (GP == GP_MAX - 1) {
+                            println("  # a%d传递LD一半参数", GP);
+                            pop(GP++);
+                        }
+                        if (GP < GP_MAX - 1) {
+                            println("  # a%d传递long double第%d部分参数", GP, 1);
+                            pop(GP++);
+                            pop(GP++);
+                        }
+                        break;
                     default:
                         if (GP < GP_MAX) {
                             println("  # a%d传递整型参数", GP);
@@ -1469,6 +1672,11 @@ static void genExpr(Node *Nd) {
             // 调用函数
             println("  # 调用函数");
             println("  jalr t5");
+
+            if (Nd->Ty->Kind == TY_LDOUBLE) {
+                println("  # 保存Long double类型函数的返回值");
+                pushLD();
+            }
 
             // 回收为栈传递的变量开辟的栈空间
             if (StackArgs) {
@@ -1605,51 +1813,105 @@ static void genExpr(Node *Nd) {
             break;
     }
 
-
     // 处理浮点类型
-    if (isFloNum(Nd->LHS->Ty)) {
-        // 递归到最右节点
-        genExpr(Nd->RHS);
-        // 将结果压入栈
-        pushF();
-        // 递归到左节点
-        genExpr(Nd->LHS);
-        // 将结果弹栈到fa1
-        popF(1);
+    switch (Nd->LHS->Ty->Kind) {
+        case TY_FLOAT:
+        case TY_DOUBLE: {
+            // 递归到最右节点
+            genExpr(Nd->RHS);
+            // 将结果压入栈
+            pushF();
+            // 递归到左节点
+            genExpr(Nd->LHS);
+            // 将结果弹栈到fa1
 
-        // 生成各个二叉树节点
-        // float对应s(single)后缀，double对应d(double)后缀
-        char *Suffix = (Nd->LHS->Ty->Kind == TY_FLOAT) ? "s" : "d";
-
-        switch (Nd->Kind) {
-            case ND_ADD:
-                println("  fadd.%s fa0, fa0, fa1", Suffix);
-                return;
-            case ND_SUB:
-                println("  fsub.%s fa0, fa0, fa1", Suffix);
-                return;
-            case ND_MUL:
-                println("  fmul.%s fa0, fa0, fa1", Suffix);
-                return;
-            case ND_DIV:
-                println("  fdiv.%s fa0, fa0, fa1", Suffix);
-                return;
-            case ND_EQ:
-                println("  feq.%s a0, fa0, fa1", Suffix);
-                return;
-            case ND_NE:
-                println("  feq.%s a0, fa0, fa1", Suffix);
-                println("  seqz a0, a0");
-                return;
-            case ND_LT:
-                println("  flt.%s a0, fa0, fa1", Suffix);
-                return;
-            case ND_LE:
-                println("  fle.%s a0, fa0, fa1", Suffix);
-                return;
-            default:
-                errorTok(Nd->Tok, "invalid expression");
+            popF(1);
+            // 生成各个二叉树节点
+            // float对应s(single)后缀，double对应d(double)后缀
+            char *Suffix = (Nd->LHS->Ty->Kind == TY_FLOAT) ? "s" : "d";
+            switch (Nd->Kind) {
+                case ND_ADD:
+                    println("  fadd.%s fa0, fa0, fa1", Suffix);
+                    return;
+                case ND_SUB:
+                    println("  fsub.%s fa0, fa0, fa1", Suffix);
+                    return;
+                case ND_MUL:
+                    println("  fmul.%s fa0, fa0, fa1", Suffix);
+                    return;
+                case ND_DIV:
+                    println("  fdiv.%s fa0, fa0, fa1", Suffix);
+                    return;
+                case ND_EQ:
+                    println("  feq.%s a0, fa0, fa1", Suffix);
+                    return;
+                case ND_NE:
+                    println("  feq.%s a0, fa0, fa1", Suffix);
+                    println("  seqz a0, a0");
+                    return;
+                case ND_LT:
+                    println("  flt.%s a0, fa0, fa1", Suffix);
+                    return;
+                case ND_LE:
+                    println("  fle.%s a0, fa0, fa1", Suffix);
+                    return;
+                default:
+                    errorTok(Nd->Tok, "invalid expression");
+            }
         }
+        case TY_LDOUBLE: {
+            genExpr(Nd->LHS);
+            genExpr(Nd->RHS);
+
+            popLD(2);
+            popLD(0);
+            switch (Nd->Kind) {
+                case ND_ADD:
+                    println("  # long double加法，从栈顶读取32个字节");
+                    println("  call __addtf3@plt");
+                    pushLD();
+                    return;
+                case ND_SUB:
+                    println("  # long double减法，从栈顶读取32个字节");
+                    println("  call __subtf3@plt");
+                    pushLD();
+                    return;
+                case ND_MUL:
+                    println("  # long double乘法，从栈顶读取32个字节");
+                    println("  call __multf3@plt");
+                    pushLD();
+                    return;
+                case ND_DIV:
+                    println("  # long double除法，从栈顶读取32个字节");
+                    println("  call __divtf3@plt");
+                    pushLD();
+                    return;
+                case ND_EQ:
+                    println("  # long double相等，从栈顶读取32个字节");
+                    println("  call __eqtf2@plt");
+                    println("  seqz a0, a0");
+                    return;
+                case ND_NE:
+                    println("  # long double不等，从栈顶读取32个字节");
+                    println("  call __netf2@plt");
+                    println("  snez a0, a0");
+                    return;
+                case ND_LT:
+                    println("  # long double小于，从栈顶读取32个字节");
+                    println("  call __lttf2@plt");
+                    println("  slti a0, a0, 0");
+                    return;
+                case ND_LE:
+                    println("  # long double小于等于，从栈顶读取32个字节");
+                    println("  call __letf2@plt");
+                    println("  slti a0, a0, 1");
+                    return;
+                default:
+                    errorTok(Nd->Tok, "invalid expression");
+            }
+        }
+        default:
+            break;
     }
     // EXPR_STMT
     // 递归到最右节点
@@ -1768,6 +2030,10 @@ static void genStmt(Node *Nd) {
                     else
                         // 大于16字节拷贝内存
                         copyStructMem();
+                }
+                if (Ty->Kind == TY_LDOUBLE) {
+                    println("  # LD类型作为返回值时，需要将LD栈顶元素拷贝到a0，a1中");
+                    popLD(0);
                 }
             }
             // 无条件跳转语句，跳转到.L.return.%s段
@@ -2063,12 +2329,12 @@ void emitText(Obj *Prog) {
                     case TY_STRUCT:
                     case TY_UNION:
                         // 对寄存器传递的参数
-                        if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                        if (isSFloNum(Ty->FSReg1Ty) || isSFloNum(Ty->FSReg2Ty)) {
                             // 浮点结构体的第一部分
-                            isFloNum(Ty->FSReg1Ty) ? FPs++ : GPs++;
+                            isSFloNum(Ty->FSReg1Ty) ? FPs++ : GPs++;
                             // 浮点结构体的第二部分
                             if (Ty->FSReg2Ty->Kind != TY_VOID)
-                                isFloNum(Ty->FSReg2Ty) ? FPs++ : GPs++;
+                                isSFloNum(Ty->FSReg2Ty) ? FPs++ : GPs++;
                             break;
                         }
 
@@ -2107,6 +2373,10 @@ void emitText(Obj *Prog) {
         // 将sp写入fp
         println("  mv fp, sp");
 
+        println("  # 保存所有的fs0~fs11寄存器");
+        for (int I = 0; I <= 11; ++I)
+            println("  fsgnj.d ft%d, fs%d, fs%d", I, I, I);
+
         // 偏移量为实际变量所用的栈大小
         if(isLegalImmI(Fn->StackSize))
             println("  addi sp, sp, -%d", Fn->StackSize);
@@ -2139,11 +2409,11 @@ void emitText(Obj *Prog) {
                 case TY_UNION:
                     println("  # 对寄存器传递的结构体进行压栈");
                     // 处理浮点结构体
-                    if (isFloNum(Ty->FSReg1Ty) || isFloNum(Ty->FSReg2Ty)) {
+                    if (isSFloNum(Ty->FSReg1Ty) || isSFloNum(Ty->FSReg2Ty)) {
                         println("  # 浮点结构体的第一部分进行压栈");
                         // 浮点结构体的第一部分，偏移量为0
                         int Sz1 = Var->Ty->FSReg1Ty->Size;
-                        if (isFloNum(Ty->FSReg1Ty))
+                        if (isSFloNum(Ty->FSReg1Ty))
                             storeFloat(FP++, Var->Offset, Sz1);
                         else
                             storeGeneral(GP++, Var->Offset, Sz1);
@@ -2155,7 +2425,7 @@ void emitText(Obj *Prog) {
                             // 结构体内偏移量为两个成员间的最大尺寸
                             int Off = MAX(Sz1, Sz2);
 
-                            if (isFloNum(Ty->FSReg2Ty))
+                            if (isSFloNum(Ty->FSReg2Ty))
                                 storeFloat(FP++, Var->Offset + Off, Sz2);
                             else
                                 storeGeneral(GP++, Var->Offset + Off, Sz2);
@@ -2202,6 +2472,20 @@ void emitText(Obj *Prog) {
                         storeGeneral(GP++, Var->Offset, Var->Ty->Size);
                     }
                     break;
+                case TY_LDOUBLE:
+                    if (Var->IsHalfByStack) {
+                        println("  # 将LD形参%s的第一部分a%d的值压栈", Var->Name, GP);
+                        println("  ld t0, 16(fp)");
+                        println("  sd t0, %d(fp)", Var->Offset + 8);
+                        break;
+                    }
+                    if (GP < GP_MAX - 1) {
+                        println("  # 将LD形参%s的第一部分a%d的值压栈", Var->Name, GP);
+                        storeGeneral(GP++, Var->Offset, 8);
+                        println("  # 将LD形参%s的第二部分a%d的值压栈", Var->Name, GP);
+                        storeGeneral(GP++, Var->Offset + 8, 8);
+                    }
+                    break;
                 default:
                     // 正常传递的整型形参
                     println("  # 将整型形参%s的寄存器a%d的值压栈", Var->Name, GP);
@@ -2233,6 +2517,11 @@ void emitText(Obj *Prog) {
         // 输出return段标签
         println("# =====%s段结束===============", Fn->Name);
         println(".L.return.%s:", Fn->Name);
+
+        println("  # 恢复所有的fs0~fs11寄存器");
+        for (int I = 0; I <= 11; ++I)
+            println("  fsgnj.d fs%d, ft%d, ft%d", I, I, I);
+
         // 将fp的值改写回sp
         println("  mv sp, fp");
         // 将最早fp保存的值弹栈，恢复fp。
@@ -2240,6 +2529,8 @@ void emitText(Obj *Prog) {
         // 将ra寄存器弹栈,恢复ra的值
         println("  ld ra, 8(sp)");
         println("  addi sp, sp, 16");
+
+
 
         // 归还可变参数寄存器压栈的那一部分
         if (Fn->VaArea && VaSize > 0) {

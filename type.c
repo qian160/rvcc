@@ -4,7 +4,6 @@
 // TyInt这个全局变量的作用主要是方便了其他变量的初始化。直接设置为指向他就好。
 // 而且似乎也节省了空间，创建一次就能被用很多次
 // type, size, align, isUnsigned
-
 Type *TyChar = &(Type){TY_CHAR, 1, 1};
 Type *TyShort = &(Type){TY_SHORT, 2, 2};
 Type *TyInt = &(Type){TY_INT, 4, 4};
@@ -20,6 +19,7 @@ Type *TyULong = &(Type){TY_LONG, 8, 8, true};
 
 Type *TyFloat = &(Type){TY_FLOAT, 4, 4};
 Type *TyDouble = &(Type){TY_DOUBLE, 8, 8};
+Type *TyLDouble = &(Type){TY_LDOUBLE, 16, 16};
 
 static Type *newType(TypeKind Kind, int Size, int Align) {
     Type *Ty = calloc(1, sizeof(Type));
@@ -38,8 +38,14 @@ bool isInteger(Type *Ty){
 
 // 判断Type是否为浮点数
 bool isFloNum(Type *Ty) {
+    return Ty->Kind == TY_FLOAT || Ty->Kind == TY_DOUBLE || Ty->Kind == TY_LDOUBLE;
+}
+
+// 判断是否为float或double，而非long double
+bool isSFloNum(Type *Ty) {
     return Ty->Kind == TY_FLOAT || Ty->Kind == TY_DOUBLE;
 }
+
 
 // 判断是否为数字
 bool isNumeric(Type *Ty) { 
@@ -143,6 +149,7 @@ bool isCompatible(Type *T1, Type *T2) {
             return T1->IsUnsigned == T2->IsUnsigned;
         case TY_FLOAT:
         case TY_DOUBLE:
+        case TY_LDOUBLE:
             // 浮点类型直接返回真
             return true;
         case TY_PTR:
@@ -189,7 +196,10 @@ Type *getCommonType(Type *Ty1, Type *Ty2) {
         return pointerTo(Ty2);
 
     // 处理浮点类型
-    // 优先使用double类型
+    // 优先使用long double类型
+    if (Ty1->Kind == TY_LDOUBLE || Ty2->Kind == TY_LDOUBLE)
+        return TyLDouble;
+    // 其次使用double类型
     if (Ty1->Kind == TY_DOUBLE || Ty2->Kind == TY_DOUBLE)
         return TyDouble;
     // 其次使用float类型

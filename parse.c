@@ -295,26 +295,8 @@ static char *ContLabel;
 static Node *CurrentSwitch;
 // 记录这些标签名、节点是为了在后续递归解析相关语句的时候能拿来给节点赋值。同时也可以防止stray现象
 
-
-static char *types[] = {
-    "int",
-    "ptr",
-    "func",
-    "array",
-    "char",
-    "long",
-    "short",
-    "void",
-    "struct",
-    "union",
-    "bool",
-    "enum",
-    "float",
-    "double",
-    "VLA",
-};
-
 extern bool OptW;
+extern char *typeNames[];
 // 向下对齐值
 // N % Align != 0 , 即 N 未对齐时,  AlignDown(N) = AlignTo(N) - Align
 // N % Align == 0 , 即 N 已对齐时， AlignDown(N) = AlignTo(N)
@@ -636,8 +618,10 @@ static Type *declspec(Token **Rest, Token *Tok, VarAttr *Attr) {
                 Ty = TyFloat;
                 break;
             case DOUBLE:
-            case LONG + DOUBLE:
                 Ty = TyDouble;
+                break;
+            case LONG + DOUBLE:
+                Ty = TyLDouble;
                 break;
             default:
                 errorTok(Tok, "invalid type");
@@ -2157,7 +2141,7 @@ static Node *funCall(Token **Rest, Token *Tok, Node *Fn) {
         if (ParamTy) {
             // simple arg type check
             if (OptW && !isCompatible(Arg->Ty, ParamTy))
-                warnTok(Tok, "type mismatch here. expected \"%s\" but get \"%s\"\n", types[ParamTy->Kind], types[Arg->Ty->Kind]);
+                warnTok(Tok, "type mismatch here. expected \"%s\" but get \"%s\"\n", typeNames[ParamTy->Kind], typeNames[Arg->Ty->Kind]);
             if (ParamTy->Kind != TY_STRUCT && ParamTy->Kind != TY_UNION)
                 // 将参数节点的类型进行转换
                 // sometimes -W flag will report a type mismatch, but it will be handled perfectly here
