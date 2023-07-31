@@ -43,7 +43,9 @@ typedef enum {
     FILE_NONE, // 空类型
     FILE_C,    // C语言源代码类型
     FILE_ASM,  // 汇编代码类型
-    FILE_OBJ   // 可重定位文件类型
+    FILE_OBJ,  // 可重定位文件类型
+    FILE_AR,   // 静态库文件类型
+    FILE_DSO,  // 动态库文件类型
 } FileType;
 
 // -x选项
@@ -511,53 +513,10 @@ static void runSubprocess(char **Argv) {
     // Fork–exec
     if (fork() == 0) {
         // 执行文件rvcc，没有斜杠时搜索环境变量，此时会替换子进程
-
-// it seems that the fork-exec model doesn't apply to stage2/rvcc, maybe it will kill qemu
-// and try to run stage2/rvcc as a new process directly on our x86 machine , which then print some wierd messages
-
-/* small test:
-    // test.c                               // foo.c
-    int main(int argc, char **argv)         int main() 
-    {                                       {
-        execvp(argv[1], argv);                  printf("ok\n");
-        printf("unreachable");              }
-    }
-    
-    test steps:
-        riscv64-linux-gnu-gcc test.c -o test.out
-        riscv64-linux-gnu-gcc foo.c -o foo.out
-        qemu-riscv64 test.out ./a.out
-    then:
-./a.out: 1: ELF��@�8: not found
-./a.out: 1: {�iLNU: not found
-./a.out: 2: : not found
-./a.out: 3: Syntax error: "(" unexpected
-
-        */
 #ifdef _STAGE2_
+        // the fork-exec model doesn't apply to stage2/rvcc, since it will kill qemu and
+        // try to run stage2/rvcc as a new process on our x86 machine
         error("todo");
-        Token *Tok = tokenizeFile(BaseFile);    // basefile = null...
-        printTokens(Tok);
-        exit(0);
-        char *name = basename(Argv[0]);
-        StringArray arr = {};
-        strArrayPush(&arr, format("%s/qemu-riscv64", RVPath));
-        strArrayPush(&arr, "-L /home/s081/riscv/sysroot");
-        strArrayPush(&arr, "stage2/rvcc");
-        int i = 0;
-        if (strncmp(name, "rvcc", 4) == 0)
-            i = i + 1;
-        while(Argv && Argv[i]){
-            strArrayPush(&arr, Argv[i++]);
-        }
-        strArrayPush(&arr, NULL);
-        trace("exec %s\n", arr.Data[0]);
-        if (strncmp(name, "rvcc", 4) == 0){
-            for(int i = 0; i < arr.Len; i++)
-                trace("%s", arr.Data[i]);
-            execvp(arr.Data[0], arr.Data);
-        }
-
 #endif
         execvp(Argv[0], Argv);
         // 如果exec函数返回，表明没有正常执行命令
@@ -745,11 +704,15 @@ static FileType getFileType(char *Filename) {
     // 以.o结尾的文件，解析为空重定位文件类型
     if (endsWith(Filename, ".o"))
         return FILE_OBJ;
-
+    // 以.a结尾的文件，解析为静态库文件类型
+    if (endsWith(Filename, ".a"))
+        return FILE_AR;
+    // 以.so结尾的文件，解析为动态库文件类型
+    if (endsWith(Filename, ".so"))
+        return FILE_DSO;
     // 若-x指定了不为空的类型，使用该类型
     if (OptX != FILE_NONE)
         return OptX;
-
     // 以.c结尾的文件，解析为C语言源代码类型
     if (endsWith(Filename, ".c"))
         return FILE_C;
@@ -803,8 +766,8 @@ int main(int Argc, char **Argv) {
 
         FileType Ty = getFileType(Input);
 
-        // 处理.o文件
-        if (Ty == FILE_OBJ) {
+        // 处理.o或.a或.so文件
+        if (Ty == FILE_OBJ || Ty == FILE_DSO || Ty == FILE_AR) {
             // 存入链接器选项中
             strArrayPush(&LdArgs, Input);
             continue;
