@@ -352,14 +352,14 @@ static void convertPPNumber(Token *Tok) {
         return;
 
     char *End;
-    double Val = strtod(Tok->Loc, &End);
+    long double Val = strtod(Tok->Loc, &End);
     // 处理浮点数后缀
     Type *Ty;
     if (*End == 'f' || *End == 'F') {
         Ty = TyFloat;
         End++;
     } else if (*End == 'l' || *End == 'L') {
-        Ty = TyDouble;
+        Ty = TyLDouble;
         End++;
     } else {
         Ty = TyDouble;

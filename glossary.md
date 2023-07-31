@@ -75,3 +75,4 @@
 1. vector 向量
 1. warning 警告
 1. write 写
+1. @plt procedure linkage table

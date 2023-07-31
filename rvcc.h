@@ -74,14 +74,14 @@ typedef enum {
 
 // 终结符结构体
 struct Token {
-    TokenKind Kind; // 种类
-    Token *Next;    // 指向下一终结符
-    int64_t Val;    // 值
-    double FVal;    // TK_NUM浮点值
-    char *Loc;      // 在解析的字符串内的位置
-    int Len;        // 长度
-    Type *Ty;       // TK_NUM或TK_STR使用
-    char *Str;      // 字符串字面量，包括'\0'
+    TokenKind Kind;     // 种类
+    Token *Next;        // 指向下一终结符
+    int64_t Val;        // 值
+    long double FVal;   // TK_NUM浮点值
+    char *Loc;          // 在解析的字符串内的位置
+    int Len;            // 长度
+    Type *Ty;           // TK_NUM或TK_STR使用
+    char *Str;          // 字符串字面量，包括'\0'
 
     File *File;         // 源文件位置
     int LineNo;         // 行号
@@ -195,28 +195,28 @@ typedef enum {
 struct Node {
     // node*中都是存储了一串指令(保存至ast中)。
     // 可理解为指向另外一颗树的根节点
-    NodeKind Kind;  // 节点种类
-    Node *Next;     // 下一节点，指代下一语句
-    Node *LHS;      // 左部，left-hand side. unary node only uses this side
-    Node *RHS;      // 右部，right-hand side
-    Node *Body;     // 代码块 或 语句表达式
-    Obj * Var;      // 存储ND_VAR种类的变量
-    Type *Ty;       // 节点中数据的类型
-    int64_t Val;    // 存储ND_NUM种类的值
-    double FVal;    // 存储ND_NUM种类的浮点值
-    Token * Tok;    // 节点对应的终结符. debug
+    NodeKind Kind;      // 节点种类
+    Node *Next;         // 下一节点，指代下一语句
+    Node *LHS;          // 左部，left-hand side. unary node only uses this side
+    Node *RHS;          // 右部，right-hand side
+    Node *Body;         // 代码块 或 语句表达式
+    Obj * Var;          // 存储ND_VAR种类的变量
+    Type *Ty;           // 节点中数据的类型
+    int64_t Val;        // 存储ND_NUM种类的值
+    long double FVal;   // 存储ND_NUM种类的浮点值
+    Token * Tok;        // 节点对应的终结符. debug
     // 函数
     Node *Args;         // 函数被调用时代入的实参，可看作是一串表达式链表。 形参则保存在Nd->Ty->Parms中
     Type *FuncType;     // 函数类型
     bool PassByStack;   // 通过栈传递
     Obj *RetBuffer;     // 返回值缓冲区
     // "if"语句
-    Node *Cond;     // 条件内的表达式
-    Node *Then;     // 符合条件后的语句(do/while/if代码块内的语句)
-    Node *Els;      // 不符合条件后的语句
+    Node *Cond;         // 条件内的表达式
+    Node *Then;         // 符合条件后的语句(do/while/if代码块内的语句)
+    Node *Els;          // 不符合条件后的语句
     // "for"语句. 循环体存储在Then里
-    Node *Init;     // 初始化语句
-    Node *Inc;      // 递增语句
+    Node *Init;         // 初始化语句
+    Node *Inc;          // 递增语句
     // 结构体成员访问
     Member *Mem;
     // goto和标签语句
@@ -256,7 +256,7 @@ typedef enum {
     TY_FLOAT,      // float类型
     TY_DOUBLE,     // double类型
     TY_VLA,        // 可变长度数组，Variable Length Array
-
+    TY_LDOUBLE,    // long double类型
 } TypeKind;
 
 struct Type {
@@ -326,6 +326,7 @@ extern Type *TyULong;
 
 extern Type *TyFloat;
 extern Type *TyDouble;
+extern Type *TyLDouble;
 
 //
 // 主程序，驱动文件
@@ -381,6 +382,8 @@ int alignTo(int N, int Align);
 bool isInteger(Type *TY);
 // 判断是否为浮点类型
 bool isFloNum(Type *Ty);
+// 判断是否为Float或Double类型
+bool isSFloNum(Type *Ty);
 // 判断是否为数字
 bool isNumeric(Type *Ty);
 // 为节点内的所有节点添加类型

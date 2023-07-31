@@ -14,6 +14,25 @@ extern Scope *Scp;
 
 static Obj *BuiltinAlloca;
 
+char *types[] = {
+    "int",
+    "ptr",
+    "func",
+    "array",
+    "char",
+    "long",
+    "short",
+    "void",
+    "struct",
+    "union",
+    "bool",
+    "enum",
+    "float",
+    "double",
+    "VLA",
+    "long double",
+};
+
 // 进入域
 // insert from head，后来加入的会先被移除出去。 其实也就是越深的作用域存活时间越短
 void enterScope(void) {
