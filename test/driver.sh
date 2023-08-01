@@ -264,4 +264,9 @@ fi
 echo 'void foo(); void bar(); int main() { foo(); bar(); }' > $tmp/main.c
 $rvcc -o $tmp/foo $tmp/main.c $tmp/foo.so
 check '.so'
+
+# [285] 支持字符串哈希表
+$rvcc -hashmap-test
+check 'hashmap'
+
 printf "$COLOR_GREEN OK $COLOR_NONE\n"

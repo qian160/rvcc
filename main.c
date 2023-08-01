@@ -313,6 +313,12 @@ static void parseArgs(int Argc, char **Argv) {
             !strcmp(Argv[I], "-march=native"))
         continue;
 
+        // 哈希表测试
+        if (!strcmp(Argv[I], "-hashmap-test")) {
+            hashmapTest();
+            exit(0);
+        }
+
         // 解析为-的参数
         if (Argv[I][0] == '-' && Argv[I][1] != '\0')
             error("unknown argument: %s", Argv[I]);
