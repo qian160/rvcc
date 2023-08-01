@@ -38,7 +38,6 @@ typedef struct Token Token;
 typedef struct Node Node;
 typedef struct Obj Obj;
 typedef struct Function Function;
-typedef struct Node Node;
 typedef struct Type Type;
 typedef struct Member Member;
 typedef struct Relocation Relocation;
@@ -227,13 +226,15 @@ struct Node {
     char *BrkLabel;
     // "continue" 标签
     char *ContLabel;
-    // switch和case
+    // switch语句
     Node *CaseNext;
     Node *DefaultCase;
     // "asm" 字符串字面量
     char *AsmStr;
+    // Case语句
+    long Begin;         // case后面的数值
+    long End;           // case ...后面的数值
 };
-
 
 //
 // 类型系统

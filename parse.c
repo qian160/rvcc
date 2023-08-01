@@ -174,7 +174,7 @@
 //        | ident ":" stmt
 //        | "break" ";" | "continue" ";"
 //        | "switch" "(" expr ")" stmt
-//        | "case" constExpr ":" stmt
+//        | "case" constExpr ("..." constExpr)? ":" stmt
 //        | "default" ":" stmt
 
 // asmStmt = "asm" ("volatile" | "inline")* "(" stringLiteral ")"
@@ -1273,7 +1273,7 @@ static Node *asmStmt(Token **Rest, Token *Tok) {
 //        | ident ":" stmt
 //        | "break;" | "continue;"
 //        | "switch" "(" expr ")" stmt
-//        | "case" num ":" stmt
+//        | "case" constExpr ("..." constExpr)? ":" stmt
 //        | "default" ":" stmt
 static Node *stmt(Token **Rest, Token *Tok) { 
     // "return" expr ";"
@@ -1475,12 +1475,25 @@ static Node *stmt(Token **Rest, Token *Tok) {
         return Nd;
     }
 
-    // "case" num ":" stmt
+    // "case" constExpr ("..." constExpr)? ":" stmt
+    // e.g. case 0 ... 10:
     if (equal(Tok, "case")) {
         if (!CurrentSwitch)
             errorTok(Tok, "stray case");
         // case后面的数值
-        int Val = constExpr(&Tok, Tok->Next);
+        int Begin = constExpr(&Tok, Tok->Next);
+        // ...后面的数值
+        int End;
+        // 存在...
+        if (equal(Tok, "...")) {
+            // 解析...后面的数值
+            End = constExpr(&Tok, Tok->Next);
+            if (End < Begin)
+                errorTok(Tok, "empty case range specified");
+        } else {
+            // 不存在...
+            End = Begin;
+        }
 
         Node *Nd = newNode(ND_CASE, Tok);
 
@@ -1489,9 +1502,9 @@ static Node *stmt(Token **Rest, Token *Tok) {
         // case中的语句
         Nd->LHS = stmt(Rest, Tok);
         // case对应的数值
-        Nd->Val = Val;
+        Nd->Begin = Begin;
+        Nd->End = End;
         // 将旧的CurrentSwitch链表的头部存入Nd的CaseNext
-        // insert from head
         Nd->CaseNext = CurrentSwitch->CaseNext;
         // 将Nd存入CurrentSwitch的CaseNext
         CurrentSwitch->CaseNext = Nd;

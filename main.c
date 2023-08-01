@@ -512,12 +512,12 @@ static void runSubprocess(char **Argv) {
 
     // Fork–exec
     if (fork() == 0) {
-        // 执行文件rvcc，没有斜杠时搜索环境变量，此时会替换子进程
 #ifdef _STAGE2_
         // the fork-exec model doesn't apply to stage2/rvcc, since it will kill qemu and
         // try to run stage2/rvcc as a new process on our x86 machine
         error("todo");
 #endif
+        // 执行文件rvcc，没有斜杠时搜索环境变量，此时会替换子进程
         execvp(Argv[0], Argv);
         // 如果exec函数返回，表明没有正常执行命令
         fprintf(stderr, "exec failed: %s: %s\n", Argv[0], strerror(errno));
