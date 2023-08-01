@@ -1468,6 +1468,10 @@ static void genExpr(Node *Nd) {
             // load a value from the generated address
             load(Nd->Ty);
             return;
+        case ND_LABEL_VAL:
+            println("  # 加载标签%s的值到a0中", Nd->UniqueLabel);
+            println("  la a0, %s", Nd->UniqueLabel);
+            return;
         // 成员变量
         case ND_MEMBER:{
             // 计算出成员变量的地址，然后存入a0
@@ -2039,6 +2043,11 @@ static void genStmt(Node *Nd) {
             // 无条件跳转语句，跳转到.L.return.%s段
             // j offset是 jal x0, offset的别名指令
             println("  j .L.return.%s", CurrentFn->Name);
+            return;
+        case ND_GOTO_EXPR:
+            println("  # GOTO跳转到存储标签的地址");
+            genExpr(Nd->LHS);
+            println("  jr a0");
             return;
         // 生成if语句
         case ND_IF: {

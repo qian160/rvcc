@@ -180,6 +180,8 @@ typedef enum {
     ND_LOGOR,       // ||，或
     ND_GOTO,        // goto，直接跳转语句
     ND_LABEL,       // 标签语句
+    ND_GOTO_EXPR,   // "goto" 的对应的地址表达式
+    ND_LABEL_VAL,   // "goto" 标签值
     ND_SWITCH,      // "switch"，分支语句
     ND_CASE,        // "case"
     ND_SHL,         // <<，左移

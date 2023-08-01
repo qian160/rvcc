@@ -170,7 +170,7 @@
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "while" "(" expr ")" stmt
 //        | "do" stmt "while" "(" expr ")" ";"
-//        | "goto" ident ";"
+//        | "goto" (ident | "*" expr) ";"
 //        | ident ":" stmt
 //        | "break" ";" | "continue" ";"
 //        | "switch" "(" expr ")" stmt
@@ -198,6 +198,7 @@
 // unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
 //       | postfix 
 //       | ("++" | "--") unary
+//       | "&&" ident
 
 // postfix = "(" typeName ")" "{" initializerList "}"
 //         = ident "(" funcArgs ")" postfixTail*
@@ -1269,7 +1270,7 @@ static Node *asmStmt(Token **Rest, Token *Tok) {
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
 //        | "do" stmt "while" "(" expr ")" ";"
 //        | "while" "(" expr ")" stmt
-//        | "goto" ident ";"
+//        | "goto" (ident | "*" expr) ";"
 //        | ident ":" stmt
 //        | "break;" | "continue;"
 //        | "switch" "(" expr ")" stmt
@@ -1416,6 +1417,13 @@ static Node *stmt(Token **Rest, Token *Tok) {
 
     // "goto" ident ";"
     if (equal(Tok, "goto")) {
+        if (equal(Tok->Next, "*")) {
+            // `goto *Ptr`跳转到Ptr指向的地址
+            Node *Nd = newNode(ND_GOTO_EXPR, Tok);
+            Nd->LHS = expr(&Tok, Tok->Next->Next);
+            *Rest = skip(Tok, ";");
+            return Nd;
+        }
         Node *Nd = newNode(ND_GOTO, Tok);
         Nd->Label = getIdent(Tok->Next);
         // 将Nd同时存入Gotos，最后用于解析UniqueLabel
@@ -1969,6 +1977,7 @@ static Node *cast(Token **Rest, Token *Tok) {
 // unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
 //       | postfix 
 //       | ("++" | "--") unary
+//       | "&&" ident
 static Node *unary(Token **Rest, Token *Tok) {
     // "+" cast
     if (equal(Tok, "+"))
@@ -2008,6 +2017,17 @@ static Node *unary(Token **Rest, Token *Tok) {
     if (equal(Tok, "--"))
         return toAssign(
             newSub(unary(Rest, Tok->Next), newNum(1, Tok), Tok));
+
+    // GOTO的标签作为值
+    if (equal(Tok, "&&")) {
+        Node *Nd = newNode(ND_LABEL_VAL, Tok);
+        Nd->Label = getIdent(Tok->Next);
+        // 将Nd同时存入Gotos，最后用于解析UniqueLabel
+        Nd->GotoNext = Gotos;
+        Gotos = Nd;
+        *Rest = Tok->Next->Next;
+        return Nd;
+    }
 
     // primary
     return postfix(Rest, Tok);

@@ -334,6 +334,9 @@ void addType(Node *Nd) {
                 }
             }
             errorTok(Nd->Tok, "statement expression returning void is not supported");
+        case ND_LABEL_VAL:
+            Nd->Ty = pointerTo(TyVoid);
+            return;
         // 将节点类型设为 右部的类型
         case ND_COMMA:
             Nd->Ty = Nd->RHS->Ty;
