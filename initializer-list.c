@@ -732,9 +732,7 @@ static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
         return Cur;
 
     // 预设使用到的 其他全局变量的名称
-    // note: we cant deref *label, but in eval2 we convert the arg to be **
-    // and then it becomes assinable(although label points to NULL, but &label not)
-    char *Label = NULL;
+    char **Label = NULL;
     uint64_t Val = eval2(Init->Expr, &Label);
 
     // 如果不存在Label，说明可以直接计算常量表达式的值

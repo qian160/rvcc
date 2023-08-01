@@ -310,7 +310,7 @@ typedef struct Relocation Relocation;
 struct Relocation {
     Relocation *Next; // 下一个
     int Offset;       // 偏移量
-    char *Label;      // 标签名
+    char **Label;     // 标签名
     long Addend;      // 加数
 };
 
@@ -426,7 +426,7 @@ void print_call_stack(int depth);
 
 /* ---------- parse-util.c ---------- */
 int64_t eval(Node *Nd);
-int64_t eval2(Node *Nd, char **Label);
+int64_t eval2(Node *Nd, char ***Label);
 double evalDouble(Node *Nd);
 int64_t constExpr(Token **Rest, Token *Tok);
 uint32_t simpleLog2(uint32_t v);

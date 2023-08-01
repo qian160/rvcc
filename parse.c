@@ -1132,8 +1132,10 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy, VarAttr *Attr) 
 
         if (Attr && Attr->IsStatic) {
             // 静态局部变量
-            //Obj *Var = newAnonGVar(Ty);
-            Obj *Var = newGVar(getIdent(Ty->Name), Ty);
+            // note: this is different from general global variable.
+            // its name will be replaced with an anonymous one
+            // although it's also global, the conflict of name duplication won't happen
+            Obj *Var = newAnonGVar(Ty);
             pushScope(getIdent(Ty->Name))->Var = Var;
             if (equal(Tok, "="))
                 GVarInitializer(&Tok, Tok->Next, Var);

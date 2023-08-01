@@ -2267,7 +2267,7 @@ static void emitData(Obj *Prog) {
                 if (Rel && Rel->Offset == Pos) {
                     // 使用其他变量进行初始化
                     println("  # %s全局变量", Var->Name);
-                    println("  .quad %s%+ld", Rel->Label, Rel->Addend);
+                    println("  .quad %s%+ld", *Rel->Label, Rel->Addend);
                     Rel = Rel->Next;
                     Pos += 8;
                 } else {
@@ -2313,10 +2313,8 @@ void emitText(Obj *Prog) {
         if (!Fn->IsLive)
         continue;
 
-        if (Fn->IsStatic)
-            println("  .local %s", Fn->Name);
-        else
-            println("  .globl %s", Fn->Name);
+        char *visibility = Fn->IsStatic? ".local": ".global";
+        println("  %s %s", visibility, Fn->Name);
 
         println("  .text");
         println("# =====%s段开始===============", Fn->Name);
