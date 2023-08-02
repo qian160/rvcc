@@ -220,4 +220,18 @@ void hashmapTest(void) {
         hashmapPut(Map, format("key %d", I), (void *)(size_t)I);
 
     assert(hashmapGet(Map, "no such key") == NULL);
+
+    char *str = format(
+        "%s%s%s%s%s%s%s %s%s\n", 
+        color_text("h", 91),
+        color_text("a", 92),
+        color_text("s", 93),
+        color_text("h", 94),
+        color_text("m", 95),
+        color_text("a", 96),
+        color_text("p", 97),
+        color_text("O", 98),
+        color_text("K", 99)
+    );
+    printf("%s\n", str);
 }
