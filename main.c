@@ -29,6 +29,8 @@ static bool OptV;
 static bool OptM;
 // -MF选项
 static char *OptMF;
+// -MP选项
+static bool OptMP;
 // -include所引入的文件
 static StringArray OptInclude;
 
@@ -73,7 +75,8 @@ static void usage(int Status) {
     fprintf(stderr, "-D         Define a macro.\n");
     fprintf(stderr, "-U         Undefine a macro.\n");
     fprintf(stderr, "-M         Output a rule suitable for make describing the dependencies.\n");
-    fprintf(stderr, "-MF        specifies a file to write the dependencies to.\n");
+    fprintf(stderr, "-MF        Specifies a file to write the dependencies to.\n");
+    fprintf(stderr, "-MP        Add a phony target for each dependency other than the main file.\n");
     fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "-l         Search the given library when linking.\n");
@@ -213,6 +216,12 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-MF
         if (!strcmp(Argv[I], "-MF")) {
             OptMF = Argv[++I];
+            continue;
+        }
+
+        // 解析-MP
+        if (!strcmp(Argv[I], "-MP")) {
+            OptMP = true;
             continue;
         }
 
@@ -515,6 +524,12 @@ static void printDependencies(void) {
     for (int I = 0; Files[I]; I++)
         fprintf(Out, " \\\n  %s", Files[I]->Name);
     fprintf(Out, "\n\n");
+
+    // 如果指定了-MP，则为头文件生成伪目标
+    if (OptMP)
+        for (int I = 1; Files[I]; I++)
+            fprintf(Out, "%s:\n\n", Files[I]->Name);
+
 }
 
 // 解析文件，生成终结符流
