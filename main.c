@@ -27,6 +27,8 @@ static bool OptE;
 static bool OptV;
 // -M选项
 static bool OptM;
+// -MF选项
+static char *OptMF;
 // -include所引入的文件
 static StringArray OptInclude;
 
@@ -71,6 +73,7 @@ static void usage(int Status) {
     fprintf(stderr, "-D         Define a macro.\n");
     fprintf(stderr, "-U         Undefine a macro.\n");
     fprintf(stderr, "-M         Output a rule suitable for make describing the dependencies.\n");
+    fprintf(stderr, "-MF        specifies a file to write the dependencies to.\n");
     fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "-l         Search the given library when linking.\n");
@@ -116,7 +119,7 @@ static void addDefaultIncludePaths(char *Argv0) {
 
 // 判断需要一个参数的选项，是否具有一个参数
 static bool takeArg(char *Arg) {
-    char *X[] = {"-o", "-I", "-idirafter", "-include", "-x"};
+    char *X[] = {"-o", "-I", "-idirafter", "-include", "-x", "-MF"};
 
     for (int I = 0; I < sizeof(X) / sizeof(*X); I++)
         if (!strcmp(Arg, X[I]))
@@ -204,6 +207,12 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-M
         if (!strcmp(Argv[I], "-M")) {
             OptM = true;
+            continue;
+        }
+
+        // 解析-MF
+        if (!strcmp(Argv[I], "-MF")) {
+            OptMF = Argv[++I];
             continue;
         }
 
@@ -486,8 +495,17 @@ static char *createTmpFile(void) {
 
 // 输出可用于Make的规则，自动化文件依赖管理
 static void printDependencies(void) {
+    char *Path;
+    if (OptMF)
+        // 将Make的规则写入`-MF File`的File中
+        Path = OptMF;
+    else if (OptO)
+        Path = OptO;
+    else
+        Path = "-";
+
     // 输出文件
-    FILE *Out = openFile(OptO ? OptO : "-");
+    FILE *Out = openFile(Path);
     fprintf(Out, "%s:", replaceExtn(BaseFile, ".o"));
 
     // 获取输入文件
