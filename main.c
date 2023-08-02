@@ -29,6 +29,9 @@ static bool OptV;
 static bool OptM;
 // -MF选项
 static char *OptMF;
+// -MT选项
+static char *OptMT;
+
 // -MP选项
 static bool OptMP;
 // -include所引入的文件
@@ -122,7 +125,7 @@ static void addDefaultIncludePaths(char *Argv0) {
 
 // 判断需要一个参数的选项，是否具有一个参数
 static bool takeArg(char *Arg) {
-    char *X[] = {"-o", "-I", "-idirafter", "-include", "-x", "-MF"};
+    char *X[] = {"-o", "-I", "-idirafter", "-include", "-x", "-MF", "-MT"};
 
     for (int I = 0; I < sizeof(X) / sizeof(*X); I++)
         if (!strcmp(Arg, X[I]))
@@ -222,6 +225,18 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-MP
         if (!strcmp(Argv[I], "-MP")) {
             OptMP = true;
+            continue;
+        }
+
+        // 解析-MT
+        // `-MT File`，指定File为依赖规则中的目标
+        if (!strcmp(Argv[I], "-MT")) {
+            if (OptMT == NULL)
+                // 无依赖规则中的目标
+                OptMT = Argv[++I];
+            else
+                // 合并依赖规则中的目标
+                OptMT = format("%s %s", OptMT, Argv[++I]);
             continue;
         }
 
@@ -515,7 +530,9 @@ static void printDependencies(void) {
 
     // 输出文件
     FILE *Out = openFile(Path);
-    fprintf(Out, "%s:", replaceExtn(BaseFile, ".o"));
+    // -MT指定依赖规则中的目标，否则替换后缀为.o
+    fprintf(Out, "%s:", OptMT ? OptMT : replaceExtn(BaseFile, ".o"));
+
 
     // 获取输入文件
     File **Files = getInputFiles();
