@@ -33,11 +33,14 @@ static char *OptMF;
 static char *OptMT;
 // -MD选项
 static bool OptMD;
-
+// -MMD选项
+static bool OptMMD;
 // -MP选项
 static bool OptMP;
 // -include所引入的文件
 static StringArray OptInclude;
+// 标准库所引入的路径，用于-MMD选项
+static StringArray StdIncludePaths;
 
 // -W选项
 bool OptW;
@@ -84,6 +87,7 @@ static void usage(int Status) {
     fprintf(stderr, "-MP        Add a phony target for each dependency other than the main file.\n");
     fprintf(stderr, "-MT        Change the target of the rule emitted by dependency generation.\n");
     fprintf(stderr, "-MD        Equivalent to -M -MF file, except that -E is not implied.\n");
+    fprintf(stderr, "-MMD       Like -MD except mention only user header files, not system header files.\n");
     fprintf(stderr, "-MQ        Same as -MT, but it quotes any characters which are special to Make.\n");
     fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
@@ -126,6 +130,10 @@ static void addDefaultIncludePaths(char *Argv0) {
     strArrayPush(&IncludePaths, "/usr/local/include");
     strArrayPush(&IncludePaths, "/usr/include/riscv64-linux-gnu");
     strArrayPush(&IncludePaths, "/usr/include");
+
+    // 为-MMD选项，复制一份标准库引入路径
+    for (int I = 0; I < IncludePaths.Len; I++)
+        strArrayPush(&StdIncludePaths, IncludePaths.Data[I]);
 }
 
 // 判断需要一个参数的选项，是否具有一个参数
@@ -282,6 +290,13 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-MD
         if (!strcmp(Argv[I], "-MD")) {
             OptMD = true;
+            continue;
+        }
+
+        // 解析-MMD
+        if (!strcmp(Argv[I], "-MMD")) {
+            // 同时启用-MD选项
+            OptMD = OptMMD = true;
             continue;
         }
 
@@ -573,6 +588,18 @@ static char *createTmpFile(void) {
     return Path;
 }
 
+// 判断是否为标准库路径
+static bool inStdIncludePath(char *Path) {
+    for (int I = 0; I < StdIncludePaths.Len; I++) {
+        char *Dir = StdIncludePaths.Data[I];
+        int Len = strlen(Dir);
+        // 与库路径相同，且以斜杠结尾
+        if (strncmp(Dir, Path, Len) == 0 && Path[Len] == '/')
+        return true;
+    }
+    return false;
+}
+
 // 输出可用于Make的规则，自动化文件依赖管理
 static void printDependencies(void) {
     char *Path;
@@ -601,16 +628,26 @@ static void printDependencies(void) {
     File **Files = getInputFiles();
 
     // 遍历输入文件，并将格式化的结果写入输出文件
-    for (int I = 0; Files[I]; I++)
+    for (int I = 0; Files[I]; I++){
+        // 不输出标准库内的文件
+        if (OptMMD && inStdIncludePath(Files[I]->Name))
+            continue;
         fprintf(Out, " \\\n  %s", Files[I]->Name);
+    }
     fprintf(Out, "\n\n");
 
     // 如果指定了-MP，则为头文件生成伪目标
-    if (OptMP)
-        for (int I = 1; Files[I]; I++)
-            // 处理头文件中的特殊字符
-            fprintf(Out, "%s:\n\n", quoteMakefile(Files[I]->Name));
-
+    if (OptMP){
+        for (int I = 1; Files[I]; I++) {
+            for (int I = 1; Files[I]; I++) {
+                // 不输出标准库内的文件
+                if (OptMMD && inStdIncludePath(Files[I]->Name))
+                    continue;
+                // 处理头文件中的特殊字符
+                fprintf(Out, "%s:\n\n", quoteMakefile(Files[I]->Name));
+            }
+        }
+    }
 }
 
 // 解析文件，生成终结符流
