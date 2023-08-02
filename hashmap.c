@@ -226,7 +226,7 @@ void hashmapTest(void) {
     assert(hashmapGet(Map, "no such key") == NULL);
 
     char *str = format(
-        "%s%s%s%s%s%s%s %s%s\n", 
+        "%s%s%s%s%s%s%s %s%s", 
         color_text("h", 91),
         color_text("a", 92),
         color_text("s", 93),
