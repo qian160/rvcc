@@ -333,11 +333,11 @@ static Obj *findFunc(char *Name) {
         Sc = Sc->Next;
 
     // 遍历查找函数是否存在
-    for (VarScope *Sc2 = Sc->Vars; Sc2; Sc2 = Sc2->Next)
-        if (!strcmp(Sc2->Name, Name) && Sc2->Var && Sc2->Var->Ty->Kind == TY_FUNC)
+    VarScope *Sc2 = hashmapGet(&Sc->Vars, Name);
+    if (Sc2 && Sc2->Var && Sc2->Var->Ty->Kind == TY_FUNC)
         return Sc2->Var;
     return NULL;
-    }
+}
 
 // 将函数标记为存活状态
 static void markLive(Obj *Var) {
@@ -881,12 +881,12 @@ static Type *structUnionDecl(Token **Rest, Token *Tok) {
         Tok = Tok->Next;
     }
 
+    // 构造不完整结构体
     if (Tag && !equal(Tok, "{")) {
         *Rest = Tok;
         Type *Ty = findTag(Tag);
         if (Ty)
             return Ty;
-        // 构造不完整结构体
         Ty = structType();
         Ty->Size = -1;
         pushTagScope(Tag, Ty);
@@ -902,16 +902,13 @@ static Type *structUnionDecl(Token **Rest, Token *Tok) {
     *Rest = skip(*Rest, "}");
     // 如果是重复定义，就覆盖之前的定义。否则有名称就注册结构体类型
     if (Tag) {
-        for (TagScope *S = Scp->Tags; S; S = S->Next) {
-            if (equal(Tag, S->Name)) {
-                *S->Ty = *Ty;
-                // why not Ty? because we may need to cast the type in the future
-                return S->Ty;
-            }
+        Type *Ty2 = hashmapGet(&Scp->Tags, tokenName(Tag));
+        if (Ty2) {
+            *Ty2 = *Ty;
+            return Ty2;
         }
         pushTagScope(Tag, Ty);
     }
-
     return Ty;
 }
 
@@ -1182,7 +1179,7 @@ static Node *declaration(Token **Rest, Token *Tok, Type *BaseTy, VarAttr *Attr) 
             Cur = Cur->Next;
         }
         if (Var->Ty->Size < 0)
-            errorTok(Ty->Name, "variable has incomplete type");
+            errorTok(Ty->Name, "variable has incomplete type. size = %d?", Var->Ty->Size);
         if (Var->Ty->Kind == TY_VOID)
             errorTok(Ty->Name, "variable declared void");
 

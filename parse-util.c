@@ -51,19 +51,12 @@ void leaveScope(void) {
 // 将变量存入当前的域中
 VarScope *pushScope(char *Name) {
     VarScope *S = calloc(1, sizeof(VarScope));
-    S->Name = Name;
-    // 后来的在链表头部
-    S->Next = Scp->Vars;
-    Scp->Vars = S;
+    hashmapPut(&Scp->Vars, Name, S);
     return S;
 }
 
 void pushTagScope(Token *Tok, Type *Ty) {
-    TagScope *S = calloc(1, sizeof(TagScope));
-    S->Name = tokenName(Tok);
-    S->Ty = Ty;
-    S->Next = Scp->Tags;
-    Scp->Tags = S;
+    hashmapPut(&Scp->Tags, tokenName(Tok), Ty);
 }
 
 // ---------- variables managements ----------
@@ -71,14 +64,22 @@ void pushTagScope(Token *Tok, Type *Ty) {
 // 通过名称，查找一个变量
 VarScope *findVar(Token *Tok) {
     // 此处越先匹配的域，越深层
-    // inner scope has access to outer's
-    for (Scope *S = Scp; S; S = S->Next)
+    for (Scope *S = Scp; S; S = S->Next) {
         // 遍历域内的所有变量
-        for (VarScope *S2 = S->Vars; S2; S2 = S2->Next)
-            //if (equal(Tok, S2->Var->Name))
-            if (equal(Tok, S2->Name))
-                return S2;
-    //trace("%s: NOT FOUND", tokenName(Tok));
+        VarScope *S2 = hashmapGet(&S->Vars, tokenName(Tok));
+        if (S2)
+        return S2;
+    }
+    return NULL;
+}
+
+// 通过Token查找标签
+Type *findTag(Token *Tok) {
+    for (Scope *S = Scp; S; S = S->Next) {
+        Type *Ty = hashmapGet(&S->Tags, tokenName(Tok));
+        if (Ty)
+        return Ty;
+    }
     return NULL;
 }
 
@@ -111,15 +112,6 @@ Obj *newGVar(char *Name, Type *Ty) {
     Var->IsDefinition = true;
     Globals = Var;
     return Var;
-}
-
-// 通过Token查找标签
-Type *findTag(Token *Tok) {
-    for (Scope *S = Scp; S; S = S->Next)
-        for (TagScope *S2 = S->Tags; S2; S2 = S2->Next)
-            if (equal(Tok, S2->Name))
-                return S2->Ty;
-    return NULL;
 }
 
 // 获取标识符

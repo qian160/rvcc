@@ -586,7 +586,6 @@ static Initializer *initializer(Token **Rest, Token *Tok, Type *Ty, Type **NewTy
 
     // 将新类型传回变量
     *NewTy = Init->Ty;
-    // trace("%d, %d", Ty->Size, (*NewTy)->Size);       // Ty->Size could be -1, but NewTy->size is known
     return Init;
 }
 
@@ -702,7 +701,6 @@ static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
                                     Offset + Mem->Offset);
             }
         }
-
         return Cur;
     }
 

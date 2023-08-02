@@ -386,7 +386,7 @@ static Macro *findMacro(Token *Tok) {
     if (Tok->Kind != TK_IDENT)
         return NULL;
 
-    return hashmapGet2(&Macros, Tok->Loc, Tok->Len);
+    return hashmapGet(&Macros, tokenName(Tok));
 }
 
 // 读取宏形参

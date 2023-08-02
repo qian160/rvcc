@@ -6,31 +6,21 @@
 //
 
 // 局部变量，全局变量，typedef，enum常量的域(各种标识符)
-typedef struct VarScope VarScope;
-struct VarScope {
-    VarScope *Next; // 下一变量域
+typedef struct {
     Obj *Var;       // 对应的变量
-    char *Name;     // 变量域名称.
     Type *Typedef;  // 别名的类型info
     Type *EnumTy;   // 枚举的类型
     int EnumVal;    // 枚举的值
-};
-
-// 结构体和联合体标签的域
-typedef struct TagScope TagScope;
-struct TagScope {
-    TagScope *Next; // 下一标签域
-    char *Name;     // struct's name
-    Type *Ty;       // 域类型
-};
+} VarScope;
 
 // 表示一个块域
 // 里面存放了域中的各种标识符，包括变量名、函数名、别名, enum常量
 typedef struct Scope Scope;
 struct Scope {
-    Scope *Next;            // 指向上一级的域
-    VarScope *Vars;         // 指向当前域内的变量
-    TagScope *Tags;         // 指向当前域内的结构体/union/enum标签
+    Scope *Next;    // 指向上一级的域
+    // C有两个域：变量（或类型别名）域，结构体（或联合体，枚举）标签域
+    HashMap Vars;   // 指向当前域内的变量
+    HashMap Tags;   // 指向当前域内的结构体标签
 };
 
 // 变量属性
