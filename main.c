@@ -84,6 +84,7 @@ static void usage(int Status) {
     fprintf(stderr, "-MP        Add a phony target for each dependency other than the main file.\n");
     fprintf(stderr, "-MT        Change the target of the rule emitted by dependency generation.\n");
     fprintf(stderr, "-MD        Equivalent to -M -MF file, except that -E is not implied.\n");
+    fprintf(stderr, "-MQ        Same as -MT, but it quotes any characters which are special to Make.\n");
     fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "-l         Search the given library when linking.\n");
@@ -150,6 +151,40 @@ static FileType parseOptX(char *S) {
         return FILE_NONE;
     error("<command line>: unknown argument for -x: %s", S);
 }
+
+// 对Make的目标中的特殊字符进行处理
+static char *quoteMakefile(char *S) {
+    // 新字符串，确保即使S的全部字符都处理，加上'\0'也能够存储下
+    char *Buf = calloc(1, strlen(S) * 2 + 1);
+
+    // 遍历字符串，对特殊字符进行处理
+    for (int I = 0, J = 0; S[I]; I++) {
+        switch (S[I]) {
+            case '$':
+                Buf[J++] = '$';
+                Buf[J++] = '$';
+                break;
+            case '#':
+                Buf[J++] = '\\';
+                Buf[J++] = '#';
+                break;
+            case ' ':
+            case '\t':
+                // 反向遍历反斜杠字符
+                for (int K = I - 1; K >= 0 && S[K] == '\\'; K--)
+                    Buf[J++] = '\\';
+                Buf[J++] = '\\';
+                Buf[J++] = S[I];
+                break;
+            default:
+                Buf[J++] = S[I];
+                break;
+        }
+    }
+    // 返回新字符串
+    return Buf;
+}
+
 // 解析传入程序的参数
 static void parseArgs(int Argc, char **Argv) {
     // 确保需要一个参数的选项，存在一个参数
@@ -247,6 +282,17 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-MD
         if (!strcmp(Argv[I], "-MD")) {
             OptMD = true;
+            continue;
+        }
+
+        // 解析-MQ
+        if (!strcmp(Argv[I], "-MQ")) {
+            if (OptMT == NULL)
+                // 无依赖规则中的目标
+                OptMT = quoteMakefile(Argv[++I]);
+            else
+                // 合并依赖规则中的目标
+                OptMT = format("%s %s", OptMT, quoteMakefile(Argv[++I]));
             continue;
         }
 
@@ -543,9 +589,13 @@ static void printDependencies(void) {
 
     // 输出文件
     FILE *Out = openFile(Path);
-    // -MT指定依赖规则中的目标，否则替换后缀为.o
-    fprintf(Out, "%s:", OptMT ? OptMT : replaceExtn(BaseFile, ".o"));
 
+    // 如果未指定-MT，默认需要目标名中的特殊字符处理
+    if (OptMT)
+        fprintf(Out, "%s:", OptMT);
+    else
+        // -MF指定依赖规则中的目标，否则替换后缀为.o
+        fprintf(Out, "%s:", quoteMakefile(replaceExtn(BaseFile, ".o")));
 
     // 获取输入文件
     File **Files = getInputFiles();
@@ -558,7 +608,8 @@ static void printDependencies(void) {
     // 如果指定了-MP，则为头文件生成伪目标
     if (OptMP)
         for (int I = 1; Files[I]; I++)
-            fprintf(Out, "%s:\n\n", Files[I]->Name);
+            // 处理头文件中的特殊字符
+            fprintf(Out, "%s:\n\n", quoteMakefile(Files[I]->Name));
 
 }
 
