@@ -166,18 +166,25 @@ Type *findTypedef(Token *Tok) {
 // 判断是否为类型名
 bool isTypename(Token *Tok) 
 {
-    static char *types[] = 
-        {"typedef", "char", "int", "struct", "union", 
-            "long", "short", "void", "_Bool", "enum", "float", "double",
-            "static", "extern", "_Alignas", "signed", "unsigned",
-            "const", "volatile", "auto", "register", "typeof", "inline",
-            "restrict", "__restrict", "__restrict__", "_Noreturn",
-            "__thread", "_Thread_local",
+    static HashMap Map;
+
+    // 哈希表容量为0，说明还没初始化
+    if (Map.Capacity == 0) {
+        static char *Kw[] = {
+            "void",       "_Bool",        "char",          "short",    "int",
+            "long",       "struct",       "union",         "typedef",  "enum",
+            "static",     "extern",       "_Alignas",      "signed",   "unsigned",
+            "const",      "volatile",     "auto",          "register", "restrict",
+            "__restrict", "__restrict__", "_Noreturn",     "float",    "double",
+            "typeof",     "inline",       "_Thread_local", "__thread",
         };
-
-    return equal2(Tok, sizeof(types) / sizeof(*types), types) || findTypedef(Tok);
+    
+        // 遍历类型名列表插入哈希表
+        for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); I++)
+        hashmapPut(&Map, Kw[I], (void *)1);
+    }
+    return hashmapGet(&Map, tokenName(Tok)) || findTypedef(Tok);
 }
-
 
 //
 // 创建节点

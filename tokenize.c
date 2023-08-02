@@ -328,19 +328,34 @@ static bool convertPPInt(Token *Tok) {
 
 // 判断是否为关键字
 static bool isKeyword(Token *Tok) {
-    // 关键字列表
-    static char *Kw[] = 
-        {   "return", "goto","if", "else", "for", "do","while", 
-            "break", "continue", "switch", "case", "default",
-            "int", "long", "short, void", "char", "_Bool", "float", "double",
-            "struct", "union",  "typedef", "enum", "asm", "__asm__",
-            "extern", "sizeof", "static", "signed", "unsigned",
-            "_Alignof", "_Alignas", "const", "volatile", "auto", "register", 
-            "restrict", "__restrict", "__restrict__", "_Noreturn", "typeof",
-            "_Thread_local", "__thread",
+    static HashMap Map;
+
+    // 哈希表容量为0，说明还没初始化
+    if (Map.Capacity == 0) {
+        static char *Kw[] = {
+            "return",    "if",         "else",
+            "for",       "while",      "int",
+            "sizeof",    "char",       "struct",
+            "union",     "long",       "short",
+            "void",      "typedef",    "_Bool",
+            "enum",      "static",     "goto",
+            "break",     "continue",   "switch",
+            "case",      "default",    "extern",
+            "_Alignof",  "_Alignas",   "do",
+            "signed",    "unsigned",   "const",
+            "volatile",  "auto",       "register",
+            "restrict",  "__restrict", "__restrict__",
+            "_Noreturn", "float",      "double",
+            "typeof",    "asm",        "_Thread_local",
+            "__thread",
         };
 
-    return equal2(Tok, sizeof(Kw) / sizeof(*Kw), Kw);
+        // 遍历关键字列表插入哈希表
+        for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); I++)
+            hashmapPut(&Map, Kw[I], (void *)1);
+    }
+
+    return hashmapGet(&Map, tokenName(Tok));
 }
 
 // 预处理阶段的数字字面量比后面阶段的定义更宽泛

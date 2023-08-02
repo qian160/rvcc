@@ -15,6 +15,10 @@
 // 插入新元素时，优先选择标记删除的键值对，可以尽量避免增加哈希表的容量
 #define TOMBSTONE ((void *)-1)
 
+static void hashmapPut2(HashMap *Map, char *Key, int KeyLen, void *Val);
+static void *hashmapGet2(HashMap *Map, char *Key, int KeyLen);
+static void hashmapDelete2(HashMap *Map, char *Key, int KeyLen);
+
 // 64位FNV-1哈希算法
 // 能对字符串进行高效的哈希值计算
 static uint64_t fnvHash(char *S, int Len) {
@@ -156,7 +160,7 @@ void *hashmapGet(HashMap *Map, char *Key) {
     return hashmapGet2(Map, Key, strlen(Key));
 }
 
-void *hashmapGet2(HashMap *Map, char *Key, int KeyLen) {
+static void *hashmapGet2(HashMap *Map, char *Key, int KeyLen) {
     // 获取键值对
     HashEntry *Ent = getEntry(Map, Key, KeyLen);
     // 如果查找到键值对则返回，否则为空
@@ -168,7 +172,7 @@ void hashmapPut(HashMap *Map, char *Key, void *Val) {
     hashmapPut2(Map, Key, strlen(Key), Val);
 }
 
-void hashmapPut2(HashMap *Map, char *Key, int KeyLen, void *Val) {
+static void hashmapPut2(HashMap *Map, char *Key, int KeyLen, void *Val) {
     // 返回或创建键值对
     HashEntry *Ent = getOrInsertEntry(Map, Key, KeyLen);
     // 修改键值对的值
@@ -180,7 +184,7 @@ void hashmapDelete(HashMap *Map, char *Key) {
     hashmapDelete2(Map, Key, strlen(Key));
 }
 
-void hashmapDelete2(HashMap *Map, char *Key, int KeyLen) {
+static void hashmapDelete2(HashMap *Map, char *Key, int KeyLen) {
     // 查找指定的键值对
     HashEntry *Ent = getEntry(Map, Key, KeyLen);
     // 若键值对存在，则标记删除

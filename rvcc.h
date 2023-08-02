@@ -460,11 +460,8 @@ typedef struct {
 } HashMap;
 
 void *hashmapGet(HashMap *Map, char *Key);
-void *hashmapGet2(HashMap *Map, char *Key, int KeyLen);
 void hashmapPut(HashMap *Map, char *Key, void *Val);
-void hashmapPut2(HashMap *Map, char *Key, int KeyLen, void *Val);
 void hashmapDelete(HashMap *Map, char *Key);
-void hashmapDelete2(HashMap *Map, char *Key, int KeyLen);
 void hashmapTest(void);
 
 //
