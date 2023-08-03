@@ -341,6 +341,9 @@ extern char *BaseFile;
 void printTokens(Token *Tok);
 bool fileExists(char *Path);
 extern StringArray IncludePaths;
+// 位置无关代码的标记
+extern bool OptFPIC;
+
 // other functions
 
 /* ---------- tokenize.c ---------- */

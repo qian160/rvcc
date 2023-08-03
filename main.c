@@ -25,6 +25,7 @@ static bool OptC;
 static bool OptE;
 // -v选项
 static bool OptV;
+
 // -M选项
 static bool OptM;
 // -MF选项
@@ -37,6 +38,10 @@ static bool OptMD;
 static bool OptMMD;
 // -MP选项
 static bool OptMP;
+
+// 位置无关代码的标记
+bool OptFPIC;
+
 // -include所引入的文件
 static StringArray OptInclude;
 // 标准库所引入的路径，用于-MMD选项
@@ -89,6 +94,8 @@ static void usage(int Status) {
     fprintf(stderr, "-MD        Equivalent to -M -MF file, except that -E is not implied.\n");
     fprintf(stderr, "-MMD       Like -MD except mention only user header files, not system header files.\n");
     fprintf(stderr, "-MQ        Same as -MT, but it quotes any characters which are special to Make.\n");
+    fprintf(stderr, "-fpic      Generate position-independent code suitable for use in a shared library.\n");
+    fprintf(stderr, "-fPIC      Generate position-independent code suitable for dynamic linking.\n");
     fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "-l         Search the given library when linking.\n");
@@ -254,6 +261,14 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-v
         if (!strcmp(Argv[I], "-v")) {
             OptV = true;
+            continue;
+        }
+
+        // 解析-fpic或-fPIC
+        if (!strcmp(Argv[I], "-fpic") || !strcmp(Argv[I], "-fPIC")) {
+            OptFPIC = true;
+            define("__pic__");      // in fact -fPIC will define these macros to be 2
+            define("__PIC__");
             continue;
         }
 
