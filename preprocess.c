@@ -80,6 +80,8 @@ static StringKind getStringKind(Token *Tok) {
 }
 
 static Token *preprocess2(Token *Tok);
+// 记录含有 #pragma once 的文件
+static HashMap PragmaOnce;
 
 // 是否行首是#号
 static bool isHash(Token *Tok) { return Tok->AtBOL && equal(Tok, "#"); }
@@ -1101,6 +1103,10 @@ static char *detectIncludeGuard(Token *Tok) {
 
 // 引入文件
 static Token *includeFile(Token *Tok, char *Path, Token *FilenameTok) {
+    // 如果含有 "#pragma once"，已经被读取过，那么就跳过文件
+    if (hashmapGet(&PragmaOnce, Path))
+        return Tok;
+
     // 如果引用防护的文件，已经被读取过，那么就跳过文件
     static HashMap IncludeGuards;
     char *GuardName = hashmapGet(&IncludeGuards, Path);
@@ -1396,6 +1402,14 @@ static Token *preprocess2(Token *Tok) {
         // 匹配#error
         if (equal(Tok, "error"))
             errorTok(Tok, "error");
+
+        // 匹配#pragma once
+        if (equal(Tok, "pragma") && equal(Tok->Next, "once")) {
+            // 存储含有#pragma once 的文件名
+            hashmapPut(&PragmaOnce, Tok->File->Name, (void *)1);
+            Tok = skipLine(Tok->Next->Next);
+            continue;
+        }
 
         // 匹配#pragma
         if (equal(Tok, "pragma")) {
