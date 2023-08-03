@@ -41,6 +41,9 @@ static bool OptMP;
 
 // 位置无关代码的标记
 bool OptFPIC;
+//-static选项
+static bool OptStatic;
+
 
 // -include所引入的文件
 static StringArray OptInclude;
@@ -96,6 +99,7 @@ static void usage(int Status) {
     fprintf(stderr, "-MQ        Same as -MT, but it quotes any characters which are special to Make.\n");
     fprintf(stderr, "-fpic      Generate position-independent code suitable for use in a shared library.\n");
     fprintf(stderr, "-fPIC      Generate position-independent code suitable for dynamic linking.\n");
+    fprintf(stderr, "-static    Use static linking to create binaries.\n");
     fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "-l         Search the given library when linking.\n");
@@ -263,6 +267,14 @@ static void parseArgs(int Argc, char **Argv) {
             OptV = true;
             continue;
         }
+
+        // 解析-static
+        if (!strcmp(Argv[I], "-static")) {
+            OptStatic = true;
+            strArrayPush(&LdExtraArgs, "-static");
+            continue;
+        }
+
 
         // 解析-fpic或-fPIC
         if (!strcmp(Argv[I], "-fpic") || !strcmp(Argv[I], "-fPIC")) {
@@ -831,7 +843,7 @@ static void assemble(char *Input, char *Output) {
 static void runLinker(StringArray *Inputs, char *Output) {
     // 需要传递ld子进程的参数
     StringArray Arr = {};
-
+    // note: the order is important, don't change it
     // 链接器
     char *Ld = strlen(RVPath)
                     ? format("%s/bin/riscv64-unknown-linux-gnu-ld", RVPath)
@@ -843,13 +855,15 @@ static void runLinker(StringArray *Inputs, char *Output) {
     strArrayPush(&Arr, Output);
     strArrayPush(&Arr, "-m");
     strArrayPush(&Arr, "elf64lriscv");
-    strArrayPush(&Arr, "-dynamic-linker");
 
-    char *LP64D =
+    if (!OptStatic) {
+        strArrayPush(&Arr, "-dynamic-linker");
+        char *LP64D =
         strlen(RVPath)
             ? format("%s/sysroot/lib/ld-linux-riscv64-lp64d.so.1", RVPath)
             : "/lib/ld-linux-riscv64-lp64d.so.1";
-    strArrayPush(&Arr, LP64D);
+        strArrayPush(&Arr, LP64D);
+    }
 
     char *LibPath = findLibPath();
     char *GccLibPath = findGCCLibPath();
@@ -858,8 +872,6 @@ static void runLinker(StringArray *Inputs, char *Output) {
     strArrayPush(&Arr, format("%s/crti.o", LibPath));
     strArrayPush(&Arr, format("%s/crtbegin.o", GccLibPath));
     strArrayPush(&Arr, format("-L%s", GccLibPath));
-    strArrayPush(&Arr, format("-L%s", LibPath));
-    strArrayPush(&Arr, format("-L%s/..", LibPath));
     if (strlen(RVPath)) {
         strArrayPush(&Arr, format("-L%s/sysroot/usr/lib64", RVPath));
         strArrayPush(&Arr, format("-L%s/sysroot/lib64", RVPath));
@@ -889,11 +901,19 @@ static void runLinker(StringArray *Inputs, char *Output) {
     for (int I = 0; I < Inputs->Len; I++)
         strArrayPush(&Arr, Inputs->Data[I]);
 
-    strArrayPush(&Arr, "-lc");
-    strArrayPush(&Arr, "-lgcc");
-    strArrayPush(&Arr, "--as-needed");
-    strArrayPush(&Arr, "-lgcc_s");
-    strArrayPush(&Arr, "--no-as-needed");
+    if (OptStatic) {
+        strArrayPush(&Arr, "--start-group");
+        strArrayPush(&Arr, "-lgcc");
+        strArrayPush(&Arr, "-lgcc_eh");
+        strArrayPush(&Arr, "-lc");
+        strArrayPush(&Arr, "--end-group");
+    } else {
+        strArrayPush(&Arr, "-lc");
+        strArrayPush(&Arr, "-lgcc");
+        strArrayPush(&Arr, "--as-needed");
+        strArrayPush(&Arr, "-lgcc_s");
+        strArrayPush(&Arr, "--no-as-needed");
+    }
     strArrayPush(&Arr, format("%s/crtend.o", GccLibPath));
     strArrayPush(&Arr, format("%s/crtn.o", LibPath));
     strArrayPush(&Arr, NULL);
