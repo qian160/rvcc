@@ -43,7 +43,8 @@ static bool OptMP;
 bool OptFPIC;
 //-static选项
 static bool OptStatic;
-
+// -shared选项
+static bool OptShared;
 
 // -include所引入的文件
 static StringArray OptInclude;
@@ -100,6 +101,7 @@ static void usage(int Status) {
     fprintf(stderr, "-fpic      Generate position-independent code suitable for use in a shared library.\n");
     fprintf(stderr, "-fPIC      Generate position-independent code suitable for dynamic linking.\n");
     fprintf(stderr, "-static    Use static linking to create binaries.\n");
+    fprintf(stderr, "-shared    Generate a shared object file for creating shared libraries.\n");
     fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
     fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
     fprintf(stderr, "-l         Search the given library when linking.\n");
@@ -275,6 +277,12 @@ static void parseArgs(int Argc, char **Argv) {
             continue;
         }
 
+        // 解析-shared
+        if (!strcmp(Argv[I], "-shared")) {
+            OptShared = true;
+            strArrayPush(&LdExtraArgs, "-shared");
+            continue;
+        }
 
         // 解析-fpic或-fPIC
         if (!strcmp(Argv[I], "-fpic") || !strcmp(Argv[I], "-fPIC")) {
@@ -868,10 +876,16 @@ static void runLinker(StringArray *Inputs, char *Output) {
     char *LibPath = findLibPath();
     char *GccLibPath = findGCCLibPath();
 
-    strArrayPush(&Arr, format("%s/crt1.o", LibPath));
-    strArrayPush(&Arr, format("%s/crti.o", LibPath));
-    strArrayPush(&Arr, format("%s/crtbegin.o", GccLibPath));
+    if (OptShared) {
+        strArrayPush(&Arr, format("%s/crti.o", LibPath));
+        strArrayPush(&Arr, format("%s/crtbeginS.o", GccLibPath));
+    } else {
+        strArrayPush(&Arr, format("%s/crt1.o", LibPath));
+        strArrayPush(&Arr, format("%s/crti.o", LibPath));
+        strArrayPush(&Arr, format("%s/crtbegin.o", GccLibPath));
+    }
     strArrayPush(&Arr, format("-L%s", GccLibPath));
+
     if (strlen(RVPath)) {
         strArrayPush(&Arr, format("-L%s/sysroot/usr/lib64", RVPath));
         strArrayPush(&Arr, format("-L%s/sysroot/lib64", RVPath));
@@ -914,7 +928,11 @@ static void runLinker(StringArray *Inputs, char *Output) {
         strArrayPush(&Arr, "-lgcc_s");
         strArrayPush(&Arr, "--no-as-needed");
     }
-    strArrayPush(&Arr, format("%s/crtend.o", GccLibPath));
+
+    if (OptShared)
+        strArrayPush(&Arr, format("%s/crtendS.o", GccLibPath));
+    else
+        strArrayPush(&Arr, format("%s/crtend.o", GccLibPath));
     strArrayPush(&Arr, format("%s/crtn.o", LibPath));
     strArrayPush(&Arr, NULL);
 
