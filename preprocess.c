@@ -991,12 +991,20 @@ char *searchIncludePaths(char *Filename) {
     // 以"/"开头的视为绝对路径
     if (Filename[0] == '/')
         return Filename;
+    // 文件搜索的缓存，被搜索的文件都会存入这里，方便快速查找
+    static HashMap Cache;
+    char *Cached = hashmapGet(&Cache, Filename);
+    if (Cached)
+        return Cached;
 
     // 从引入路径区查找文件
     for (int I = 0; I < IncludePaths.Len; I++) {
         char *Path = format("%s/%s", IncludePaths.Data[I], Filename);
-        if (fileExists(Path))
+        if (fileExists(Path)){
+            // 将搜索到的结果顺带存入文件搜索的缓存
+            hashmapPut(&Cache, Filename, Path);
             return Path;
+        }
     }
     return NULL;
 }
