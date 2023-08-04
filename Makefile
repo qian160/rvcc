@@ -93,13 +93,29 @@ git:
 	@git commit -m "$(msg)"
 #	@git push rvcc master
 
+# 测试第三方程序
+test-libpng: $(DST_DIR)/rvcc
+	./test/thirdparty/libpng.sh
+
+test-sqlite: $(DST_DIR)/rvcc
+	./test/thirdparty/sqlite.sh
+
+test-tinycc: $(DST_DIR)/rvcc
+	./test/thirdparty/tinycc.sh
+
+test-lua: $(DST_DIR)/rvcc
+	./test/thirdparty/lua.sh
+
+test-git: $(DST_DIR)/rvcc
+	./test/thirdparty/git.sh
+
 # 清理所有非源代码文件
 clean:
 	-rm -rf tmp* *.d $(TESTS) test/*.s test/*.out stage2/ thirdparty/ target/
 	-find * -type f '(' -name '*~' -o -name '*.o' -o -name '*.s' ')' -exec rm {} ';'
 
 # 伪目标，没有实际的依赖文件
-.PHONY: test clean count test-stage2
+.PHONY: test clean count test-stage2 test-all git
 
 -include $(DEPS)
 $(DST_DIR)/%.d: %.c

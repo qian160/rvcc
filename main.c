@@ -1,4 +1,5 @@
 #include "rvcc.h"
+
 // 注意 ~ 应替换为具体的 /home/用户名 的路径
 static char *RVPath = "/home/s081/riscv";
 // 目标文件的路径
@@ -79,9 +80,9 @@ static FileType OptX;
 static void usage(int Status) {
     char *str = format("\33[1;38m" "[ %s - %s] rvcc v1.14514 " "\33[0m \n", __DATE__, __TIME__);
 
-    fprintf(stderr, ANSI_PINK2(usage_msg));
-    fprintf(stderr, ANSI_CYAN(logo));
-    fprintf(stderr, ANSI_YELLOW(str));
+    fprintf(stderr, "\n"ANSI_PINK2(usage_msg));
+    fprintf(stderr, "\n\n"ANSI_CYAN(logo));
+    fprintf(stderr, ""ANSI_YELLOW(str));
     exit(Status);
 }
 
@@ -94,6 +95,8 @@ static void addDefaultIncludePaths(char *Argv0) {
     strArrayPush(&IncludePaths, "/usr/local/include");
     strArrayPush(&IncludePaths, "/usr/include/riscv64-linux-gnu");
     strArrayPush(&IncludePaths, "/usr/include");
+    strArrayPush(&IncludePaths, "/home/s081/Downloads/projects/rvcc/include");
+//    strArrayPush(&IncludePaths, "/usr/lib/gcc/x86_64-linux-gnu/9/include");
 
     // 为-MMD选项，复制一份标准库引入路径
     for (int I = 0; I < IncludePaths.Len; I++)

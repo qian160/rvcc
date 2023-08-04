@@ -6,25 +6,26 @@
 #define __attribute__(x)
 #endif
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <ctype.h>
-#include <stdarg.h>
-#include <stdbool.h>
 #include <errno.h>
-#include <string.h>
+#include <glob.h>
+#include <libgen.h>
+#include <stdarg.h>
+//#include "./include/stdarg.h"
+#include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdnoreturn.h>
+#include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <unistd.h>
-#include <libgen.h>
-#include <glob.h>
-#include <sys/stat.h>
-#include <stdnoreturn.h>
 #include <time.h>
+#include <unistd.h>
+
 /*
 // 使用POSIX.1标准
 // 使用了strndup函数:
@@ -191,6 +192,7 @@ typedef enum {
     ND_NULL_EXPR,   // 空表达式
     ND_MEMZERO,     // 栈中变量清零
     ND_ASM,         // "asm"汇编
+    ND_CAS,         // 原子比较交换, compare and swap
 } NodeKind;
 
 // AST中二叉树节点
@@ -237,6 +239,11 @@ struct Node {
     // Case语句
     long Begin;         // case后面的数值
     long End;           // case ...后面的数值
+    // 原子比较交换
+    Node *CasAddr;      // 地址
+    Node *CasOld;       // 旧值
+    Node *CasNew;       // 新值
+
 };
 
 //

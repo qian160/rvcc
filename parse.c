@@ -2409,6 +2409,20 @@ static Node *primary(Token **Rest, Token *Tok) {
         return newNum(isCompatible(T1, T2), Start);
     }
 
+    // 原子比较交换
+    if (equal(Tok, "__builtin_compare_and_swap")) {
+        Node *Nd = newNode(ND_CAS, Tok);
+        Tok = skip(Tok->Next, "(");
+        Nd->CasAddr = assign(&Tok, Tok);
+        Tok = skip(Tok, ",");
+        Nd->CasOld = assign(&Tok, Tok);
+        Tok = skip(Tok, ",");
+        Nd->CasNew = assign(&Tok, Tok);
+        *Rest = skip(Tok, ")");
+        return Nd;
+    }
+
+
     // "_Generic" genericSelection
     // 进入到泛型的解析
     if (equal(Tok, "_Generic"))
