@@ -1,0 +1,89 @@
+SYNOPSIS🙂
+rvcc   [-c|-S|-E] [-std=standard]
+       [-Idir...] [-Ldir...]
+       [-Dmacro[=defn]...] [-Umacro]
+       [-foption...] [-mmachine-option...]
+       [-o outfile] [@file] infile...
+
+Only the most useful options are listed here; see below for the remainder.
+
+
+other Options:
+--help
+	Display this information.
+
+-E
+	Expand only.
+
+-Wall
+	Enable all the warnings.
+
+-I dir
+	Add the directory dir to the list of directories to be searched for header files during preprocessing.
+
+-idirafter dir
+	like -I but the priority is low.
+
+-L dir
+	The -L option specifies the directory path where the linker should search for library file during the linking process.
+
+-c
+	Compile and assemble(-> .o).
+
+-S
+	compile only(-> .S).
+
+-s
+	Remove all symbol table and relocation information from the executable.
+
+-o file
+	Place output in file file.
+
+-D name[=defination]
+	Predefine name as a macro, with default definition 1
+
+-U name
+	Cancel any previous definition of name, either built in or provided with a -D option.
+
+-M
+	Output a rule suitable for make describing the dependencies.
+
+-MF
+	Specifies a file to write the dependencies to.
+
+-MP
+	Add a phony target for each dependency other than the main file.
+
+-MT
+	Change the target of the rule emitted by dependency generation.
+
+-MD
+	Equivalent to -M -MF file, except that -E is not implied.
+
+-MMD
+	Like -MD except mention only user header files, not system header files.
+
+-MQ
+	Same as -MT, but it quotes any characters which are special to Make.
+
+-fpic
+	Generate position-independent code suitable for use in a shared library.
+
+-fPIC
+	Generate position-independent code suitable for dynamic linking.
+
+-static
+	Use static linking to create binaries.
+
+-shared
+	Produce a shared object which can then be linked with other objects to form an executable.
+
+-###
+	Print the commands executed to run the stages of compilation. and commands are not executed.
+
+-l library
+	Search the library named library when linking.
+
+-x
+	Specify explicitly the language for the following input files (rather than letting the compiler choose a default based on the file name suffix)
+

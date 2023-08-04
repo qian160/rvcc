@@ -494,6 +494,23 @@ void hashmapTest(void);
 
 // 31=red, 32=green, 33=yellow, 34=blue, 35=purple, 36=cyan, 
 #define color_text(s, n) "\x1b[1;" #n "m" s "\x1b[0m"
+#define ANSI_RED(s)     "\33[1;31m" "%s" "\33[0m", s
+#define ANSI_GREEN(s)   "\33[1;32m" "%s" "\33[0m", s
+#define ANSI_YELLOW(s)  "\33[1;33m" "%s" "\33[0m", s
+#define ANSI_BLUE(s)    "\33[1;34m" "%s" "\33[0m", s
+#define ANSI_PURPLE(s)  "\33[1;35m" "%s" "\33[0m", s
+#define ANSI_CYAN(s)    "\33[1;36m" "%s" "\33[0m", s
+#define ANSI_WHITE(s)   "\33[1;37m" "%s" "\33[0m", s
+#define ANSI_PINK(s)    "\33[1;38m" "%s" "\33[0m", s
+// with deeper color
+#define ANSI_RED2(s)     "\33[1;91m" "%s" "\33[0m", s
+#define ANSI_GREEN2(s)   "\33[1;92m" "%s" "\33[0m", s
+#define ANSI_YELLOW2(s)  "\33[1;93m" "%s" "\33[0m", s
+#define ANSI_BLUE2(s)    "\33[1;94m" "%s" "\33[0m", s
+#define ANSI_PURPLE2(s)  "\33[1;95m" "%s" "\33[0m", s
+#define ANSI_CYAN2(s)    "\33[1;96m" "%s" "\33[0m", s
+#define ANSI_WHITE2(s)   "\33[1;97m" "%s" "\33[0m", s
+#define ANSI_PINK2(s)    "\33[1;98m" "%s" "\33[0m", s
 
 #define Assert(cond, fmt, ...) \
     do{\

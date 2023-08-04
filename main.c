@@ -56,7 +56,8 @@ bool OptW;
 // common块默认生成
 bool OptFCommon = true;
 
-extern const char logo[];   // don't use char *
+extern const char logo[];
+extern const char usage_msg[];
 
 // 临时文件区
 static StringArray TmpFiles;
@@ -76,62 +77,12 @@ static FileType OptX;
 
 // 输出程序的使用说明
 static void usage(int Status) {
-    fprintf(stderr, "\33[1;98m" "usage: rvcc [ -o <path> ] <file> 🙂\n" "\33[3m");
-
-    fprintf(stderr, "\33[1;92m\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "--help     Display this information.\n");
-    fprintf(stderr, "-E         Expand only.\n");
-    fprintf(stderr, "-Wall      Enable all the warnings.\n");
-    fprintf(stderr, "-I         Add include path(high priority).\n");
-    fprintf(stderr, "-idirafter like -I but the priority is low.\n");
-    fprintf(stderr, "-c         Compile and assemble(.o).\n");
-    fprintf(stderr, "-S         compile only(.S).\n");
-    fprintf(stderr, "-s         Remove all symbol table and relocation information from the executable.\n");
-    fprintf(stderr, "-o         Place output in the specified file.\n");
-    fprintf(stderr, "-D         Define a macro.\n");
-    fprintf(stderr, "-U         Undefine a macro.\n");
-    fprintf(stderr, "-M         Output a rule suitable for make describing the dependencies.\n");
-    fprintf(stderr, "-MF        Specifies a file to write the dependencies to.\n");
-    fprintf(stderr, "-MP        Add a phony target for each dependency other than the main file.\n");
-    fprintf(stderr, "-MT        Change the target of the rule emitted by dependency generation.\n");
-    fprintf(stderr, "-MD        Equivalent to -M -MF file, except that -E is not implied.\n");
-    fprintf(stderr, "-MMD       Like -MD except mention only user header files, not system header files.\n");
-    fprintf(stderr, "-MQ        Same as -MT, but it quotes any characters which are special to Make.\n");
-    fprintf(stderr, "-fpic      Generate position-independent code suitable for use in a shared library.\n");
-    fprintf(stderr, "-fPIC      Generate position-independent code suitable for dynamic linking.\n");
-    fprintf(stderr, "-static    Use static linking to create binaries.\n");
-    fprintf(stderr, "-shared    Generate a shared object file for creating shared libraries.\n");
-    fprintf(stderr, "-v         Display the programs invoked by the compiler.(not supported yet...)\n");
-    fprintf(stderr, "-###       Like -v but options quoted and commands not executed.\n");
-    fprintf(stderr, "-l         Search the given library when linking.\n");
-    fprintf(stderr, "-x         Specify explicitly the language for the following input files.\n");
-    fprintf(stderr, "\33[0m");
-
-    exit(Status);
-}
-
-static void version() {
     char *str = format("\33[1;38m" "[ %s - %s] rvcc v1.14514 " "\33[0m \n", __DATE__, __TIME__);
-/*
-    char *hello = format(
-        "%s%s%s%s%s%s%s%s%s%s",
-        color_text("H", 31),
-        color_text("e", 32),
-        color_text("l", 33),
-        color_text("l", 34),
-        color_text("o ",35),
-        color_text("W", 36),
-        color_text("o", 37),
-        color_text("r", 90),
-        color_text("l", 91),
-        color_text("d", 92)
-    );
-    fprintf(stderr, "%s\n", hello);
-*/
-    fprintf(stderr, "%s", logo);
-    fprintf(stderr, "%s", str);
-    exit(0);
+
+    fprintf(stderr, ANSI_PINK2(usage_msg));
+    fprintf(stderr, ANSI_CYAN(logo));
+    fprintf(stderr, ANSI_YELLOW(str));
+    exit(Status);
 }
 
 // 增加默认引入路径
@@ -223,9 +174,6 @@ static void parseArgs(int Argc, char **Argv) {
         // 如果存在help，则直接显示用法说明
         if (!strcmp(Argv[I], "--help"))
             usage(0);
-
-        if (!strcmp(Argv[I], "--version"))
-            version();
 
         // 解析-o XXX的参数
         if (!strcmp(Argv[I], "-o")) {
@@ -427,6 +375,20 @@ static void parseArgs(int Argc, char **Argv) {
         // 解析-l
         if (!strncmp(Argv[I], "-l", 2)) {
             strArrayPush(&InputPaths, Argv[I]);
+            continue;
+        }
+
+        // 解析-L xxx
+        if (!strcmp(Argv[I], "-L")) {
+            strArrayPush(&LdExtraArgs, "-L");
+            strArrayPush(&LdExtraArgs, Argv[++I]);
+            continue;
+        }
+
+        // 解析-Lxxx
+        if (!strncmp(Argv[I], "-L", 2)) {
+            strArrayPush(&LdExtraArgs, "-L");
+            strArrayPush(&LdExtraArgs, Argv[I] + 2);
             continue;
         }
 

@@ -28,7 +28,7 @@ $(DST_DIR)/rvcc: $(OBJS) $(LOGO)
 	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo [LD] $@
 
-$(LOGO): logo.S
+$(LOGO): logo.S logo.txt usage.txt
 	@as $< -o $@
 
 $(STAGE2_LOGO): logo.S
