@@ -85,5 +85,13 @@ other Options:
 	Search the library named library when linking.
 
 -x
-	Specify explicitly the language for the following input files (rather than letting the compiler choose a default based on the file name suffix)
+	Specify explicitly the language for the following input files
+	(rather than letting the compiler choose a default based on the file name suffix)
 
+-Wl,option
+    Pass option as an option to the linker.  If option contains commas,
+    it is split into multiple options at the commas.  You can use this
+    syntax to pass an argument to the option.  For example,
+    -Wl,-Map,output.map passes -Map output.map to the linker.  When
+    using the GNU linker, you can also get the same effect with
+    -Wl,-Map=output.map.
