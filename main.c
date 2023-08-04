@@ -102,7 +102,8 @@ static void addDefaultIncludePaths(char *Argv0) {
 
 // 判断需要一个参数的选项，是否具有一个参数
 static bool takeArg(char *Arg) {
-    char *X[] = {"-o", "-I", "-idirafter", "-include", "-x", "-MF", "-MT"};
+    char *X[] = {"-o", "-I", "-idirafter", "-include",
+                "-x", "-MF", "-MT", "-Xlinker"};
 
     for (int I = 0; I < sizeof(X) / sizeof(*X); I++)
         if (!strcmp(Arg, X[I]))
@@ -396,6 +397,12 @@ static void parseArgs(int Argc, char **Argv) {
         // 将参数存入Idirafter
         if (!strcmp(Argv[I], "-idirafter")) {
             strArrayPush(&Idirafter, Argv[I++]);
+            continue;
+        }
+
+        // 解析-Xlinker
+        if (!strcmp(Argv[I], "-Xlinker")) {
+            strArrayPush(&LdExtraArgs, Argv[++I]);
             continue;
         }
 
