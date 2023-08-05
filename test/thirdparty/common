@@ -1,5 +1,5 @@
 make="make -j$(nproc)"
-rvcc=`pwd`/target/rvcc
+rvcc=`pwd`/rvcc
 
 dir=$(basename -s .git $repo)
 
