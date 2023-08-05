@@ -154,7 +154,8 @@
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
 // structUnionDecl = attribute? ident? ("{" structMembers "}")?
-// attribute = ("__attribute__" "(" "(" "packed" ")" ")")?
+// attribute = ("__attribute__" "(" "(" ("packed")
+//                                    | ("aligned" "(" N ")") ")" ")")*
 
 // structMembers = (declspec declarator (","  declarator)* ";")*
 
@@ -902,19 +903,40 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
     Ty->Mems = Head.Next;
 }
 
-// attribute = ("__attribute__" "(" "(" "packed" ")" ")")?
+// attribute = ("__attribute__" "(" "(" ("packed")
+//                                    | ("aligned" "(" N ")") ")" ")")*
 static Token *attribute(Token *Tok, Type *Ty) {
     // 解析__attribute__相关的属性
-    if (!equal(Tok, "__attribute__"))
-        return Tok;
+    while (consume(&Tok, Tok, "__attribute__")) {
+        Tok = skip(Tok, "(");
+        Tok = skip(Tok, "(");
 
-    Tok = Tok->Next;
-    Tok = skip(Tok, "(");
-    Tok = skip(Tok, "(");
-    Tok = skip(Tok, "packed");
-    Tok = skip(Tok, ")");
-    Tok = skip(Tok, ")");
-    Ty->IsPacked = true;
+        bool First = true;
+
+        while (!consume(&Tok, Tok, ")")) {
+            if (!First)
+                Tok = skip(Tok, ",");
+            First = false;
+
+            // "packed"
+            if (consume(&Tok, Tok, "packed")) {
+                Ty->IsPacked = true;
+                continue;
+            }
+
+            // "aligned" "(" N ")"
+            if (consume(&Tok, Tok, "aligned")) {
+                Tok = skip(Tok, "(");
+                Ty->Align = constExpr(&Tok, Tok);
+                Tok = skip(Tok, ")");
+                continue;
+            }
+
+            errorTok(Tok, "unknown attribute");
+        }
+
+        Tok = skip(Tok, ")");
+    }
     return Tok;
 }
 // structDecl = "{" structMembers "}"
