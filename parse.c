@@ -361,16 +361,34 @@ static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr) {
     Type *Ty = declarator(&Tok, Tok, BaseTy);
     if (!Ty->Name)
         errorTok(Ty->NamePos, "function name omitted");
+
+
     // functions are also global variables
-    Obj *Fn = newGVar(getIdent(Ty->Name), Ty);
-    Fn->IsStatic = Attr->IsStatic || (Attr->IsInline && !Attr->IsExtern);
-    Fn->IsInline = Attr->IsInline;
-    Fn->IsDefinition = consume(&Tok, Tok, ";");
+    // 函数名称
+    char *NameStr = getIdent(Ty->Name);
+
+    Obj *Fn = findFunc(NameStr);
+    if (Fn) {
+        // 重复定义的函数
+        if (Fn->Ty->Kind != TY_FUNC)
+            errorTok(Tok, "redeclared as a different kind of symbol");
+        if (Fn->IsDefinition && equal(Tok, "{"))
+            errorTok(Tok, "redefinition of %s", NameStr);
+        if (!Fn->IsStatic && Attr->IsStatic)
+            errorTok(Tok, "static declaration follows a non-static declaration");
+        Fn->IsDefinition = Fn->IsDefinition || equal(Tok, "{");
+    } else {
+        Fn = newGVar(NameStr, Ty);
+        Fn->Ty->Kind = TY_FUNC;
+        Fn->IsDefinition = equal(Tok, "{");
+        Fn->IsStatic = Attr->IsStatic || (Attr->IsInline && !Attr->IsExtern);
+        Fn->IsInline = Attr->IsInline;
+    }
+
     // 非static inline函数标记为根函数
     Fn->IsRoot = !(Fn->IsStatic && Fn->IsInline);
 
-    // no function body, just a defination
-    if(Fn->IsDefinition)
+    if(consume(&Tok, Tok, ";"))
         return Tok;
 
     // continous defination is also allowed, although this may be not very useful
