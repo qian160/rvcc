@@ -177,6 +177,7 @@ bool isTypename(Token *Tok)
             "const",      "volatile",     "auto",          "register", "restrict",
             "__restrict", "__restrict__", "_Noreturn",     "float",    "double",
             "typeof",     "inline",       "_Thread_local", "__thread",
+            "_Atomic",
         };
     
         // 遍历类型名列表插入哈希表

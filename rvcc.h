@@ -276,6 +276,7 @@ struct Type {
     int Size;           // 大小, sizeof返回的值
     int Align;          // 对齐
     bool IsUnsigned;    // 是否为无符号的
+    bool IsAtomic;      // 为 _Atomic 则为真
     Type *Base;         // 基类, 指向的类型(only in effect for pointer)
     Token *Name;        // 类型对应名称，如：变量名、函数名
     Type *Origin;       // 原始类型，用于兼容性检查
