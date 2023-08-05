@@ -153,7 +153,9 @@
 
 // structDecl = structUnionDecl
 // unionDecl = structUnionDecl
-// structUnionDecl = ident? ("{" structMembers "}")?
+// structUnionDecl = attribute? ident? ("{" structMembers "}")?
+// attribute = ("__attribute__" "(" "(" "packed" ")" ")")?
+
 // structMembers = (declspec declarator (","  declarator)* ";")*
 
 // compoundStmt = "{" ( typedef | stmt | declaration)* "}"
@@ -854,7 +856,7 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
 
         // 匿名的结构体成员
         if ((BaseTy->Kind == TY_STRUCT || BaseTy->Kind == TY_UNION) && 
-            consume(&Tok, Tok, ";")) {
+                consume(&Tok, Tok, ";")) {
             Member *Mem = calloc(1, sizeof(Member));
             Mem->Ty = BaseTy;
             Mem->Idx = Idx++;
@@ -878,7 +880,6 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
             Mem->Idx = Idx++;
             // 设置对齐值
             Mem->Align = Attr.Align ? Attr.Align : Mem->Ty->Align;
-            Cur = Cur->Next = Mem;
 
             // 位域成员赋值
             if (consume(&Tok, Tok, ":")) {
@@ -886,6 +887,7 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
                 Mem->BitWidth = constExpr(&Tok, Tok);
             }
 
+            Cur = Cur->Next = Mem;
         }
     }
 
@@ -896,11 +898,25 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
         Cur->Ty = arrayOf(Cur->Ty->Base, 0);
         Ty -> IsFlexible = true;
     }
-
-    *Rest = Tok;
+    *Rest = skip(Tok, "}");
     Ty->Mems = Head.Next;
 }
 
+// attribute = ("__attribute__" "(" "(" "packed" ")" ")")?
+static Token *attribute(Token *Tok, Type *Ty) {
+    // 解析__attribute__相关的属性
+    if (!equal(Tok, "__attribute__"))
+        return Tok;
+
+    Tok = Tok->Next;
+    Tok = skip(Tok, "(");
+    Tok = skip(Tok, "(");
+    Tok = skip(Tok, "packed");
+    Tok = skip(Tok, ")");
+    Tok = skip(Tok, ")");
+    Ty->IsPacked = true;
+    return Tok;
+}
 // structDecl = "{" structMembers "}"
 // specially, this function has 2 usages:
 //  1. declare a struct variable
@@ -908,8 +924,13 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
 //  2. use a struct tag to type a variable
 //      struct tag bar; bar.a = 1;
 
-// structUnionDecl = ident? ("{" structMembers "}")?
+// structUnionDecl = attribute? ident? ("{" structMembers "}")?
 static Type *structUnionDecl(Token **Rest, Token *Tok) {
+    // 构造结构体类型
+    Type *Ty = structType();
+    // 设置相关属性
+    Tok = attribute(Tok, Ty);
+
     // 读取标签
     Token *Tag = NULL;
     if (Tok->Kind == TK_IDENT) {
@@ -920,22 +941,19 @@ static Type *structUnionDecl(Token **Rest, Token *Tok) {
     // 构造不完整结构体
     if (Tag && !equal(Tok, "{")) {
         *Rest = Tok;
-        Type *Ty = findTag(Tag);
-        if (Ty)
-            return Ty;
-        Ty = structType();
+        Type *Ty2 = findTag(Tag);
+        if (Ty2)
+            return Ty2;
         Ty->Size = -1;
         pushTagScope(Tag, Ty);
-
         return Ty;
     }
 
+    Tok = skip(Tok, "{");
     // 构造一个结构体
-    Type *Ty = structType();
-    structMembers(Rest, Tok->Next, Ty);
-    Ty->Align = 1;
+    structMembers(&Tok, Tok, Ty);
+    *Rest = attribute(Tok, Ty);
 
-    *Rest = skip(*Rest, "}");
     // 如果是重复定义，就覆盖之前的定义。否则有名称就注册结构体类型
     if (Tag) {
         Type *Ty2 = hashmapGet(&Scp->Tags, tokenName(Tag));
@@ -979,13 +997,14 @@ static Type *structDecl(Token **Rest, Token *Tok) {
                 Bits += Mem->BitWidth;
         } else {
             // 常规结构体成员变量
-            Bits = alignTo(Bits, Mem->Align * 8);
+            if (!Ty->IsPacked)
+                Bits = alignTo(Bits, Mem->Align * 8);
             Mem->Offset = Bits / 8;
             Bits += Mem->Ty->Size * 8;
         }
 
         // 类型的对齐值，不小于当前成员变量的对齐值
-        if (Ty->Align < Mem->Align)
+        if (!Ty->IsPacked && Ty->Align < Mem->Align)
             Ty->Align = Mem->Align;
     }
 

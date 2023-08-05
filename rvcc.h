@@ -293,6 +293,7 @@ struct Type {
     Token *Tok;         // 用于报错信息
     Type *FSReg1Ty;     // 浮点结构体的对应寄存器
     Type *FSReg2Ty;     // 浮点结构体的对应寄存器
+    bool IsPacked;      // 是否是紧凑的（不进行对齐）
     // 可变长度数组
     Node *VLALen;       // VLA数组长度, 元素总个数
     Obj *VLASize;       // VLA大小, sizeof返回的值
