@@ -1003,6 +1003,14 @@ static void genAddr(Node *Nd) {
             println("  li t0, %d", Nd->Var->Offset);
             println("  add a0, t0, fp");
             return;
+        case ND_ASSIGN:
+        case ND_COND:
+            // 使结构体成员可以通过=或?:访问
+            if (Nd->Ty->Kind == TY_STRUCT || Nd->Ty->Kind == TY_UNION) {
+                genExpr(Nd);
+                return;
+            }
+            break;
         default:
             error("%s: not an lvalue", strndup(Nd->Tok->Loc, Nd->Tok->Len));
             break;
